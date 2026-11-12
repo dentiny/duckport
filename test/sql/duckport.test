@@ -1,23 +1,55 @@
 # name: test/sql/duckport.test
-# description: test duckport extension
+# description: Stream source records into DuckDB through open-arrow-access
 # group: [sql]
-
-# Before we load the extension, this will fail
-statement error
-SELECT duckport('Sam');
-----
-Catalog Error: Scalar Function with name duckport does not exist!
-
-# Require statement will ensure this test is run with this extension loaded
 require duckport
 
-# Confirm the extension works
-query I
-SELECT duckport('Sam');
+query IT rowsort
+SELECT id, name FROM duckport_scan('test/data/people.csv', batch_size := 2, options := '{"format":{"header":"true"}}');
 ----
-...........🦆 Sam
+1	Alice
+2	NULL
+3	Charlie
 
 query I
-SELECT duckport_openssl_version('Michael') ILIKE 'Duckport Michael, my linked OpenSSL version is OpenSSL%';
+SELECT count(*) FROM duckport_scan('test/data/people.csv');
 ----
-true
+3
+
+query IT
+SELECT id, name FROM duckport_scan('test/data/people.csv') WHERE id = 3;
+----
+3	Charlie
+
+query III
+SELECT id, nested.ok::INTEGER, len(tags) FROM duckport_scan('test/data/events.jsonl');
+----
+1	1	2
+2	0	0
+
+statement ok
+PREPARE source_scan AS SELECT count(*) FROM duckport_scan('test/data/people.csv');
+
+query I
+EXECUTE source_scan;
+----
+3
+
+query I
+EXECUTE source_scan;
+----
+3
+
+statement error
+SELECT * FROM duckport_scan('test/data/missing.csv');
+----
+duckport_scan
+
+statement error
+SELECT * FROM duckport_scan('test/data/people.csv', batch_size := 0);
+----
+batch_size
+
+statement error
+SELECT * FROM duckport_scan('test/data/people.csv', options := '{"unknown":true}');
+----
+unknown field

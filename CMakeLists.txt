@@ -1,37 +1,80 @@
-cmake_minimum_required(VERSION 3.5)
-
-# Set extension name here
+cmake_minimum_required(VERSION 3.20)
 set(TARGET_NAME duckport)
-
-# DuckDB's extension distribution supports vcpkg. As such, dependencies can be
-# added in ./vcpkg.json and then used in cmake with find_package. Feel free to
-# remove or replace with other dependencies. Note that it should also be removed
-# from vcpkg.json to prevent needlessly installing it..
-find_package(OpenSSL REQUIRED)
-
-set(EXTENSION_NAME ${TARGET_NAME}_extension)
-set(LOADABLE_EXTENSION_NAME ${TARGET_NAME}_loadable_extension)
-
 project(${TARGET_NAME})
-
-set(CMAKE_CXX_STANDARD
-    "17"
-    CACHE STRING "C++ standard to enforce")
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+find_program(CARGO_EXECUTABLE cargo REQUIRED)
+# Respect the target selected by the DuckDB build, rather than silently building for the host.
+set(DUCKPORT_RUST_TARGET "" CACHE STRING "Rust target triple (empty uses the host)")
+set(DUCKPORT_CARGO_PROFILE "release" CACHE STRING "Cargo build profile: release or dev")
+if(NOT DUCKPORT_RUST_TARGET AND Rust_CARGO_TARGET)
+  set(DUCKPORT_RUST_TARGET "${Rust_CARGO_TARGET}")
+endif()
+if(DUCKPORT_CARGO_PROFILE STREQUAL "dev")
+  set(RUST_PROFILE_DIR debug)
+elseif(DUCKPORT_CARGO_PROFILE STREQUAL "release")
+  set(RUST_PROFILE_DIR release)
+else()
+  message(FATAL_ERROR "DUCKPORT_CARGO_PROFILE must be release or dev")
+endif()
+if(CMAKE_CROSSCOMPILING AND NOT DUCKPORT_RUST_TARGET)
+  message(FATAL_ERROR "Cross builds require DUCKPORT_RUST_TARGET")
+endif()
+if(APPLE AND CMAKE_OSX_ARCHITECTURES MATCHES ";")
+  message(FATAL_ERROR "Build one macOS Rust target at a time; universal archives are not supported")
+endif()
+set(RUST_BUILD_ENV)
+if(APPLE AND CMAKE_OSX_DEPLOYMENT_TARGET)
+  list(APPEND RUST_BUILD_ENV "MACOSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+endif()
+set(RUST_TARGET_DIR "${CMAKE_CURRENT_BINARY_DIR}/rust-target")
+set(RUST_TARGET_ARGS)
+set(RUST_LIBRARY_DIR "${RUST_TARGET_DIR}")
+if(DUCKPORT_RUST_TARGET)
+  list(APPEND RUST_TARGET_ARGS --target "${DUCKPORT_RUST_TARGET}")
+  string(APPEND RUST_LIBRARY_DIR "/${DUCKPORT_RUST_TARGET}")
+endif()
+if(WIN32 AND NOT MINGW)
+  set(RUST_LIBRARY_NAME duckport_source.lib)
+else()
+  set(RUST_LIBRARY_NAME libduckport_source.a)
+endif()
+set(RUST_LIBRARY "${RUST_LIBRARY_DIR}/${RUST_PROFILE_DIR}/${RUST_LIBRARY_NAME}")
+file(GLOB_RECURSE RUST_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/rust/src/*.rs")
+add_custom_command(
+  OUTPUT "${RUST_LIBRARY}"
+  COMMAND "${CMAKE_COMMAND}" -E env ${RUST_BUILD_ENV} "${CARGO_EXECUTABLE}" build --locked --profile "${DUCKPORT_CARGO_PROFILE}"
+          --manifest-path "${CMAKE_CURRENT_SOURCE_DIR}/rust/Cargo.toml"
+          --target-dir "${RUST_TARGET_DIR}" ${RUST_TARGET_ARGS}
+  DEPENDS ${RUST_SOURCES} rust/Cargo.toml rust/Cargo.lock
+  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  COMMENT "Building open-arrow-access source bridge"
+  VERBATIM)
+add_custom_target(duckport_rust_build DEPENDS "${RUST_LIBRARY}")
+add_library(duckport_source_rust STATIC IMPORTED GLOBAL)
+set_target_properties(duckport_source_rust PROPERTIES IMPORTED_LOCATION "${RUST_LIBRARY}")
+add_dependencies(duckport_source_rust duckport_rust_build)
+
 include_directories(src/include)
-
 set(EXTENSION_SOURCES src/duckport_extension.cpp)
-
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
+find_package(Threads REQUIRED)
+foreach(EXTENSION_TARGET duckport_extension duckport_loadable_extension)
+  add_dependencies(${EXTENSION_TARGET} duckport_rust_build)
+  target_link_libraries(${EXTENSION_TARGET} "$<BUILD_INTERFACE:duckport_source_rust>"
+    "$<INSTALL_INTERFACE:$<INSTALL_PREFIX>/${INSTALL_LIB_DIR}/${RUST_LIBRARY_NAME}>" Threads::Threads ${CMAKE_DL_LIBS})
+  if(APPLE)
+    target_link_libraries(${EXTENSION_TARGET} "-framework Security" "-framework CoreFoundation" "-framework SystemConfiguration")
+  elseif(WIN32)
+    target_link_libraries(${EXTENSION_TARGET} ws2_32 userenv bcrypt ntdll secur32 crypt32)
+  elseif(UNIX)
+    target_link_libraries(${EXTENSION_TARGET} m)
+  endif()
+endforeach()
+install(TARGETS duckport_extension EXPORT "${DUCKDB_EXPORT_SET}"
+        LIBRARY DESTINATION "${INSTALL_LIB_DIR}" ARCHIVE DESTINATION "${INSTALL_LIB_DIR}")
 
-# Link OpenSSL in both the static library as the loadable extension
-target_link_libraries(${EXTENSION_NAME} OpenSSL::SSL OpenSSL::Crypto)
-target_link_libraries(${LOADABLE_EXTENSION_NAME} OpenSSL::SSL OpenSSL::Crypto)
 
-install(
-  TARGETS ${EXTENSION_NAME}
-  EXPORT "${DUCKDB_EXPORT_SET}"
-  LIBRARY DESTINATION "${INSTALL_LIB_DIR}"
-  ARCHIVE DESTINATION "${INSTALL_LIB_DIR}")
+install(FILES "${RUST_LIBRARY}" DESTINATION "${INSTALL_LIB_DIR}")
