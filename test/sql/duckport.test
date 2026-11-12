@@ -1,0 +1,23 @@
+# name: test/sql/duckport.test
+# description: test duckport extension
+# group: [sql]
+
+# Before we load the extension, this will fail
+statement error
+SELECT duckport('Sam');
+----
+Catalog Error: Scalar Function with name duckport does not exist!
+
+# Require statement will ensure this test is run with this extension loaded
+require duckport
+
+# Confirm the extension works
+query I
+SELECT duckport('Sam');
+----
+...........🦆 Sam
+
+query I
+SELECT duckport_openssl_version('Michael') ILIKE 'Duckport Michael, my linked OpenSSL version is OpenSSL%';
+----
+true
