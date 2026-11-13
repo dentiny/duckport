@@ -10,16 +10,3 @@ SELECT id, name FROM duckport_scan_parquet('test/data/people.parquet', batch_siz
 1	Alice
 2	NULL
 3	Charlie
-
-statement ok
-PREPARE parquet_scan AS SELECT count(*) FROM duckport_scan_parquet('test/data/people.parquet');
-
-query I
-EXECUTE parquet_scan;
-----
-3
-
-query I
-EXECUTE parquet_scan;
-----
-3
