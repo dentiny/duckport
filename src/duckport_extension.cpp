@@ -70,7 +70,6 @@ void LoadInternal(ExtensionLoader &loader) {
 		options.Add("storage_options", LogicalType::VARCHAR);
 		options.Add("batch_size", LogicalType::BIGINT);
 	});
-	function.parallelism = TableFunctionParallelism::SEQUENTIAL;
 	loader.RegisterFunction(function);
 }
 } // namespace
