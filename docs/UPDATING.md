@@ -23,6 +23,6 @@ To update open-arrow-access, change the pinned version in `rust/Cargo.toml`, reg
 
 ## Add a reader
 
-Add a C++ registration in `src/readers`, a Rust implementation in `rust/src/readers`, tests in `test/readers` and `test/sql/readers`, and a page in `docs/readers`. Use the existing filename conventions. CMake and Cargo discover the files automatically; generated registrations are build outputs.
+Add a C++ registration in `src/readers`, a Rust implementation in `rust/src/readers`, a SQL test in `test/sql/readers`, and a page in `docs/readers`. Use the existing filename conventions. CMake and Cargo discover the files automatically; generated registrations are build outputs.
 
 The pinned dependency set and lockfile are shared infrastructure. Reader PRs do not edit them.
