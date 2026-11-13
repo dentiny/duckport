@@ -1,12 +1,12 @@
 #pragma once
 
+#include "duckdb/common/unique_ptr.hpp"
 #include "duckdb/function/table/arrow.hpp"
 #include "duckport.h"
-#include <memory>
 
 namespace duckdb {
 
-using SourcePtr = std::unique_ptr<DuckportSource, decltype(&duckport_source_destroy)>;
+using SourcePtr = duckdb::unique_ptr<DuckportSource, decltype(&duckport_source_destroy)>;
 
 class SourceFactory final : public ArrowScanFactory {
 public:
