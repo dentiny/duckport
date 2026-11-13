@@ -1,33 +1,24 @@
 use crate::error::Result;
 use arrow_schema::SchemaRef;
-use open_arrow_access::{
-    Accessor, ReadOptions, ReadRequest, RecordReader, file_format::parquet::ParquetAccessor,
-    storage::OpenDalAccessor,
-};
-use std::{num::NonZeroUsize, sync::Mutex};
+use open_arrow_access::{Accessor, ReadRequest, RecordReader};
+use std::sync::Mutex;
 
 pub struct DuckportSource {
     schema: SchemaRef,
-    accessor: ParquetAccessor<OpenDalAccessor>,
+    accessor: Box<dyn Accessor<Request = ReadRequest, Reader = dyn RecordReader>>,
     request: ReadRequest,
     bound: Mutex<Option<Box<dyn RecordReader>>>,
 }
 impl DuckportSource {
     pub async fn new(
-        operator: open_arrow_access::storage::opendal::Operator,
-        path: String,
-        batch_size: NonZeroUsize,
+        accessor: impl Accessor<Request = ReadRequest, Reader = dyn RecordReader> + 'static,
+        request: ReadRequest,
     ) -> Result<Self> {
-        let accessor = ParquetAccessor::new(OpenDalAccessor::new(operator));
-        let request = ReadRequest::new(path).with_options(ReadOptions {
-            batch_size,
-            ..Default::default()
-        });
         let reader = accessor.open(request.clone()).await?;
         let schema = reader.metadata().schema.clone();
         Ok(Self {
             schema,
-            accessor,
+            accessor: Box::new(accessor),
             request,
             bound: Mutex::new(Some(reader)),
         })
