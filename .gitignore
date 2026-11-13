@@ -7,6 +7,3 @@ testext
 test/python/__pycache__/
 .Rhistory
 /rust/target/
-
-/test/__pycache__/
-/test/readers/__pycache__/
