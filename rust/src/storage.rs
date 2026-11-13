@@ -20,9 +20,7 @@ pub fn operator(
     let path = percent_encoding::percent_decode_str(url.path().trim_start_matches('/'))
         .decode_utf8()?
         .into_owned();
-    if config.contains_key("root") {
-        return Err("URI already determines storage root".into());
-    }
+    crate::validation::validate_uri_config(&config)?;
     url.set_path("/");
     let operator = if scheme == "http" || scheme == "https" {
         crate::validation::validate_http_config(&config)?;

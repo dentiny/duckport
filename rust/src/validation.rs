@@ -13,6 +13,13 @@ pub(crate) fn validate_uri(url: &Url) -> Result<()> {
     Ok(())
 }
 
+pub(crate) fn validate_uri_config(config: &HashMap<String, String>) -> Result<()> {
+    if config.contains_key("root") {
+        return Err("URI already determines storage root".into());
+    }
+    Ok(())
+}
+
 pub(crate) fn validate_http_config(config: &HashMap<String, String>) -> Result<()> {
     if config.contains_key("endpoint") {
         return Err("HTTP URI already determines endpoint".into());
