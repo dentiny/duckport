@@ -9,7 +9,7 @@ pub fn operator(
 ) -> Result<(opendal::Operator, String)> {
     opendal::install_default();
     if !locator.contains("://") || locator.starts_with("file://") {
-        return local_operator(locator, config);
+        return create_local_operator(locator, config);
     }
     create_remote_operator(locator, config)
 }
@@ -37,7 +37,7 @@ fn create_remote_operator(
     Ok((operator, path))
 }
 
-fn local_operator(
+fn create_local_operator(
     locator: &str,
     mut config: HashMap<String, String>,
 ) -> Result<(opendal::Operator, String)> {
