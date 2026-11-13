@@ -3,7 +3,7 @@ use open_arrow_access::storage::opendal;
 use std::{collections::HashMap, path::Path};
 use url::Url;
 
-pub fn operator(
+pub(super) fn operator(
     locator: &str,
     mut config: HashMap<String, String>,
 ) -> Result<(opendal::Operator, String)> {
