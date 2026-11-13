@@ -1,6 +1,10 @@
 use arrow_array::RecordBatch;
 use arrow_schema::ArrowError;
-use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::{
+    ffi::{CString, c_char},
+    panic::{AssertUnwindSafe, catch_unwind},
+    ptr,
+};
 
 pub(crate) type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -13,11 +17,6 @@ pub(crate) fn read_batch(
         Err(_) => Err(ArrowError::ComputeError("source reader panicked".into())),
     }
 }
-
-use std::{
-    ffi::{CString, c_char},
-    ptr,
-};
 
 pub(crate) fn call(operation: impl FnOnce() -> Result<()>) -> *mut c_char {
     match catch_unwind(AssertUnwindSafe(operation)) {
