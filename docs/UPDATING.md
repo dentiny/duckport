@@ -1,19 +1,28 @@
-# Extension updating 
-When cloning this template, the target version of DuckDB should be the latest stable release of DuckDB. However, there 
-will inevitably come a time when a new DuckDB is released and the extension repository needs updating. This process goes
-as follows:
+# Development
 
-- Bump submodules
-  - `./duckdb` should be set to latest tagged release
-  - `./extension-ci-tools` should be set to updated branch corresponding to latest DuckDB release. So if you're building for DuckDB `v1.1.0` there will be a branch in `extension-ci-tools` named `v1.1.0` to which you should check out. 
+## Build profiles
 
-# API changes
-DuckDB extensions built with this extension template are built against the internal C++ API of DuckDB. This API is not guaranteed to be stable.
-What this means for extension development is that when updating your extensions DuckDB target version using the above steps, you may run into the fact that your extension no longer builds properly.
+`make` uses Cargo's release profile. For faster Rust builds:
 
-Currently, DuckDB does not (yet) provide a specific change log for these API changes, but it is generally not too hard to figure out what has changed.
+```sh
+make EXT_FLAGS='-DDUCKPORT_CARGO_PROFILE=dev'
+```
 
-For figuring out how and why the C++ API changed, we recommend using the following resources:
-- DuckDB's [Release Notes](https://github.com/duckdb/duckdb/releases)
-- DuckDB's history of [Core extension patches](https://github.com/duckdb/duckdb/commits/main/.github/patches/extensions)
-- The git history of the relevant C++ Header file of the API that has changed
+Cross builds must set `DUCKPORT_RUST_TARGET` to the matching Rust triple. The build also accepts `Rust_CARGO_TARGET`. Build each macOS architecture separately.
+
+## Update dependencies
+
+1. Check out the target DuckDB release in `duckdb`.
+2. Select a compatible revision of `extension-ci-tools`, which supplies the local Makefile.
+3. Rebuild and run the [tests](../test/README.md).
+4. Commit the new submodule revisions.
+
+DuckPort uses DuckDB's internal C++ API. Review [DuckDB release notes](https://github.com/duckdb/duckdb/releases) and relevant header changes when upgrading.
+
+To update open-arrow-access, change the pinned version in `rust/Cargo.toml`, regenerate `rust/Cargo.lock`, and rerun the source tests.
+
+## Add a reader
+
+Add a C++ registration in `src/readers`, a Rust implementation in `rust/src/readers`, tests in `test/readers` and `test/sql/readers`, and a page in `docs/readers`. Use the existing filename conventions. CMake and Cargo discover the files automatically; generated registrations are build outputs.
+
+The pinned dependency set and lockfile are shared infrastructure. Reader PRs do not edit them.
