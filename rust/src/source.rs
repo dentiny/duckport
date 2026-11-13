@@ -1,4 +1,4 @@
-use crate::error::{Result, read_batch};
+use crate::error::Result;
 use arrow_array::{RecordBatch, RecordBatchReader};
 use arrow_schema::{ArrowError, SchemaRef};
 use open_arrow_access::{
@@ -7,6 +7,7 @@ use open_arrow_access::{
 };
 use std::{
     num::NonZeroUsize,
+    panic::{AssertUnwindSafe, catch_unwind},
     sync::{Arc, Mutex},
 };
 use tokio::runtime::Runtime;
@@ -87,7 +88,12 @@ impl Iterator for BatchReader {
         if self.done {
             return None;
         }
-        match read_batch(|| self.runtime.block_on(self.reader.as_mut().unwrap().next())) {
+        let batch = catch_unwind(AssertUnwindSafe(|| {
+            self.runtime.block_on(self.reader.as_mut().unwrap().next())
+        }))
+        .map_err(|_| ArrowError::ComputeError("source reader panicked".into()))
+        .and_then(|result| result.map_err(|error| ArrowError::ExternalError(Box::new(error))));
+        match batch {
             Ok(batch) => {
                 self.done = batch.is_none();
                 batch.map(Ok)
