@@ -1,16 +1,80 @@
 use crate::{
     error::{Result, call, cleanup},
-    source::DuckportSource,
+    source::DuckportSource as AsyncSource,
     storage,
 };
-use arrow_array::ffi_stream::FFI_ArrowArrayStream;
-use arrow_schema::ffi::FFI_ArrowSchema;
+use arrow_array::{RecordBatch, RecordBatchReader, ffi_stream::FFI_ArrowArrayStream};
+use arrow_schema::{ArrowError, SchemaRef, ffi::FFI_ArrowSchema};
+use open_arrow_access::{
+    ReadOptions, ReadRequest, RecordReader, file_format::parquet::ParquetAccessor,
+    storage::OpenDalAccessor,
+};
 use std::{
     collections::HashMap,
     ffi::{CStr, c_char},
     num::NonZeroUsize,
+    panic::{AssertUnwindSafe, catch_unwind},
     ptr,
+    sync::Arc,
 };
+use tokio::runtime::Runtime;
+
+pub struct DuckportSource {
+    source: Option<AsyncSource>,
+    runtime: Arc<Runtime>,
+}
+
+impl Drop for DuckportSource {
+    fn drop(&mut self) {
+        let _guard = self.runtime.enter();
+        self.source.take();
+    }
+}
+
+struct BatchReader {
+    reader: Option<Box<dyn RecordReader>>,
+    runtime: Arc<Runtime>,
+    schema: SchemaRef,
+    done: bool,
+}
+
+impl Iterator for BatchReader {
+    type Item = std::result::Result<RecordBatch, ArrowError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.done {
+            return None;
+        }
+        let batch = catch_unwind(AssertUnwindSafe(|| {
+            self.runtime.block_on(self.reader.as_mut().unwrap().next())
+        }))
+        .map_err(|_| ArrowError::ComputeError("source reader panicked".into()))
+        .and_then(|result| result.map_err(|error| ArrowError::ExternalError(Box::new(error))));
+        match batch {
+            Ok(batch) => {
+                self.done = batch.is_none();
+                batch.map(Ok)
+            }
+            Err(error) => {
+                self.done = true;
+                Some(Err(error))
+            }
+        }
+    }
+}
+
+impl RecordBatchReader for BatchReader {
+    fn schema(&self) -> SchemaRef {
+        self.schema.clone()
+    }
+}
+
+impl Drop for BatchReader {
+    fn drop(&mut self) {
+        let _guard = self.runtime.enter();
+        self.reader.take();
+    }
+}
 
 unsafe fn string(value: *const c_char) -> Result<String> {
     if value.is_null() {
@@ -39,8 +103,21 @@ pub unsafe extern "C" fn duckport_parquet_open(
             .filter(|s| s.get() <= 1048576)
             .ok_or("batch_size must be between 1 and 1048576")?;
         let (operator, path) = storage::operator(&path, config)?;
-        let source = DuckportSource::new(operator, path, batch_size)?;
-        *output = Box::into_raw(Box::new(source));
+        let runtime = Arc::new(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()?,
+        );
+        let accessor = ParquetAccessor::new(OpenDalAccessor::new(operator));
+        let request = ReadRequest::new(path).with_options(ReadOptions {
+            batch_size,
+            ..Default::default()
+        });
+        let source = runtime.block_on(AsyncSource::new(accessor, request))?;
+        *output = Box::into_raw(Box::new(DuckportSource {
+            source: Some(source),
+            runtime,
+        }));
         Ok(())
     })
 }
@@ -58,7 +135,7 @@ pub unsafe extern "C" fn duckport_source_get_schema(
         }
         ptr::write(
             output,
-            FFI_ArrowSchema::try_from((*source).schema().as_ref())?,
+            FFI_ArrowSchema::try_from((*source).source.as_ref().unwrap().schema().as_ref())?,
         );
         Ok(())
     })
@@ -74,10 +151,15 @@ pub unsafe extern "C" fn duckport_source_get_stream(
         if source.is_null() || output.is_null() {
             return Err("null stream argument".into());
         }
-        ptr::write(
-            output,
-            FFI_ArrowArrayStream::new(Box::new((*source).reader()?)),
-        );
+        let handle = &*source;
+        let source = handle.source.as_ref().unwrap();
+        let reader = BatchReader {
+            reader: Some(handle.runtime.block_on(source.reader())?),
+            runtime: handle.runtime.clone(),
+            schema: source.schema(),
+            done: false,
+        };
+        ptr::write(output, FFI_ArrowArrayStream::new(Box::new(reader)));
         Ok(())
     })
 }
