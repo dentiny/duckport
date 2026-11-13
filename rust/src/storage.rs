@@ -14,9 +14,7 @@ pub fn operator(
     let mut url = Url::parse(locator)?;
     crate::validation::validate_uri(&url)?;
     let scheme = url.scheme().to_owned();
-    if !matches!(scheme.as_str(), "http" | "https" | "s3") {
-        return Err(format!("unsupported storage scheme: {scheme}").into());
-    }
+    crate::validation::validate_storage_scheme(&scheme)?;
     let path = percent_encoding::percent_decode_str(url.path().trim_start_matches('/'))
         .decode_utf8()?
         .into_owned();

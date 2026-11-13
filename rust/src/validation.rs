@@ -13,6 +13,13 @@ pub(crate) fn validate_uri(url: &Url) -> Result<()> {
     Ok(())
 }
 
+pub(crate) fn validate_storage_scheme(scheme: &str) -> Result<()> {
+    if !matches!(scheme, "http" | "https" | "s3") {
+        return Err(format!("unsupported storage scheme: {scheme}").into());
+    }
+    Ok(())
+}
+
 pub(crate) fn validate_uri_config(config: &HashMap<String, String>) -> Result<()> {
     if config.contains_key("root") {
         return Err("URI already determines storage root".into());
