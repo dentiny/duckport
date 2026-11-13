@@ -15,25 +15,30 @@ use std::{
     num::NonZeroUsize,
     panic::{AssertUnwindSafe, catch_unwind},
     ptr,
-    sync::Arc,
+    sync::LazyLock,
 };
 use tokio::runtime::Runtime;
 
+static RUNTIME: LazyLock<Runtime> = LazyLock::new(|| {
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("failed to create source runtime")
+});
+
 pub struct DuckportSource {
     source: Option<AsyncSource>,
-    runtime: Arc<Runtime>,
 }
 
 impl Drop for DuckportSource {
     fn drop(&mut self) {
-        let _guard = self.runtime.enter();
+        let _guard = RUNTIME.enter();
         self.source.take();
     }
 }
 
 struct BatchReader {
     reader: Option<Box<dyn RecordReader>>,
-    runtime: Arc<Runtime>,
     schema: SchemaRef,
     done: bool,
 }
@@ -46,7 +51,7 @@ impl Iterator for BatchReader {
             return None;
         }
         let batch = catch_unwind(AssertUnwindSafe(|| {
-            self.runtime.block_on(self.reader.as_mut().unwrap().next())
+            RUNTIME.block_on(self.reader.as_mut().unwrap().next())
         }))
         .map_err(|_| ArrowError::ComputeError("source reader panicked".into()))
         .and_then(|result| result.map_err(|error| ArrowError::ExternalError(Box::new(error))));
@@ -71,7 +76,7 @@ impl RecordBatchReader for BatchReader {
 
 impl Drop for BatchReader {
     fn drop(&mut self) {
-        let _guard = self.runtime.enter();
+        let _guard = RUNTIME.enter();
         self.reader.take();
     }
 }
@@ -103,20 +108,14 @@ pub unsafe extern "C" fn duckport_parquet_open(
             .filter(|s| s.get() <= 1048576)
             .ok_or("batch_size must be between 1 and 1048576")?;
         let (operator, path) = storage::operator(&path, config)?;
-        let runtime = Arc::new(
-            tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()?,
-        );
         let accessor = ParquetAccessor::new(OpenDalAccessor::new(operator));
         let request = ReadRequest::new(path).with_options(ReadOptions {
             batch_size,
             ..Default::default()
         });
-        let source = runtime.block_on(AsyncSource::new(accessor, request))?;
+        let source = RUNTIME.block_on(AsyncSource::new(accessor, request))?;
         *output = Box::into_raw(Box::new(DuckportSource {
             source: Some(source),
-            runtime,
         }));
         Ok(())
     })
@@ -154,8 +153,7 @@ pub unsafe extern "C" fn duckport_source_get_stream(
         let handle = &*source;
         let source = handle.source.as_ref().unwrap();
         let reader = BatchReader {
-            reader: Some(handle.runtime.block_on(source.reader())?),
-            runtime: handle.runtime.clone(),
+            reader: Some(RUNTIME.block_on(source.reader())?),
             schema: source.schema(),
             done: false,
         };
