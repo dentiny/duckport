@@ -1,0 +1,9 @@
+# name: test/sql/readers/fs.test
+# description: duckport_read_fs is registered independently
+# group: [sql]
+require duckport
+
+query I
+SELECT count(*) FROM duckdb_functions() WHERE function_name = 'duckport_read_fs';
+----
+1
