@@ -1,4 +1,4 @@
-use crate::Result;
+use crate::error::Result;
 use open_arrow_access::storage::opendal;
 use std::{collections::HashMap, path::Path};
 use url::Url;
