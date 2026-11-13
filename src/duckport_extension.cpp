@@ -27,7 +27,8 @@ unique_ptr<FunctionData> BindParquet(ClientContext &context, TableFunctionBindIn
 	CheckAccess(context);
 	auto path = ReadString(input.inputs[0]);
 	string storage = "{}";
-	idx_t batch_size = 8192;
+	constexpr idx_t DEFAULT_BATCH_SIZE = 8192;
+	idx_t batch_size = DEFAULT_BATCH_SIZE;
 	auto option = input.named_parameters.find("storage_options");
 	if (option != input.named_parameters.end()) {
 		storage = ReadString(option->second);
