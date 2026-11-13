@@ -11,10 +11,10 @@ pub fn operator(
     if !locator.contains("://") || locator.starts_with("file://") {
         return local_operator(locator, config);
     }
-    remote_operator(locator, config)
+    create_remote_operator(locator, config)
 }
 
-fn remote_operator(
+fn create_remote_operator(
     locator: &str,
     mut config: HashMap<String, String>,
 ) -> Result<(opendal::Operator, String)> {
