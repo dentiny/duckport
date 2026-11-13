@@ -28,11 +28,7 @@ impl DuckportSource {
     }
 
     pub async fn reader(&self) -> Result<Box<dyn RecordReader>> {
-        let bound = self
-            .bound
-            .lock()
-            .map_err(|_| "source lock poisoned")?
-            .take();
+        let bound = self.bound.lock().unwrap().take();
         let reader = match bound {
             Some(reader) => reader,
             None => self.accessor.open(self.request.clone()).await?,
