@@ -1,51 +1,81 @@
 #define DUCKDB_EXTENSION_MAIN
-
+#include "duckdb/function/table/arrow.hpp"
+#include "duckdb/main/settings.hpp"
 #include "duckport_extension.hpp"
-#include "duckdb.hpp"
-#include "duckdb/common/exception.hpp"
-#include "duckdb/function/scalar_function.hpp"
-#include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
-
-// OpenSSL linked through vcpkg
-#include <openssl/opensslv.h>
+#include "error.hpp"
+#include "source/source_factory.hpp"
 
 namespace duckdb {
-
-inline void DuckportScalarFun(DataChunk &args, ExpressionState &state, Vector &result) {
-	auto &name_vector = args.data[0];
-	UnaryExecutor::Execute<string_t, string_t>(name_vector, result, args.size(), [&](string_t name) {
-		return StringVector::AddString(result, "...........🦆 " + name.GetString());
+namespace {
+void CheckAccess(ClientContext &context) {
+	if (!Settings::Get<EnableExternalAccessSetting>(context)) {
+		throw PermissionException("DuckPort requires enable_external_access");
+	}
+}
+string ReadString(const Value &value) {
+	if (value.IsNull()) {
+		throw BinderException("DuckPort arguments cannot be NULL");
+	}
+	auto text = StringValue::Get(value);
+	if (text.find('\0') != string::npos) {
+		throw BinderException("DuckPort arguments cannot contain NUL bytes");
+	}
+	return text;
+}
+unique_ptr<FunctionData> BindParquet(ClientContext &context, TableFunctionBindInput &input, vector<LogicalType> &types,
+                                     vector<Identifier> &names) {
+	CheckAccess(context);
+	auto path = ReadString(input.inputs[0]);
+	string storage = "{}";
+	constexpr idx_t DEFAULT_BATCH_SIZE = 8192;
+	idx_t batch_size = DEFAULT_BATCH_SIZE;
+	auto option = input.named_parameters.find("storage_options");
+	if (option != input.named_parameters.end()) {
+		storage = ReadString(option->second);
+	}
+	option = input.named_parameters.find("batch_size");
+	if (option != input.named_parameters.end()) {
+		if (option->second.IsNull()) {
+			throw BinderException("batch_size cannot be NULL");
+		}
+		auto size = BigIntValue::Get(option->second);
+		batch_size = idx_t(size);
+	}
+	DuckportSource *raw = nullptr;
+	CheckError(duckport_parquet_open(path.c_str(), storage.c_str(), batch_size, &raw));
+	auto factory = make_shared_ptr<SourceFactory>(SourcePtr(raw, duckport_source_destroy));
+	auto result = make_uniq<ArrowScanFunctionData>(std::move(factory));
+	result->factory->GetSchema(result->schema_root.arrow_schema);
+	ArrowTableFunction::PopulateArrowTableSchema(context, result->arrow_table, result->schema_root.arrow_schema);
+	names = StringsToIdentifiers(result->arrow_table.GetNames());
+	types = result->arrow_table.GetTypes();
+	if (types.empty()) {
+		throw BinderException("Parquet source must have at least one column");
+	}
+	result->all_types = types;
+	result->projection_pushdown_enabled = false;
+	return std::move(result);
+}
+unique_ptr<GlobalTableFunctionState> InitSource(ClientContext &context, TableFunctionInitInput &input) {
+	CheckAccess(context);
+	return ArrowTableFunction::ArrowScanInitGlobal(context, input);
+}
+void LoadInternal(ExtensionLoader &loader) {
+	TableFunction function("duckport_scan_parquet", {LogicalType::VARCHAR}, ArrowTableFunction::ArrowScanFunction,
+	                       BindParquet, InitSource, ArrowTableFunction::ArrowScanInitLocal);
+	function.GetSignature().WithTypedKwargs("options", [](TypedKwargs &options) {
+		options.Add("storage_options", LogicalType::VARCHAR);
+		options.Add("batch_size", LogicalType::BIGINT);
 	});
+	loader.RegisterFunction(function);
 }
-
-inline void DuckportOpenSSLVersionScalarFun(DataChunk &args, ExpressionState &state, Vector &result) {
-	auto &name_vector = args.data[0];
-	UnaryExecutor::Execute<string_t, string_t>(name_vector, result, args.size(), [&](string_t name) {
-		return StringVector::AddString(result, "Duckport " + name.GetString() + ", my linked OpenSSL version is " +
-		                                           OPENSSL_VERSION_TEXT);
-	});
-}
-
-static void LoadInternal(ExtensionLoader &loader) {
-	// Register a scalar function
-	auto duckport_scalar_function =
-	    ScalarFunction("duckport", {LogicalType::VARCHAR}, LogicalType::VARCHAR, DuckportScalarFun);
-
-	loader.RegisterFunction(duckport_scalar_function);
-
-	// Register another scalar function
-	auto duckport_openssl_version_scalar_function = ScalarFunction("duckport_openssl_version", {LogicalType::VARCHAR},
-	                                                             LogicalType::VARCHAR, DuckportOpenSSLVersionScalarFun);
-	loader.RegisterFunction(duckport_openssl_version_scalar_function);
-}
-
+} // namespace
 void DuckportExtension::Load(ExtensionLoader &loader) {
 	LoadInternal(loader);
 }
 std::string DuckportExtension::Name() {
 	return "duckport";
 }
-
 std::string DuckportExtension::Version() const {
 #ifdef EXT_VERSION_DUCKPORT
 	return EXT_VERSION_DUCKPORT;
@@ -53,11 +83,8 @@ std::string DuckportExtension::Version() const {
 	return "";
 #endif
 }
-
 } // namespace duckdb
-
 extern "C" {
-
 DUCKDB_CPP_EXTENSION_ENTRY(duckport, loader) {
 	duckdb::LoadInternal(loader);
 }
