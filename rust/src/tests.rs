@@ -1,4 +1,3 @@
-
 use crate::{
     error::duckport_source_error_free,
     ffi::{duckport_parquet_open, duckport_source_get_stream},

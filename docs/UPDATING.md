@@ -24,3 +24,5 @@ To update open-arrow-access, change the pinned version in `rust/Cargo.toml`, reg
 ## Reader bridge
 
 C++ binds SQL parameters and uses DuckDB's Arrow scanner. Rust owns the schema, reader factory, and runtime. The FFI exposes `open`, `get_schema`, `get_stream`, and `destroy`; registrations and source lists are explicit.
+
+`rust/src/lib.rs` declares modules only. Reader state lives in `source.rs`, C exports in `ffi.rs`, error/panic conversion in `error.rs`, and tests in `tests.rs`.
