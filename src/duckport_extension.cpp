@@ -64,7 +64,7 @@ unique_ptr<GlobalTableFunctionState> InitSource(ClientContext &context, TableFun
 	return ArrowTableFunction::ArrowScanInitGlobal(context, input);
 }
 void LoadInternal(ExtensionLoader &loader) {
-	TableFunction function("duckport_read_parquet", {LogicalType::VARCHAR}, ArrowTableFunction::ArrowScanFunction,
+	TableFunction function("duckport_scan_parquet", {LogicalType::VARCHAR}, ArrowTableFunction::ArrowScanFunction,
 	                       BindParquet, InitSource, ArrowTableFunction::ArrowScanInitLocal);
 	function.GetSignature().WithTypedKwargs("options", [](TypedKwargs &options) {
 		options.Add("storage_options", LogicalType::VARCHAR);
