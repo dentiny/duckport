@@ -1,9 +1,9 @@
 #define DUCKDB_EXTENSION_MAIN
+#include "duckdb/function/table/arrow.hpp"
+#include "duckdb/main/settings.hpp"
 #include "duckport_extension.hpp"
 #include "error.hpp"
 #include "source/source_factory.hpp"
-#include "duckdb/function/table/arrow.hpp"
-#include "duckdb/main/settings.hpp"
 
 namespace duckdb {
 namespace {

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "duckport.h"
 #include "duckdb/function/table/arrow.hpp"
+#include "duckport.h"
 #include <memory>
 
 namespace duckdb {

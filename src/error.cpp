@@ -1,6 +1,6 @@
-#include "error.hpp"
-#include "duckport.h"
 #include "duckdb/common/exception.hpp"
+#include "duckport.h"
+#include "error.hpp"
 #include <memory>
 
 namespace duckdb {

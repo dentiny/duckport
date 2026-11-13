@@ -1,5 +1,5 @@
-#include "source/source_factory.hpp"
 #include "error.hpp"
+#include "source/source_factory.hpp"
 
 namespace duckdb {
 
