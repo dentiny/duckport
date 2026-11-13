@@ -5,12 +5,19 @@ use url::Url;
 
 pub fn operator(
     locator: &str,
-    mut config: HashMap<String, String>,
+    config: HashMap<String, String>,
 ) -> Result<(opendal::Operator, String)> {
     opendal::install_default();
     if !locator.contains("://") || locator.starts_with("file://") {
         return local_operator(locator, config);
     }
+    remote_operator(locator, config)
+}
+
+fn remote_operator(
+    locator: &str,
+    mut config: HashMap<String, String>,
+) -> Result<(opendal::Operator, String)> {
     let mut url = Url::parse(locator)?;
     crate::validation::validate_uri(&url)?;
     let scheme = url.scheme().to_owned();
