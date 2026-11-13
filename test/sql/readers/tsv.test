@@ -1,9 +1,10 @@
 # name: test/sql/readers/tsv.test
-# description: duckport_read_tsv is registered independently
+# description: duckport_scan_tsv is registered independently
 # group: [sql]
+
 require duckport
 
 query I
-SELECT count(*) FROM duckdb_functions() WHERE function_name = 'duckport_read_tsv';
+SELECT count(*) FROM duckdb_functions() WHERE function_name = 'duckport_scan_tsv';
 ----
 1
