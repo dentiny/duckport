@@ -39,9 +39,6 @@ unique_ptr<FunctionData> BindParquet(ClientContext &context, TableFunctionBindIn
 			throw BinderException("batch_size cannot be NULL");
 		}
 		auto size = BigIntValue::Get(option->second);
-		if (size < 1 || size > 1048576) {
-			throw BinderException("batch_size must be between 1 and 1048576");
-		}
 		batch_size = idx_t(size);
 	}
 	DuckportSource *raw = nullptr;
