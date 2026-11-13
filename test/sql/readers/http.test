@@ -1,0 +1,9 @@
+# name: test/sql/readers/http.test
+# description: duckport_read_http is registered independently
+# group: [sql]
+require duckport
+
+query I
+SELECT count(*) FROM duckdb_functions() WHERE function_name = 'duckport_read_http';
+----
+1
