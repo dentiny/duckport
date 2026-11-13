@@ -1,41 +1,17 @@
 #define DUCKDB_EXTENSION_MAIN
-#include "duckport_extension.hpp"
-#include "duckport.h"
 #include "duckdb/function/table/arrow.hpp"
 #include "duckdb/main/settings.hpp"
-#include <memory>
+#include "duckport_extension.hpp"
+#include "error.hpp"
+#include "source/source_factory.hpp"
 
 namespace duckdb {
 namespace {
-using SourcePtr = std::unique_ptr<DuckportSource, decltype(&duckport_source_destroy)>;
-
-void CheckError(char *error) {
-	std::unique_ptr<char, decltype(&duckport_source_error_free)> owned(error, duckport_source_error_free);
-	if (owned) {
-		throw IOException("DuckPort: %s", owned.get());
-	}
-}
 void CheckAccess(ClientContext &context) {
 	if (!Settings::Get<EnableExternalAccessSetting>(context)) {
 		throw PermissionException("DuckPort requires enable_external_access");
 	}
 }
-class SourceFactory final : public ArrowScanFactory {
-public:
-	explicit SourceFactory(SourcePtr source_p) : source(std::move(source_p)) {
-	}
-	void GetSchema(ArrowSchema &schema) override {
-		CheckError(duckport_source_get_schema(source.get(), &schema));
-	}
-	unique_ptr<ArrowArrayStreamWrapper> ProduceStream(ArrowStreamParameters &) override {
-		auto stream = make_uniq<ArrowArrayStreamWrapper>();
-		CheckError(duckport_source_get_stream(source.get(), &stream->arrow_array_stream));
-		return stream;
-	}
-
-private:
-	SourcePtr source;
-};
 string ReadString(const Value &value) {
 	if (value.IsNull()) {
 		throw BinderException("DuckPort arguments cannot be NULL");
@@ -51,7 +27,8 @@ unique_ptr<FunctionData> BindParquet(ClientContext &context, TableFunctionBindIn
 	CheckAccess(context);
 	auto path = ReadString(input.inputs[0]);
 	string storage = "{}";
-	idx_t batch_size = 8192;
+	constexpr idx_t DEFAULT_BATCH_SIZE = 8192;
+	idx_t batch_size = DEFAULT_BATCH_SIZE;
 	auto option = input.named_parameters.find("storage_options");
 	if (option != input.named_parameters.end()) {
 		storage = ReadString(option->second);
@@ -62,9 +39,6 @@ unique_ptr<FunctionData> BindParquet(ClientContext &context, TableFunctionBindIn
 			throw BinderException("batch_size cannot be NULL");
 		}
 		auto size = BigIntValue::Get(option->second);
-		if (size < 1 || size > 1048576) {
-			throw BinderException("batch_size must be between 1 and 1048576");
-		}
 		batch_size = idx_t(size);
 	}
 	DuckportSource *raw = nullptr;
@@ -86,18 +60,13 @@ unique_ptr<GlobalTableFunctionState> InitSource(ClientContext &context, TableFun
 	CheckAccess(context);
 	return ArrowTableFunction::ArrowScanInitGlobal(context, input);
 }
-struct ArrowScan : ArrowTableFunction {
-	using ArrowTableFunction::ArrowGetPartitionData;
-};
 void LoadInternal(ExtensionLoader &loader) {
-	TableFunction function("duckport_read_parquet", {LogicalType::VARCHAR}, ArrowTableFunction::ArrowScanFunction,
+	TableFunction function("duckport_scan_parquet", {LogicalType::VARCHAR}, ArrowTableFunction::ArrowScanFunction,
 	                       BindParquet, InitSource, ArrowTableFunction::ArrowScanInitLocal);
 	function.GetSignature().WithTypedKwargs("options", [](TypedKwargs &options) {
 		options.Add("storage_options", LogicalType::VARCHAR);
 		options.Add("batch_size", LogicalType::BIGINT);
 	});
-	function.get_partition_data = ArrowScan::ArrowGetPartitionData;
-	function.parallelism = TableFunctionParallelism::SEQUENTIAL;
 	loader.RegisterFunction(function);
 }
 } // namespace

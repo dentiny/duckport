@@ -1,9 +1,10 @@
 use crate::{
     error::duckport_source_error_free,
-    ffi::{duckport_parquet_open, duckport_source_get_stream},
-    source::DuckportSource,
+    ffi::{DuckportSource, duckport_parquet_open, duckport_source_get_stream},
 };
-use std::{ffi::CString, ptr};
+use arrow_array::ffi_stream::{ArrowArrayStreamReader, FFI_ArrowArrayStream};
+use std::{ffi::CString, mem::MaybeUninit, ptr};
+
 fn fixture() -> Box<DuckportSource> {
     let path = CString::new(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -18,13 +19,19 @@ fn fixture() -> Box<DuckportSource> {
     assert!(error.is_null());
     unsafe { Box::from_raw(source) }
 }
+
+fn stream(source: &DuckportSource) -> ArrowArrayStreamReader {
+    let mut output = MaybeUninit::<FFI_ArrowArrayStream>::uninit();
+    let error = unsafe { duckport_source_get_stream(source, output.as_mut_ptr()) };
+    assert!(error.is_null());
+    ArrowArrayStreamReader::try_new(unsafe { output.assume_init() }).unwrap()
+}
+
 #[test]
 fn batches_and_rescans_preserve_rows_and_nulls() {
     let source = fixture();
     for _ in 0..2 {
-        let batches = source
-            .reader()
-            .unwrap()
+        let batches = stream(&source)
             .collect::<std::result::Result<Vec<_>, _>>()
             .unwrap();
         assert_eq!(batches.len(), 2);
@@ -32,14 +39,26 @@ fn batches_and_rescans_preserve_rows_and_nulls() {
         assert_eq!(batches[0].column(1).null_count(), 1);
     }
 }
+
 #[test]
 fn reader_outlives_factory_and_can_stop_early() {
     let source = fixture();
-    let mut reader = source.reader().unwrap();
+    let mut reader = stream(&source);
     drop(source);
     assert_eq!(reader.next().unwrap().unwrap().num_rows(), 2);
     drop(reader);
 }
+
+#[test]
+fn concurrent_scans_share_runtime() {
+    let workers: Vec<_> = (0..4)
+        .map(|_| std::thread::spawn(batches_and_rescans_preserve_rows_and_nulls))
+        .collect();
+    for worker in workers {
+        worker.join().unwrap();
+    }
+}
+
 #[test]
 fn ffi_failures_return_owned_errors() {
     let missing = CString::new("missing.parquet").unwrap();

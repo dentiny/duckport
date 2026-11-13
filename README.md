@@ -18,9 +18,9 @@ The built shell includes DuckPort. A separate shell must match the build's DuckD
 ## Read
 
 ```sql
-SELECT * FROM duckport_read_parquet('people.parquet', batch_size := 4096);
-SELECT * FROM duckport_read_parquet('https://example.com/people.parquet');
-SELECT * FROM duckport_read_parquet('s3://bucket/people.parquet',
+SELECT * FROM duckport_scan_parquet('people.parquet', batch_size := 4096);
+SELECT * FROM duckport_scan_parquet('https://example.com/people.parquet');
+SELECT * FROM duckport_scan_parquet('s3://bucket/people.parquet',
     storage_options := '{"region":"us-east-1"}');
 ```
 
@@ -31,7 +31,7 @@ Parquet page codecs: Snappy, Zstd, LZ4, gzip, Brotli. Archive members, directory
 ## Write
 
 ```sql
-COPY (SELECT * FROM duckport_read_parquet('people.parquet'))
+COPY (SELECT * FROM duckport_scan_parquet('people.parquet'))
 TO 'output.parquet' (FORMAT PARQUET);
 ```
 

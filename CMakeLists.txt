@@ -57,7 +57,7 @@ set_target_properties(duckport_source_rust PROPERTIES IMPORTED_LOCATION "${RUST_
 add_dependencies(duckport_source_rust duckport_rust_build)
 
 include_directories(src/include rust/include)
-set(EXTENSION_SOURCES src/duckport_extension.cpp)
+set(EXTENSION_SOURCES src/duckport_extension.cpp src/error.cpp src/source/source_factory.cpp)
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
 find_package(Threads REQUIRED)
