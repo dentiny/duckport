@@ -1,37 +1,18 @@
+mod fixture;
+
 use crate::{
     error::duckport_source_error_free,
-    ffi::{DuckportSource, duckport_parquet_open, duckport_source_get_stream},
+    ffi::{duckport_parquet_open, duckport_source_get_stream},
 };
-use arrow_array::ffi_stream::{ArrowArrayStreamReader, FFI_ArrowArrayStream};
-use std::{ffi::CString, mem::MaybeUninit, ptr};
-
-fn fixture() -> Box<DuckportSource> {
-    let path = CString::new(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../test/data/people.parquet")
-            .to_str()
-            .unwrap(),
-    )
-    .unwrap();
-    let config = CString::new("{}").unwrap();
-    let mut source = ptr::null_mut();
-    let error = unsafe { duckport_parquet_open(path.as_ptr(), config.as_ptr(), 2, &mut source) };
-    assert!(error.is_null());
-    unsafe { Box::from_raw(source) }
-}
-
-fn stream(source: &DuckportSource) -> ArrowArrayStreamReader {
-    let mut output = MaybeUninit::<FFI_ArrowArrayStream>::uninit();
-    let error = unsafe { duckport_source_get_stream(source, output.as_mut_ptr()) };
-    assert!(error.is_null());
-    ArrowArrayStreamReader::try_new(unsafe { output.assume_init() }).unwrap()
-}
+use fixture::Fixture;
+use std::{ffi::CString, ptr};
 
 #[test]
 fn batches_and_rescans_preserve_rows_and_nulls() {
-    let source = fixture();
+    let source = Fixture::new();
     for _ in 0..2 {
-        let batches = stream(&source)
+        let batches = source
+            .stream()
             .collect::<std::result::Result<Vec<_>, _>>()
             .unwrap();
         assert_eq!(batches.len(), 2);
@@ -42,8 +23,8 @@ fn batches_and_rescans_preserve_rows_and_nulls() {
 
 #[test]
 fn reader_outlives_factory_and_can_stop_early() {
-    let source = fixture();
-    let mut reader = stream(&source);
+    let source = Fixture::new();
+    let mut reader = source.stream();
     drop(source);
     assert_eq!(reader.next().unwrap().unwrap().num_rows(), 2);
     drop(reader);
