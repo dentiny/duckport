@@ -1,6 +1,7 @@
 # name: test/sql/readers/parquet.test
 # description: Read Parquet through open-arrow-access
 # group: [sql]
+
 require duckport
 
 query IT rowsort
