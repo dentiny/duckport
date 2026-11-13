@@ -17,7 +17,7 @@ fn main() {
         let (category, name) = module
             .split_once('_')
             .expect("reader modules need a category prefix");
-        assert!(matches!(category, "format" | "storage" | "service"));
+        assert!(matches!(category, "format" | "service"));
         modules += &format!("#[path = {:?}] mod {module};\n", path);
         if category == "format" {
             open += &format!(
