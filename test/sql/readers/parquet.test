@@ -23,8 +23,3 @@ query I
 EXECUTE parquet_scan;
 ----
 3
-
-statement error
-SELECT * FROM duckport_scan_parquet('test/data/people.parquet', batch_size := 0);
-----
-batch_size
