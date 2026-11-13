@@ -9,32 +9,7 @@ pub fn operator(
 ) -> Result<(opendal::Operator, String)> {
     opendal::install_default();
     if !locator.contains("://") || locator.starts_with("file://") {
-        if config.contains_key("root") {
-            return Err("file path already determines storage root".into());
-        }
-        let path = if locator.starts_with("file://") {
-            Url::parse(locator)?
-                .to_file_path()
-                .map_err(|_| "invalid local file URI")?
-        } else {
-            Path::new(locator).to_path_buf()
-        };
-        let path = std::path::absolute(path)?;
-        config.insert(
-            "root".into(),
-            path.parent()
-                .ok_or("source must name a file")?
-                .to_str()
-                .ok_or("path must be UTF-8")?
-                .into(),
-        );
-        return Ok((
-            opendal::Operator::via_iter("fs", config)?,
-            path.file_name()
-                .and_then(|s| s.to_str())
-                .ok_or("source must name a UTF-8 file")?
-                .into(),
-        ));
+        return local_operator(locator, config);
     }
     let mut url = Url::parse(locator)?;
     if url.query().is_some()
@@ -65,4 +40,36 @@ pub fn operator(
         opendal::Operator::from_uri(opendal::OperatorUri::new(url.as_str(), config)?)?
     };
     Ok((operator, path))
+}
+
+fn local_operator(
+    locator: &str,
+    mut config: HashMap<String, String>,
+) -> Result<(opendal::Operator, String)> {
+    if config.contains_key("root") {
+        return Err("file path already determines storage root".into());
+    }
+    let path = if locator.starts_with("file://") {
+        Url::parse(locator)?
+            .to_file_path()
+            .map_err(|_| "invalid local file URI")?
+    } else {
+        Path::new(locator).to_path_buf()
+    };
+    let path = std::path::absolute(path)?;
+    config.insert(
+        "root".into(),
+        path.parent()
+            .ok_or("source must name a file")?
+            .to_str()
+            .ok_or("path must be UTF-8")?
+            .into(),
+    );
+    Ok((
+        opendal::Operator::via_iter("fs", config)?,
+        path.file_name()
+            .and_then(|s| s.to_str())
+            .ok_or("source must name a UTF-8 file")?
+            .into(),
+    ))
 }
