@@ -1,41 +1,17 @@
 #define DUCKDB_EXTENSION_MAIN
 #include "duckport_extension.hpp"
-#include "duckport.h"
+#include "error.hpp"
+#include "source/source_factory.hpp"
 #include "duckdb/function/table/arrow.hpp"
 #include "duckdb/main/settings.hpp"
-#include <memory>
 
 namespace duckdb {
 namespace {
-using SourcePtr = std::unique_ptr<DuckportSource, decltype(&duckport_source_destroy)>;
-
-void CheckError(char *error) {
-	std::unique_ptr<char, decltype(&duckport_source_error_free)> owned(error, duckport_source_error_free);
-	if (owned) {
-		throw IOException("DuckPort: %s", owned.get());
-	}
-}
 void CheckAccess(ClientContext &context) {
 	if (!Settings::Get<EnableExternalAccessSetting>(context)) {
 		throw PermissionException("DuckPort requires enable_external_access");
 	}
 }
-class SourceFactory final : public ArrowScanFactory {
-public:
-	explicit SourceFactory(SourcePtr source_p) : source(std::move(source_p)) {
-	}
-	void GetSchema(ArrowSchema &schema) override {
-		CheckError(duckport_source_get_schema(source.get(), &schema));
-	}
-	unique_ptr<ArrowArrayStreamWrapper> ProduceStream(ArrowStreamParameters &) override {
-		auto stream = make_uniq<ArrowArrayStreamWrapper>();
-		CheckError(duckport_source_get_stream(source.get(), &stream->arrow_array_stream));
-		return stream;
-	}
-
-private:
-	SourcePtr source;
-};
 string ReadString(const Value &value) {
 	if (value.IsNull()) {
 		throw BinderException("DuckPort arguments cannot be NULL");
