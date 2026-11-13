@@ -25,9 +25,7 @@ pub fn operator(
     }
     url.set_path("/");
     let operator = if scheme == "http" || scheme == "https" {
-        if config.contains_key("endpoint") {
-            return Err("HTTP URI already determines endpoint".into());
-        }
+        crate::validation::validate_http_config(&config)?;
         config.insert("endpoint".into(), url.as_str().trim_end_matches('/').into());
         opendal::Operator::via_iter("http", config)?
     } else {
