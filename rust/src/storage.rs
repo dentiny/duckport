@@ -12,13 +12,7 @@ pub fn operator(
         return local_operator(locator, config);
     }
     let mut url = Url::parse(locator)?;
-    if url.query().is_some()
-        || url.fragment().is_some()
-        || !url.username().is_empty()
-        || url.password().is_some()
-    {
-        return Err("URI queries, fragments, and embedded credentials are unsupported".into());
-    }
+    crate::validation::validate_uri(&url)?;
     let scheme = url.scheme().to_owned();
     if !matches!(scheme.as_str(), "http" | "https" | "s3") {
         return Err(format!("unsupported storage scheme: {scheme}").into());
