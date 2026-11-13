@@ -21,8 +21,6 @@ DuckPort uses DuckDB's internal C++ API. Review [DuckDB release notes](https://g
 
 To update open-arrow-access, change the pinned version in `rust/Cargo.toml`, regenerate `rust/Cargo.lock`, and rerun the source tests.
 
-## Add a reader
+## Reader bridge
 
-Add a C++ registration in `src/readers`, a Rust implementation in `rust/src/readers`, a SQL test in `test/sql/readers`, and a page in `docs/readers`. Use the existing filename conventions. CMake and Cargo discover the files automatically; generated registrations are build outputs.
-
-The pinned dependency set and lockfile are shared infrastructure. Reader PRs do not edit them.
+C++ binds SQL parameters and uses DuckDB's Arrow scanner. Rust owns the schema, reader factory, and runtime. The FFI exposes `open`, `get_schema`, `get_stream`, and `destroy`; registrations and source lists are explicit.

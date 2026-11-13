@@ -1,9 +1,29 @@
 # name: test/sql/readers/parquet.test
-# description: duckport_read_parquet is registered independently
+# description: Read Parquet through open-arrow-access
 # group: [sql]
 require duckport
 
-query I
-SELECT count(*) FROM duckdb_functions() WHERE function_name = 'duckport_read_parquet';
+query IT rowsort
+SELECT id, name FROM duckport_read_parquet('test/data/people.parquet', batch_size := 2);
 ----
-1
+1	Alice
+2	NULL
+3	Charlie
+
+statement ok
+PREPARE parquet_scan AS SELECT count(*) FROM duckport_read_parquet('test/data/people.parquet');
+
+query I
+EXECUTE parquet_scan;
+----
+3
+
+query I
+EXECUTE parquet_scan;
+----
+3
+
+statement error
+SELECT * FROM duckport_read_parquet('test/data/people.parquet', batch_size := 0);
+----
+batch_size

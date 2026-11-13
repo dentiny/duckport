@@ -47,7 +47,7 @@ add_custom_command(
   COMMAND "${CMAKE_COMMAND}" -E env ${RUST_BUILD_ENV} "${CARGO_EXECUTABLE}" build --locked --profile "${DUCKPORT_CARGO_PROFILE}"
           --manifest-path "${CMAKE_CURRENT_SOURCE_DIR}/rust/Cargo.toml"
           --target-dir "${RUST_TARGET_DIR}" ${RUST_TARGET_ARGS}
-  DEPENDS ${RUST_SOURCES} rust/build.rs rust/Cargo.toml rust/Cargo.lock
+  DEPENDS ${RUST_SOURCES} rust/Cargo.toml rust/Cargo.lock
   WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
   COMMENT "Building open-arrow-access source bridge"
   VERBATIM)
@@ -56,20 +56,8 @@ add_library(duckport_source_rust STATIC IMPORTED GLOBAL)
 set_target_properties(duckport_source_rust PROPERTIES IMPORTED_LOCATION "${RUST_LIBRARY}")
 add_dependencies(duckport_source_rust duckport_rust_build)
 
-# Each reader owns its source file; adding one never edits a shared registry.
-file(GLOB READER_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/readers/*.cpp")
-file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
-set(READER_DECLARATIONS "")
-set(READER_CALLS "")
-foreach(READER_SOURCE ${READER_SOURCES})
-  get_filename_component(READER_NAME "${READER_SOURCE}" NAME_WE)
-  string(APPEND READER_DECLARATIONS "void RegisterReader_${READER_NAME}(ExtensionLoader &);\n")
-  string(APPEND READER_CALLS "RegisterReader_${READER_NAME}(loader);\n")
-endforeach()
-file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/generated/duckport_readers.hpp"
-  "#pragma once\nnamespace duckdb {\n${READER_DECLARATIONS}inline void RegisterAllReaders(ExtensionLoader &loader) {\n${READER_CALLS}}\n}\n")
-include_directories(src/include "${CMAKE_CURRENT_BINARY_DIR}/generated")
-set(EXTENSION_SOURCES src/duckport_extension.cpp ${READER_SOURCES})
+include_directories(src/include rust/include)
+set(EXTENSION_SOURCES src/duckport_extension.cpp)
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
 find_package(Threads REQUIRED)

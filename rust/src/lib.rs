@@ -1,67 +1,114 @@
-mod source;
+mod storage;
 
 use arrow_array::{RecordBatch, RecordBatchReader, ffi_stream::FFI_ArrowArrayStream};
-use arrow_schema::{ArrowError, SchemaRef};
-use open_arrow_access::RecordReader;
-
+use arrow_schema::{ArrowError, SchemaRef, ffi::FFI_ArrowSchema};
+use open_arrow_access::{
+    Accessor, ReadOptions, ReadRequest, RecordReader, file_format::parquet::ParquetAccessor,
+    storage::OpenDalAccessor,
+};
 use std::{
+    collections::HashMap,
+    error::Error,
     ffi::{CStr, CString, c_char},
+    num::NonZeroUsize,
     panic::{AssertUnwindSafe, catch_unwind},
     ptr,
+    sync::{Arc, Mutex},
 };
 use tokio::runtime::Runtime;
 
-struct BatchReader {
-    // Drop the source before shutting down its runtime, including on early LIMIT.
-    reader: Option<Box<dyn RecordReader>>,
-    runtime: Runtime,
+type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
+
+pub struct DuckportSource {
+    runtime: Arc<Runtime>,
     schema: SchemaRef,
-    done: bool,
+    accessor: ParquetAccessor<OpenDalAccessor>,
+    request: ReadRequest,
+    bound: Mutex<Option<Box<dyn RecordReader>>>,
 }
-impl BatchReader {
-    fn open(locator: &str, reader: &str, options: &str, batch_size: usize) -> Result<Self, String> {
-        let options: source::Options =
-            serde_json::from_str(options).map_err(|e| format!("invalid reader options: {e}"))?;
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .map_err(|e| e.to_string())?;
-        let reader = runtime
-            .block_on(source::open(reader, locator, options, batch_size))
-            .map_err(|e| e.to_string())?;
+impl DuckportSource {
+    fn new(
+        operator: open_arrow_access::storage::opendal::Operator,
+        path: String,
+        batch_size: NonZeroUsize,
+    ) -> Result<Self> {
+        let runtime = Arc::new(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()?,
+        );
+        let accessor = ParquetAccessor::new(OpenDalAccessor::new(operator));
+        let request = ReadRequest::new(path).with_options(ReadOptions {
+            batch_size,
+            ..Default::default()
+        });
+        let reader = runtime.block_on(accessor.open(request.clone()))?;
         let schema = reader.metadata().schema.clone();
         Ok(Self {
-            reader: Some(reader),
             runtime,
             schema,
+            accessor,
+            request,
+            bound: Mutex::new(Some(reader)),
+        })
+    }
+    fn reader(&self) -> Result<BatchReader> {
+        let reader = match self
+            .bound
+            .lock()
+            .map_err(|_| "source lock poisoned")?
+            .take()
+        {
+            Some(reader) => reader,
+            None => self
+                .runtime
+                .block_on(self.accessor.open(self.request.clone()))?,
+        };
+        if reader.metadata().schema != self.schema {
+            return Err("source schema changed; rebind the query".into());
+        }
+        Ok(BatchReader {
+            reader: Some(reader),
+            runtime: self.runtime.clone(),
+            schema: self.schema.clone(),
             done: false,
         })
     }
 }
+impl Drop for DuckportSource {
+    fn drop(&mut self) {
+        let _guard = self.runtime.enter();
+        if let Ok(reader) = self.bound.get_mut() {
+            reader.take();
+        }
+    }
+}
+struct BatchReader {
+    reader: Option<Box<dyn RecordReader>>,
+    runtime: Arc<Runtime>,
+    schema: SchemaRef,
+    done: bool,
+}
 impl Iterator for BatchReader {
-    type Item = Result<RecordBatch, ArrowError>;
+    type Item = std::result::Result<RecordBatch, ArrowError>;
     fn next(&mut self) -> Option<Self::Item> {
         if self.done {
             return None;
         }
-        // No Rust panic may cross Arrow's C callback boundary.
-        match catch_unwind(AssertUnwindSafe(|| {
+        let result = catch_unwind(AssertUnwindSafe(|| {
             self.runtime.block_on(self.reader.as_mut().unwrap().next())
-        })) {
-            Ok(Ok(Some(batch))) => Some(Ok(batch)),
-            Ok(Ok(None)) => {
-                self.done = true;
-                None
+        }));
+        match result {
+            Ok(Ok(batch)) => {
+                self.done = batch.is_none();
+                batch.map(Ok)
             }
-            Ok(Err(error)) => {
+            error => {
                 self.done = true;
-                Some(Err(ArrowError::ExternalError(Box::new(error))))
-            }
-            Err(_) => {
-                self.done = true;
-                Some(Err(ArrowError::ComputeError(
-                    "source reader panicked".into(),
-                )))
+                Some(Err(match error {
+                    Ok(Err(error)) => ArrowError::ExternalError(Box::new(error)),
+                    _ => ArrowError::ComputeError("source reader panicked".into()),
+                }))
             }
         }
     }
@@ -78,54 +125,101 @@ impl Drop for BatchReader {
     }
 }
 
-/// Open an owned Arrow C stream. On failure, return a Rust-owned error string.
-/// The caller must release successful streams and free errors with duckport_source_error_free.
-///
-/// # Safety
-/// String pointers must be non-null, NUL-terminated UTF-8. Output points to writable,
-/// uninitialized ArrowArrayStream storage. No pointers are retained after this call.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn duckport_source_open(
-    locator: *const c_char,
-    reader: *const c_char,
-    options: *const c_char,
-    batch_size: usize,
-    out: *mut FFI_ArrowArrayStream,
-) -> *mut c_char {
-    let result = catch_unwind(AssertUnwindSafe(|| -> Result<(), String> {
-        if locator.is_null() || reader.is_null() || options.is_null() || out.is_null() {
-            return Err("null source argument".into());
-        }
-        // SAFETY: Required by the documented C ABI contract; outputs are checked above.
-        let (locator, reader, options) = unsafe {
-            (
-                CStr::from_ptr(locator),
-                CStr::from_ptr(reader),
-                CStr::from_ptr(options),
-            )
-        };
-        let reader = BatchReader::open(
-            locator.to_str().map_err(|e| e.to_string())?,
-            reader.to_str().map_err(|e| e.to_string())?,
-            options.to_str().map_err(|e| e.to_string())?,
-            batch_size,
-        )?;
-        // SAFETY: The caller supplies writable space for an ArrowArrayStream.
-        unsafe {
-            ptr::write(out, FFI_ArrowArrayStream::new(Box::new(reader)));
-        }
-        Ok(())
-    }));
-    match result {
+fn call(operation: impl FnOnce() -> Result<()>) -> *mut c_char {
+    match catch_unwind(AssertUnwindSafe(operation)) {
         Ok(Ok(())) => ptr::null_mut(),
-        Ok(Err(error)) => CString::new(error.replace('\0', " ")).unwrap().into_raw(),
-        Err(_) => CString::new("source initialization panicked")
-            .unwrap()
-            .into_raw(),
+        result => {
+            let message = match result {
+                Ok(Err(error)) => error.to_string(),
+                _ => "source operation panicked".into(),
+            };
+            CString::new(message.replace('\0', " ")).unwrap().into_raw()
+        }
     }
 }
+unsafe fn string(value: *const c_char) -> Result<String> {
+    if value.is_null() {
+        return Err("null string argument".into());
+    }
+    Ok(unsafe { CStr::from_ptr(value) }.to_str()?.to_owned())
+}
+
 /// # Safety
-/// error must be null or a pointer returned by duckport_source_open, freed exactly once.
+/// Strings are NUL-terminated UTF-8; output points to writable source-pointer storage.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn duckport_parquet_open(
+    path: *const c_char,
+    storage_options: *const c_char,
+    batch_size: usize,
+    output: *mut *mut DuckportSource,
+) -> *mut c_char {
+    call(|| unsafe {
+        if output.is_null() {
+            return Err("null source output".into());
+        }
+        *output = ptr::null_mut();
+        let path = string(path)?;
+        let config: HashMap<String, String> = serde_json::from_str(&string(storage_options)?)?;
+        let batch_size = NonZeroUsize::new(batch_size)
+            .filter(|s| s.get() <= 1048576)
+            .ok_or("batch_size must be between 1 and 1048576")?;
+        let (operator, path) = storage::operator(&path, config)?;
+        let source = DuckportSource::new(operator, path, batch_size)?;
+        *output = Box::into_raw(Box::new(source));
+        Ok(())
+    })
+}
+
+/// # Safety
+/// Source is live; output points to writable, uninitialized ArrowSchema storage.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn duckport_source_get_schema(
+    source: *const DuckportSource,
+    output: *mut FFI_ArrowSchema,
+) -> *mut c_char {
+    call(|| unsafe {
+        if source.is_null() || output.is_null() {
+            return Err("null schema argument".into());
+        }
+        ptr::write(
+            output,
+            FFI_ArrowSchema::try_from((*source).schema.as_ref())?,
+        );
+        Ok(())
+    })
+}
+/// # Safety
+/// Source is live; output points to writable, uninitialized ArrowArrayStream storage.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn duckport_source_get_stream(
+    source: *const DuckportSource,
+    output: *mut FFI_ArrowArrayStream,
+) -> *mut c_char {
+    call(|| unsafe {
+        if source.is_null() || output.is_null() {
+            return Err("null stream argument".into());
+        }
+        ptr::write(
+            output,
+            FFI_ArrowArrayStream::new(Box::new((*source).reader()?)),
+        );
+        Ok(())
+    })
+}
+/// # Safety
+/// Source is null or a pointer returned by duckport_parquet_open, freed once.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn duckport_source_destroy(source: *mut DuckportSource) {
+    let _ = catch_unwind(AssertUnwindSafe(|| {
+        if !source.is_null() {
+            unsafe {
+                drop(Box::from_raw(source));
+            }
+        }
+    }));
+}
+/// # Safety
+/// Error is null or a pointer returned by these FFI functions, freed once.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_source_error_free(error: *mut c_char) {
     if !error.is_null() {
@@ -138,56 +232,54 @@ pub unsafe extern "C" fn duckport_source_error_free(error: *mut c_char) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn fixture() -> String {
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../test/data/people.parquet")
-            .to_str()
-            .unwrap()
-            .into()
+    fn fixture() -> Box<DuckportSource> {
+        let path = CString::new(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../test/data/people.parquet")
+                .to_str()
+                .unwrap(),
+        )
+        .unwrap();
+        let config = CString::new("{}").unwrap();
+        let mut source = ptr::null_mut();
+        let error =
+            unsafe { duckport_parquet_open(path.as_ptr(), config.as_ptr(), 2, &mut source) };
+        assert!(error.is_null());
+        unsafe { Box::from_raw(source) }
     }
     #[test]
-    fn batches_preserve_rows_and_nulls() {
-        let batches = BatchReader::open(&fixture(), "parquet", "{}", 2)
-            .unwrap()
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
-        assert_eq!(batches.len(), 2);
-        assert_eq!(batches.iter().map(|b| b.num_rows()).sum::<usize>(), 3);
-        assert_eq!(batches[0].column(1).null_count(), 1);
+    fn batches_and_rescans_preserve_rows_and_nulls() {
+        let source = fixture();
+        for _ in 0..2 {
+            let batches = source
+                .reader()
+                .unwrap()
+                .collect::<std::result::Result<Vec<_>, _>>()
+                .unwrap();
+            assert_eq!(batches.len(), 2);
+            assert_eq!(batches.iter().map(|b| b.num_rows()).sum::<usize>(), 3);
+            assert_eq!(batches[0].column(1).null_count(), 1);
+        }
     }
     #[test]
-    fn errors_are_not_eof() {
-        assert!(BatchReader::open("missing", "parquet", "{}", 1).is_err());
-        assert!(BatchReader::open(&fixture(), "parquet", "not-json", 1).is_err());
-        assert!(BatchReader::open(&fixture(), "parquet", "{}", 0).is_err());
+    fn reader_outlives_factory_and_can_stop_early() {
+        let source = fixture();
+        let mut reader = source.reader().unwrap();
+        drop(source);
+        assert_eq!(reader.next().unwrap().unwrap().num_rows(), 2);
+        drop(reader);
     }
     #[test]
-    fn ffi_errors_and_early_release() {
+    fn ffi_failures_return_owned_errors() {
+        let missing = CString::new("missing.parquet").unwrap();
+        let config = CString::new("{}").unwrap();
+        let mut source = ptr::null_mut();
         unsafe {
-            let name = CString::new(fixture()).unwrap();
-            let kind = CString::new("parquet").unwrap();
-            let options = CString::new("{}").unwrap();
-            let mut stream = std::mem::MaybeUninit::uninit();
-            assert!(
-                duckport_source_open(
-                    name.as_ptr(),
-                    kind.as_ptr(),
-                    options.as_ptr(),
-                    2,
-                    stream.as_mut_ptr()
-                )
-                .is_null()
-            );
-            drop(stream.assume_init());
-            let missing = CString::new("missing").unwrap();
-            let mut stream = std::mem::MaybeUninit::uninit();
-            let error = duckport_source_open(
-                missing.as_ptr(),
-                kind.as_ptr(),
-                options.as_ptr(),
-                2,
-                stream.as_mut_ptr(),
-            );
+            let error = duckport_parquet_open(missing.as_ptr(), config.as_ptr(), 2, &mut source);
+            assert!(!error.is_null());
+            assert!(source.is_null());
+            duckport_source_error_free(error);
+            let error = duckport_source_get_stream(ptr::null(), ptr::null_mut());
             assert!(!error.is_null());
             duckport_source_error_free(error);
         }
