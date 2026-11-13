@@ -63,9 +63,6 @@ unique_ptr<GlobalTableFunctionState> InitSource(ClientContext &context, TableFun
 	CheckAccess(context);
 	return ArrowTableFunction::ArrowScanInitGlobal(context, input);
 }
-struct ArrowScan : ArrowTableFunction {
-	using ArrowTableFunction::ArrowGetPartitionData;
-};
 void LoadInternal(ExtensionLoader &loader) {
 	TableFunction function("duckport_read_parquet", {LogicalType::VARCHAR}, ArrowTableFunction::ArrowScanFunction,
 	                       BindParquet, InitSource, ArrowTableFunction::ArrowScanInitLocal);
@@ -73,7 +70,6 @@ void LoadInternal(ExtensionLoader &loader) {
 		options.Add("storage_options", LogicalType::VARCHAR);
 		options.Add("batch_size", LogicalType::BIGINT);
 	});
-	function.get_partition_data = ArrowScan::ArrowGetPartitionData;
 	function.parallelism = TableFunctionParallelism::SEQUENTIAL;
 	loader.RegisterFunction(function);
 }
