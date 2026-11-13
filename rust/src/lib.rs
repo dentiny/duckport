@@ -3,25 +3,14 @@ mod source;
 use arrow_array::{RecordBatch, RecordBatchReader, ffi_stream::FFI_ArrowArrayStream};
 use arrow_schema::{ArrowError, SchemaRef};
 use open_arrow_access::RecordReader;
-use serde::Deserialize;
-use source::{SourceRegistry, SourceRequest};
+
 use std::{
-    collections::HashMap,
     ffi::{CStr, CString, c_char},
-    num::NonZeroUsize,
     panic::{AssertUnwindSafe, catch_unwind},
     ptr,
 };
 use tokio::runtime::Runtime;
 
-#[derive(Default, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-struct ScanOptions {
-    source: Option<String>,
-    storage: HashMap<String, String>,
-    service: HashMap<String, String>,
-    format: HashMap<String, String>,
-}
 struct BatchReader {
     // Drop the source before shutting down its runtime, including on early LIMIT.
     reader: Option<Box<dyn RecordReader>>,
@@ -30,23 +19,15 @@ struct BatchReader {
     done: bool,
 }
 impl BatchReader {
-    fn open(locator: &str, format: &str, options: &str, batch_size: usize) -> Result<Self, String> {
-        let config: ScanOptions =
-            serde_json::from_str(options).map_err(|e| format!("invalid scan options: {e}"))?;
-        let mut request = SourceRequest::new(locator);
-        request.source = config.source;
-        request.format = (!format.is_empty() && format != "auto").then(|| format.into());
-        request.storage_options = config.storage;
-        request.service_options = config.service;
-        request.format_options = config.format;
-        request.options.batch_size =
-            NonZeroUsize::new(batch_size).ok_or("batch_size must be positive")?;
+    fn open(locator: &str, reader: &str, options: &str, batch_size: usize) -> Result<Self, String> {
+        let options: source::Options =
+            serde_json::from_str(options).map_err(|e| format!("invalid reader options: {e}"))?;
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .map_err(|e| e.to_string())?;
         let reader = runtime
-            .block_on(SourceRegistry::default().open(request))
+            .block_on(source::open(reader, locator, options, batch_size))
             .map_err(|e| e.to_string())?;
         let schema = reader.metadata().schema.clone();
         Ok(Self {
@@ -106,26 +87,26 @@ impl Drop for BatchReader {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_source_open(
     locator: *const c_char,
-    format: *const c_char,
+    reader: *const c_char,
     options: *const c_char,
     batch_size: usize,
     out: *mut FFI_ArrowArrayStream,
 ) -> *mut c_char {
     let result = catch_unwind(AssertUnwindSafe(|| -> Result<(), String> {
-        if locator.is_null() || format.is_null() || options.is_null() || out.is_null() {
+        if locator.is_null() || reader.is_null() || options.is_null() || out.is_null() {
             return Err("null source argument".into());
         }
         // SAFETY: Required by the documented C ABI contract; outputs are checked above.
-        let (locator, format, options) = unsafe {
+        let (locator, reader, options) = unsafe {
             (
                 CStr::from_ptr(locator),
-                CStr::from_ptr(format),
+                CStr::from_ptr(reader),
                 CStr::from_ptr(options),
             )
         };
         let reader = BatchReader::open(
             locator.to_str().map_err(|e| e.to_string())?,
-            format.to_str().map_err(|e| e.to_string())?,
+            reader.to_str().map_err(|e| e.to_string())?,
             options.to_str().map_err(|e| e.to_string())?,
             batch_size,
         )?;
@@ -164,8 +145,8 @@ mod tests {
         write!(file, "id,name\n1,Alice\n2,\n3,Charlie\n").unwrap();
         let reader = BatchReader::open(
             file.path().to_str().unwrap(),
-            "auto",
-            r#"{"format":{"header":"true"}}"#,
+            "csv",
+            r#"{"header":true}"#,
             2,
         )
         .unwrap();
@@ -189,14 +170,14 @@ mod tests {
     #[test]
     fn rejects_invalid_options_and_missing_files() {
         for (format, options) in [
-            ("auto", r#"{"unknown":1}"#),
-            ("auto", "not json"),
+            ("csv", r#"{"unknown":1}"#),
+            ("csv", "not json"),
             ("json", "{}"),
-            ("auto", r#"{"storage":{"root":"/tmp"}}"#),
+            ("csv", r#"{"storage_options":{"root":"/tmp"}}"#),
         ] {
             assert!(BatchReader::open("/no-such-duckport-file", format, options, 10).is_err());
         }
-        assert!(BatchReader::open("anything", "auto", "{}", 0).is_err());
+        assert!(BatchReader::open("anything", "csv", "{}", 0).is_err());
     }
     #[test]
     fn ffi_errors_and_early_stream_release() {

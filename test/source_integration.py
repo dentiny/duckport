@@ -37,10 +37,26 @@ def query(sql, error=None):
     return json.loads(result.stdout) if result.stdout.strip() else None
 
 
-def scan(path, **options):
+def scan(locator, kind=None, format=None, **options):
+    # Select explicit reader names here so existing fixtures exercise each SQL entry.
+    path = str(locator)
+    if path.startswith("hf://datasets/"):
+        path = path.removeprefix("hf://datasets/")
+        kind = "huggingface_file" if "path" in options else "huggingface"
+        if kind == "huggingface_file":
+            options["format"] = format or "parquet"
+    if kind is None:
+        suffix = path.split("?", 1)[0]
+        for codec in (".gz", ".bz2", ".lz4", ".zst", ".zstd"):
+            suffix = suffix.removesuffix(codec)
+        kind = format or suffix.rsplit(".", 1)[-1]
+    elif format:
+        options["format"] = format
     args = [literal(path)]
-    args += [f"{key} := {literal(json.dumps(value) if key == 'options' else value)}" for key, value in options.items()]
-    return "duckport_scan(" + ", ".join(args) + ")"
+    for key, value in options.items():
+        sql_value = ("true" if value else "false") if isinstance(value, bool) else literal(json.dumps(value) if isinstance(value, dict) else value)
+        args.append(f"{key} := {sql_value}")
+    return "duckport_read_" + kind + "(" + ", ".join(args) + ")"
 
 
 with tempfile.TemporaryDirectory(prefix="duckport-source-") as directory:
@@ -48,10 +64,12 @@ with tempfile.TemporaryDirectory(prefix="duckport-source-") as directory:
     csv = root / "basic.csv"
     csv.write_text("id,name\n1,Alice\n2,\n3,Charlie\n")
     rows = [{"id": 1, "name": "Alice"}, {"id": 2, "name": None}, {"id": 3, "name": "Charlie"}]
-    assert query(f"SELECT * FROM {scan(csv, batch_size=2, options={'format': {'header': 'true'}})}") == rows
+    assert query(f"SELECT * FROM {scan(csv, batch_size=2, header=True)}") == rows
     assert query(f"SELECT count(*) AS n FROM {scan(csv)}") == [{"n": 3}]
     assert query(f"SELECT name FROM {scan(csv)} WHERE id=3") == [{"name": "Charlie"}]
     assert query(f"SELECT * FROM {scan(csv.as_uri())} LIMIT 1") == rows[:1]
+    assert query(f"SELECT * FROM {scan(csv, kind='fs', format='csv')}") == rows
+    query(f"SELECT * FROM {scan(csv, kind='s3', format='csv')}", error="different storage backend")
     # The CLI prints one JSON array per result, so check repeated executions in a single boolean result.
     repeat = subprocess.run([CLI, "-no-agent", "-unsigned", "-json", "-c",
         f"LOAD {literal(EXTENSION)}; PREPARE src AS SELECT sum(id)::BIGINT AS total FROM {scan(csv)}; EXECUTE src; EXECUTE src;"],
@@ -70,13 +88,25 @@ with tempfile.TemporaryDirectory(prefix="duckport-source-") as directory:
     assert query(f"SELECT count(*) AS n FROM {scan(compressed)}") == [{"n": 2}]
     tsv = root / "basic.tsv"
     tsv.write_text(csv.read_text().replace(",", "\t"))
-    assert query(f"SELECT * FROM {scan(tsv, options={'format': {'header': 'true'}})}") == rows
+    assert query(f"SELECT * FROM {scan(tsv, header=True)}") == rows
     no_extension = root / "no-extension"
     no_extension.write_bytes(nested.read_bytes())
-    assert query(f"SELECT count(*) AS n FROM {scan(no_extension, format='json')}") == [{"n": 2}]
+    for kind in ('json', 'jsonl', 'ndjson'):
+        assert query(f"SELECT count(*) AS n FROM {scan(no_extension, kind=kind)}") == [{"n": 2}]
+    names = query("SELECT DISTINCT function_name AS name FROM duckdb_functions() WHERE function_name LIKE 'duckport_read_%' ORDER BY name")
+    assert len(names) == 15, names
     xml = root / "basic.xml"
     xml.write_text('<records><record><id>1</id><name>Alice</name></record><record><id>2</id><name>Bob</name></record></records>')
-    assert query(f"SELECT count(*) AS n FROM {scan(xml, options={'format': {'record_path': '/records/record'}})}") == [{"n": 2}]
+    assert query(f"SELECT count(*) AS n FROM {scan(xml, record_path='/records/record')}") == [{"n": 2}]
+    trajectory = {"schema_version": "ATIF-v1.8", "trajectory_id": "fixture", "agent": {"name": "test", "version": "1"},
+                  "steps": [{"step_id": 1, "source": "user", "message": "hello"}]}
+    for kind in ('atif', 'atif_jsonl'):
+        file = root / kind
+        file.write_text(json.dumps(trajectory) + "\n")
+        assert query(f"SELECT trajectory_id FROM {scan(file, kind=kind)}") == [{"trajectory_id": "fixture"}]
+    warc = root / "records.warc"
+    warc.write_bytes(b"WARC/1.1\r\nWARC-Type: metadata\r\nWARC-Record-ID: <urn:test:one>\r\nWARC-Date: 2020-07-08T02:52:55Z\r\nContent-Length: 4\r\n\r\ntest\r\n\r\n")
+    assert query(f"SELECT record_type, decode(body) AS body FROM {scan(warc)}") == [{"record_type": "metadata", "body": "test"}]
     changing = root / "changing.csv"
     changing.write_text("id\n1\n")
     query(f"PREPARE changing_scan AS SELECT * FROM {scan(changing)}; EXECUTE changing_scan; "
@@ -84,17 +114,17 @@ with tempfile.TemporaryDirectory(prefix="duckport-source-") as directory:
           error="schema changed")
     output = root / "output.parquet"
     query(f"COPY (SELECT * FROM {scan(csv)}) TO {literal(output)} (FORMAT PARQUET)")
-    assert query(f"SELECT * FROM read_parquet({literal(output)})") == rows
-    query(f"SELECT * FROM {scan(root / 'missing.csv')}", error="duckport_scan")
+    assert query(f"SELECT * FROM duckport_read_parquet({literal(output)})") == rows
+    query(f"SELECT * FROM {scan(root / 'missing.csv')}", error="DuckPort reader")
     query(f"SELECT * FROM {scan(csv, batch_size=0)}", error="batch_size")
-    query(f"SELECT * FROM {scan(csv, options={'unknown': {}})}", error="unknown field")
-    query(f"SELECT * FROM {scan(csv, options={'format': {'typo': 'true'}})}", error="unrecognized")
-    query(f"SELECT * FROM {scan(no_extension)}", error="cannot infer")
-    query(f"SELECT * FROM {scan(csv, format='no-such-format')}", error="not registered")
+    query(f"SELECT * FROM duckport_read_csv({literal(csv)}, unknown := true)", error="unknown")
+    query(f"SELECT * FROM duckport_read_csv({literal(csv)}, header := NULL)", error="NULL")
+    query(f"SELECT * FROM duckport_read_fs({literal(no_extension)})", error="requires format")
+    query(f"SELECT * FROM {scan(csv, kind='fs', format='no-such-format')}", error="unsupported format")
     query(f"SET enable_external_access=false; SELECT * FROM {scan(csv)}", error="enable_external_access")
-    query("SELECT * FROM duckport_scan(NULL)", error="NULL")
-    query(f"SELECT * FROM duckport_scan({literal(csv)}, options := NULL)", error="NULL")
-    query(f"SELECT * FROM duckport_scan({literal(csv)}, format := 'j' || chr(0) || 'son')", error="NUL")
+    query("SELECT * FROM duckport_read_csv(NULL)", error="NULL")
+    query(f"SELECT * FROM duckport_read_csv({literal(csv)}, storage_options := NULL)", error="NULL")
+    query(f"SELECT * FROM duckport_read_csv({literal(csv)}, storage_options := 'j' || chr(0) || 'son')", error="NUL")
     # Errors after schema inference must propagate through Arrow get_next rather than becoming EOF.
     corrupt = root / "corrupt.jsonl"
     corrupt.write_text('{"id":1}\n' * 1100 + '{not-json}\n')
@@ -167,16 +197,18 @@ with tempfile.TemporaryDirectory(prefix="duckport-source-") as directory:
     try:
         assert query(f"SELECT * FROM {scan(endpoint + '/basic.parquet')}") == rows
         assert query(f"SELECT * FROM {scan(endpoint + '/basic.csv')}") == rows
-        s3options = {"storage": {"endpoint": endpoint, "region": "us-east-1", "allow_anonymous": "true", "disable_config_load": "true", "disable_ec2_metadata": "true"}}
-        assert query(f"SELECT * FROM {scan('s3://bucket/basic.parquet', options=s3options)}") == rows
-        hfoptions = {"service": {"config": "default", "split": "train", "endpoint": endpoint, "token": "fixture-only"}}
-        hf = scan('hf://datasets/owner/example', options=hfoptions, batch_size=2)
+        assert query(f"SELECT * FROM {scan(endpoint + '/basic.csv', kind='http', format='csv')}") == rows
+        s3options = {"storage_options": {"endpoint": endpoint, "region": "us-east-1", "allow_anonymous": "true", "disable_config_load": "true", "disable_ec2_metadata": "true"}}
+        assert query(f"SELECT * FROM {scan('s3://bucket/basic.parquet', **s3options)}") == rows
+        assert query(f"SELECT * FROM {scan('s3://bucket/basic.parquet', kind='s3', format='parquet', **s3options)}") == rows
+        hfoptions = {"config": "default", "split": "train", "endpoint": endpoint, "token": "fixture-only"}
+        hf = scan('hf://datasets/owner/example', batch_size=2, **hfoptions)
         assert query(f"SELECT * FROM {hf}") == rows + rows
         assert any("/revision/" in path for _, path in requests)
         assert any("/tree/" in path for _, path in requests)
         assert any("/resolve/" in path for _, path in requests)
-        hf_file = {"service": {"path": "default/train/0000.parquet", "revision": COMMIT, "endpoint": endpoint, "token": "fixture-only"}}
-        assert query(f"SELECT * FROM {scan('hf://datasets/owner/example', options=hf_file)}") == rows
+        hf_file = {"path": "default/train/0000.parquet", "revision": COMMIT, "endpoint": endpoint, "token": "fixture-only"}
+        assert query(f"SELECT * FROM {scan('hf://datasets/owner/example', **hf_file)}") == rows
     finally:
         server.shutdown()
         server.server_close()

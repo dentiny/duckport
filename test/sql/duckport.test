@@ -1,33 +1,33 @@
 # name: test/sql/duckport.test
-# description: Stream source records into DuckDB through open-arrow-access
+# description: Explicit open-arrow-access readers
 # group: [sql]
 require duckport
 
 query IT rowsort
-SELECT id, name FROM duckport_scan('test/data/people.csv', batch_size := 2, options := '{"format":{"header":"true"}}');
+SELECT id, name FROM duckport_read_csv('test/data/people.csv', batch_size := 2, header := true);
 ----
 1	Alice
 2	NULL
 3	Charlie
 
 query I
-SELECT count(*) FROM duckport_scan('test/data/people.csv');
+SELECT count(*) FROM duckport_read_fs('test/data/people.csv', format := 'csv');
 ----
 3
 
 query IT
-SELECT id, name FROM duckport_scan('test/data/people.csv') WHERE id = 3;
+SELECT id, name FROM duckport_read_csv('test/data/people.csv') WHERE id = 3;
 ----
 3	Charlie
 
 query III
-SELECT id, nested.ok::INTEGER, len(tags) FROM duckport_scan('test/data/events.jsonl');
+SELECT id, nested.ok::INTEGER, len(tags) FROM duckport_read_jsonl('test/data/events.jsonl');
 ----
 1	1	2
 2	0	0
 
 statement ok
-PREPARE source_scan AS SELECT count(*) FROM duckport_scan('test/data/people.csv');
+PREPARE source_scan AS SELECT count(*) FROM duckport_read_csv('test/data/people.csv');
 
 query I
 EXECUTE source_scan;
@@ -40,16 +40,21 @@ EXECUTE source_scan;
 3
 
 statement error
-SELECT * FROM duckport_scan('test/data/missing.csv');
+SELECT * FROM duckport_read_csv('test/data/missing.csv');
 ----
-duckport_scan
+DuckPort reader
 
 statement error
-SELECT * FROM duckport_scan('test/data/people.csv', batch_size := 0);
+SELECT * FROM duckport_read_csv('test/data/people.csv', batch_size := 0);
 ----
 batch_size
 
 statement error
-SELECT * FROM duckport_scan('test/data/people.csv', options := '{"unknown":true}');
+SELECT * FROM duckport_read_csv('test/data/people.csv', unknown := true);
 ----
-unknown field
+unknown
+
+statement error
+SELECT * FROM duckport_read_fs('test/data/people.csv');
+----
+requires format
