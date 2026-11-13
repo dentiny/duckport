@@ -1,11 +1,10 @@
-# Testing this extension
-This directory contains all the tests for this extension. The `sql` directory holds tests that are written as [SQLLogicTests](https://duckdb.org/dev/sqllogictest/intro.html). DuckDB aims to have most its tests in this format as SQL statements, so for the duckport extension, this should probably be the goal too.
+# Tests
 
-The root makefile contains targets to build and run all of these tests. To run the SQLLogicTests:
-```bash
+Run from the repository root after building:
+
+```sh
+cargo test --manifest-path rust/Cargo.toml --locked
 make test
 ```
-or 
-```bash
-make test_debug
-```
+
+Rust tests cover the Arrow bridge. Each reader owns a SQL smoke test in `test/sql/readers`.

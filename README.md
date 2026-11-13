@@ -1,56 +1,38 @@
 # DuckPort
 
-A DuckDB extension for connecting diverse data sources to DuckDB and writing to analytical storage.
-
-DuckPort is in early development. The planned pipeline is:
-
-```text
-Sources → open-arrow-access → Arrow → DuckDB SQL → Iceberg / Lance / Parquet
-```
-
-Source integration through [open-arrow-access](https://github.com/dentiny/open-arrow-access) and sink support are planned; the current implementation contains only the renamed DuckDB extension template functions.
+Read Parquet into DuckDB through [open-arrow-access 0.1.0](https://github.com/dentiny/open-arrow-access/releases/tag/v0.1.0).
 
 ## Build
 
-Clone with submodules:
+Requires CMake 3.20+, C++17, and Rust 1.97+.
 
 ```sh
 git clone --recurse-submodules https://github.com/dentiny/duckport.git
 cd duckport
-```
-
-The template currently depends on OpenSSL. Install its development libraries so CMake can find them, or configure vcpkg using `VCPKG_TOOLCHAIN_PATH`.
-
-```sh
 make
-make test
-```
-
-Build outputs include:
-
-- `build/release/duckdb`
-- `build/release/test/unittest`
-- `build/release/extension/duckport/duckport.duckdb_extension`
-
-## Try the template functions
-
-The built DuckDB shell includes DuckPort:
-
-```sh
 ./build/release/duckdb
 ```
 
-```sql
-SELECT duckport('Sam');
--- ...........🦆 Sam
+The built shell includes DuckPort. A separate shell must match the build's DuckDB version; start it with `-unsigned` and load `build/release/extension/duckport/duckport.duckdb_extension`.
 
-SELECT duckport_openssl_version('Sam');
-```
-
-To load the built extension into a compatible DuckDB shell, start it with unsigned extensions enabled (`duckdb -unsigned`) and run:
+## Read
 
 ```sql
-LOAD 'build/release/extension/duckport/duckport.duckdb_extension';
+SELECT * FROM duckport_read_parquet('people.parquet', batch_size := 4096);
+SELECT * FROM duckport_read_parquet('https://example.com/people.parquet');
+SELECT * FROM duckport_read_parquet('s3://bucket/people.parquet',
+    storage_options := '{"region":"us-east-1"}');
 ```
 
-DuckPort is based on [duckdb/extension-template](https://github.com/duckdb/extension-template). See [docs/UPDATING.md](docs/UPDATING.md) for template update instructions.
+Local paths, `file://`, HTTP(S), and S3 use OpenDAL. `storage_options` is a JSON map of string-valued OpenDAL settings; DuckDB secrets are not used. `batch_size` defaults to 8192 and accepts 1–1,048,576 rows.
+
+Parquet page codecs: Snappy, Zstd, LZ4, gzip, Brotli. Archive members, directory/glob scans, HTTP query/signed URLs, and outer compression such as `.parquet.gz` are unsupported. Source projection/filter pushdown is not enabled.
+
+## Write
+
+```sql
+COPY (SELECT * FROM duckport_read_parquet('people.parquet'))
+TO 'output.parquet' (FORMAT PARQUET);
+```
+
+[Tests](test/README.md) · [Development](docs/UPDATING.md)
