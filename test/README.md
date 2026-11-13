@@ -1,11 +1,9 @@
-# Testing this extension
-This directory contains all the tests for this extension. The `sql` directory holds tests that are written as [SQLLogicTests](https://duckdb.org/dev/sqllogictest/intro.html). DuckDB aims to have most its tests in this format as SQL statements, so for the duckport extension, this should probably be the goal too.
+# Tests
 
-The root makefile contains targets to build and run all of these tests. To run the SQLLogicTests:
-```bash
+Run SQL tests from the repository root after building:
+
+```sh
 make test
 ```
-or 
-```bash
-make test_debug
-```
+
+Reader tests live in `test/sql/readers`; fixtures live in `test/data`.

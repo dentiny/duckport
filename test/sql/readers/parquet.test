@@ -1,0 +1,12 @@
+# name: test/sql/readers/parquet.test
+# description: Read Parquet through open-arrow-access
+# group: [sql]
+
+require duckport
+
+query IT rowsort
+SELECT id, name FROM duckport_scan_parquet('test/data/people.parquet', batch_size := 2);
+----
+1	Alice
+2	NULL
+3	Charlie
