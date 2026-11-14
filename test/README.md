@@ -6,4 +6,4 @@ Run SQL tests from the repository root after building:
 make test
 ```
 
-Reader tests live in `test/sql/readers`; fixtures live in `test/data`.
+Reader tests live in `test/sql/readers`; fixtures are grouped by format in `testdata/parquet` and `testdata/csv`.
