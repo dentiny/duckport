@@ -69,18 +69,6 @@ pub(crate) fn validate_huggingface_url_options(
     Ok(())
 }
 
-pub(crate) fn parse_attachment_format(format: &str) -> Result<AttachmentFormat> {
-    match format {
-        "csv" => Ok(AttachmentFormat::Csv),
-        "tsv" => Ok(AttachmentFormat::Tsv),
-        "json" => Ok(AttachmentFormat::Json),
-        "jsonl" => Ok(AttachmentFormat::Jsonl),
-        "parquet" => Ok(AttachmentFormat::Parquet),
-        "xml" => Ok(AttachmentFormat::Xml),
-        _ => Err("format must be csv, tsv, json, jsonl, parquet, or xml".into()),
-    }
-}
-
 pub(crate) fn validate_format(format: AttachmentFormat, record_path: Option<&str>) -> Result<()> {
     if format == AttachmentFormat::Xml && record_path.is_none_or(str::is_empty) {
         return Err("record_path is required for XML attachments".into());
