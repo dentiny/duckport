@@ -12,7 +12,7 @@ class StorageParameters {
 					  const char *file_path = nullptr);
 	StorageParameters(const StorageParameters &) = delete;
 	StorageParameters &operator=(const StorageParameters &) = delete;
-	::StorageOptions config{};
+	DuckportStorageOptions config{};
 
   private:
 	string endpoint;

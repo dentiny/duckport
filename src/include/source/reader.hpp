@@ -5,8 +5,8 @@
 #include <functional>
 
 namespace duckdb {
-using ReaderOpen = char *(*)(const char *, const ::StorageOptions *, const ::ScanOptions *, DuckportSource **);
-using ReaderBind = std::function<char *(ClientContext &, const string &, const ::ScanOptions *,
+using ReaderOpen = char *(*)(const char *, const DuckportStorageOptions *, const DuckportScanOptions *, DuckportSource **);
+using ReaderBind = std::function<char *(ClientContext &, const string &, const DuckportScanOptions *,
 										const TableFunctionBindInput &, DuckportSource **)>;
 void RegisterReader(ExtensionLoader &loader, const string &name, ReaderOpen open,
 					const std::function<void(TypedKwargs &)> &configure = {});
