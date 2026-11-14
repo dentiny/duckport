@@ -4,6 +4,7 @@
 #include "readers/json.h"
 #include "readers/warc.h"
 #include "source/reader.hpp"
+#include "source/readers/oapen.hpp"
 #include "source/readers/doab.hpp"
 #include "source/readers/arxiv.hpp"
 #include "readers/meca.h"
@@ -32,6 +33,13 @@
 namespace duckdb {
 namespace {
 void LoadInternal(ExtensionLoader &loader) {
+	RegisterReader(loader, "duckport_scan_oapen", OpenOapen, [](TypedKwargs &options) {
+		options.Add("endpoint", LogicalType::VARCHAR);
+		options.Add("from_date", LogicalType::VARCHAR);
+		options.Add("until_date", LogicalType::VARCHAR);
+		options.Add("set_spec", LogicalType::VARCHAR);
+		options.Add("record_path", LogicalType::VARCHAR);
+	});
 	RegisterReader(loader, "duckport_scan_doab", OpenDoab, [](TypedKwargs &options) {
 		options.Add("endpoint", LogicalType::VARCHAR);
 		options.Add("from_date", LogicalType::VARCHAR);

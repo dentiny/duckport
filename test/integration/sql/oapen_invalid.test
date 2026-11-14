@@ -1,0 +1,5 @@
+# Invalid provider metadata must fail before downloading content.
+statement error
+SELECT "oai:header"."oai:identifier" FROM duckport_scan_oapen('records', endpoint := '__ENDPOINT__', batch_size := 1);
+----
+DuckPort

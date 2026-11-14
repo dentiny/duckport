@@ -1,0 +1,14 @@
+{
+  "routes": [
+    {
+      "path": "/oai/request",
+      "file": "page.xml"
+    }
+  ],
+  "same_origin_download": true,
+  "expected_paths": [
+    "/oai/request?verb=ListRecords&metadataPrefix=xoai",
+    "/oai/request?verb=ListRecords&resumptionToken=next%2Btoken%26x"
+  ],
+  "reject_route": "/oai/request"
+}

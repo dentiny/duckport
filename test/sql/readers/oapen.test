@@ -1,0 +1,15 @@
+# name: test/sql/readers/oapen.test
+# description: Read oapen through its native service accessor
+# group: [sql]
+
+require duckport
+
+statement error
+SELECT * FROM duckport_scan_oapen('token', from_date := '2026-01-01');
+----
+resumption tokens cannot be combined
+
+statement error
+SELECT * FROM duckport_scan_oapen(NULL);
+----
+NULL

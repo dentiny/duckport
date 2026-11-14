@@ -328,3 +328,17 @@ retain that prefix. `endpoint` defaults to `https://directory.doabooks.org`.
 To obtain the next resumption token, scan the envelope with
 `record_path := '/oai:OAI-PMH/oai:ListRecords'` and select `"oai:resumptionToken"`.
 Automatic pagination is not enabled. Scoped HTTP bearer tokens are supported.
+
+### Oapen
+
+```sql
+SELECT * FROM duckport_scan_oapen('records', from_date := '2026-01-01');
+-- Pass an upstream resumption token as the locator to fetch the next page.
+```
+Fetches one OAI-PMH page and decodes its records, retaining deleted headers and
+nested provider metadata. `until_date`, `set_spec`, and `record_path` are optional.
+The default record path is `/oai:OAI-PMH/oai:ListRecords/oai:record`. The OAI namespace is bound to `oai`; inferred names such as `"oai:header"`
+retain that prefix. `endpoint` defaults to `https://library.oapen.org`.
+To obtain the next resumption token, scan the envelope with
+`record_path := '/oai:OAI-PMH/oai:ListRecords'` and select `"oai:resumptionToken"`.
+Automatic pagination is not enabled. Scoped HTTP bearer tokens are supported.
