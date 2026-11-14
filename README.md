@@ -58,3 +58,19 @@ SELECT pmcid, version, title FROM duckport_scan_pmc('testdata/pmc/PMC123.json', 
 
 Reads one PMC article-version metadata row. `duckport_scan_pmc_inventory(manifest_uri)` streams the gzip CSV shards named by an S3 inventory manifest; the manifest and shard keys must share a bucket root. Linked article content is not fetched.
 Local, HTTP(S), and S3 sources use the existing scoped DuckDB secrets.
+
+### Zenodo
+
+```sql
+SELECT * FROM duckport_scan_zenodo('<identifier>', file_name := '<logical attachment name>');
+```
+
+Reads one explicitly named attachment from the provider-resolved file namespace.
+`format` defaults to `binary` (one BLOB `data` column); `csv`, `tsv`, `json`,
+`jsonl`, `parquet`, and `xml` decode records. XML requires `record_path`.
+CSV/TSV expect headers. Text formats support outer compression. Binary mode buffers
+the selected attachment into one BLOB; use a record format for large tabular files.
+`endpoint` defaults to `https://zenodo.org`. No discovery pagination or whole-dataset download
+is implied. Unknown file names fail through the provider accessor.
+Scoped HTTP bearer tokens are used where the upstream service supports connection headers.
+All reader options above are VARCHAR; `batch_size` remains BIGINT.

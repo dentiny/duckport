@@ -1,0 +1,20 @@
+# name: test/sql/readers/zenodo.test
+# description: Validate zenodo attachment selection before network I/O
+# group: [sql]
+
+require duckport
+
+statement error
+SELECT * FROM duckport_scan_zenodo('test');
+----
+file_name is required
+
+statement error
+SELECT * FROM duckport_scan_zenodo(NULL);
+----
+NULL
+
+statement error
+SELECT * FROM duckport_scan_zenodo('test', file_name := NULL);
+----
+NULL
