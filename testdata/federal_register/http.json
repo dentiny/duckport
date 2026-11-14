@@ -1,0 +1,15 @@
+{
+  "routes": [
+    {
+      "path": "/api/v1/documents/2026-22789.json",
+      "file": "metadata.json"
+    }
+  ],
+  "downloads": [
+    {
+      "path": "/paper.pdf",
+      "file": "attachment.bin"
+    }
+  ],
+  "reject_route": "/api/v1/documents/2026-22789.json"
+}

@@ -4,6 +4,7 @@
 #include "readers/json.h"
 #include "readers/warc.h"
 #include "source/reader.hpp"
+#include "source/readers/federal_register.hpp"
 #include "source/readers/internet_archive.hpp"
 #include "source/readers/figshare.hpp"
 #include "source/readers/dataverse.hpp"
@@ -18,6 +19,12 @@
 namespace duckdb {
 namespace {
 void LoadInternal(ExtensionLoader &loader) {
+	RegisterReader(loader, "duckport_scan_federal_register", OpenFederalRegister, [](TypedKwargs &options) {
+		options.Add("file_name", LogicalType::VARCHAR);
+		options.Add("format", LogicalType::VARCHAR);
+		options.Add("record_path", LogicalType::VARCHAR);
+		options.Add("endpoint", LogicalType::VARCHAR);
+	});
 	RegisterReader(loader, "duckport_scan_internet_archive", OpenInternetArchive, [](TypedKwargs &options) {
 		options.Add("file_name", LogicalType::VARCHAR);
 		options.Add("format", LogicalType::VARCHAR);
