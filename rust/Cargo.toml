@@ -9,18 +9,21 @@ publish = false
 crate-type = ["staticlib"]
 
 [dependencies]
-open-arrow-access = { version = "=0.1.0", default-features = false, features = ["format-parquet", "format-parquet-zstd", "format-parquet-lz4", "format-parquet-gzip", "format-parquet-brotli", "format-csv", "format-json", "format-xml", "format-atif", "format-warc", "service-huggingface", "decompression-gzip", "decompression-bz2", "decompression-lz4", "decompression-zstd"] }
-opendal = { version = "=0.59.2", default-features = false, features = ["services-fs", "services-http", "services-s3", "http-transport-reqwest", "auto-register-services"] }
-arrow-array = { version = "=59.3.0", features = ["ffi"] }
-arrow-schema = "=59.3.0"
-serde = { version = "1", features = ["derive"] }
+open-arrow-access = { version = "0.1.0", default-features = false, features = [
+    "decompression-bz2",
+    "decompression-gzip",
+    "decompression-lz4",
+    "decompression-zstd",
+    "format-xml",
+    "format-parquet", "format-parquet-zstd", "format-parquet-lz4", "format-parquet-gzip", "format-parquet-brotli",
+] }
+opendal = { version = "0.59.2", default-features = false, features = ["services-fs", "services-http", "services-s3", "http-transport-reqwest", "auto-register-services"] }
+arrow-array = { version = "59.3.0", features = ["ffi"] }
+arrow-schema = "59.3.0"
 serde_json = "1"
-tokio = { version = "1", features = ["rt", "time", "net", "fs"] }
+tokio = { version = "1", features = ["rt-multi-thread", "time", "net", "fs"] }
 url = "2"
 percent-encoding = "2"
-
-[dev-dependencies]
-tempfile = "3"
 
 [profile.dev]
 debug = 0
