@@ -4,32 +4,10 @@ use crate::{
     source::DuckportSource as AsyncSource,
 };
 use open_arrow_access::{
-    Accessor, ReadRequest, RecordCapability, RecordReader, async_trait,
-    service::arxiv::{ArxivKind, ArxivReadRequest, ArxivRecords, ArxivService},
+    service::arxiv::{ArxivKind, ArxivReadRequest, ArxivService},
     storage::OpenDalAccessor,
 };
 use std::ffi::c_char;
-struct Records {
-    inner: ArxivRecords<OpenDalAccessor>,
-    kind: ArxivKind,
-    month: Option<u16>,
-}
-#[async_trait]
-impl Accessor for Records {
-    type Request = ReadRequest;
-    type Reader = dyn RecordReader;
-    fn capability(&self) -> RecordCapability {
-        self.inner.capability()
-    }
-    async fn open(&self, request: ReadRequest) -> open_arrow_access::Result<Box<dyn RecordReader>> {
-        let mut selection = ArxivReadRequest::new(self.kind).with_options(request.options);
-        if let Some(month) = self.month {
-            selection = selection.with_month(month);
-        }
-        self.inner.open(selection).await
-    }
-}
-
 #[repr(C)]
 pub struct ArxivOptions {
     pub kind: *const c_char,
@@ -65,15 +43,11 @@ pub unsafe extern "C" fn duckport_arxiv_open(
             requester_pays,
         )?);
         let records = ArxivService::new(storage).records();
-        AsyncSource::new(
-            Records {
-                inner: records,
-                kind,
-                month,
-            },
-            ReadRequest::new(locator).with_options(scan_options),
-        )
-        .await
+        let mut request = ArxivReadRequest::new(kind).with_options(scan_options);
+        if let Some(month) = month {
+            request = request.with_month(month);
+        }
+        AsyncSource::new(records, request).await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }

@@ -4,27 +4,12 @@ use crate::{
     source::DuckportSource as AsyncSource,
 };
 use open_arrow_access::{
-    Accessor, ByteReadRequest, ReadRequest, RecordCapability, RecordReader, async_trait,
+    Accessor, ByteReadRequest,
     decompression::zip::ZipLimits,
-    service::meca::{MecaArchive, MecaReadRequest, MecaRecords},
+    service::meca::{MecaArchive, MecaReadRequest},
     storage::OpenDalAccessor,
 };
 use std::ffi::c_char;
-struct Records(MecaRecords);
-#[async_trait]
-impl Accessor for Records {
-    type Request = ReadRequest;
-    type Reader = dyn RecordReader;
-    fn capability(&self) -> RecordCapability {
-        self.0.capability()
-    }
-    async fn open(&self, request: ReadRequest) -> open_arrow_access::Result<Box<dyn RecordReader>> {
-        self.0
-            .open(MecaReadRequest::default().with_options(request.options))
-            .await
-    }
-}
-
 /// # Safety
 /// Inputs are borrowed for this call; output points to writable source-pointer storage.
 #[unsafe(no_mangle)]
@@ -43,8 +28,8 @@ pub unsafe extern "C" fn duckport_meca_open(
             .await?
             .records();
         AsyncSource::new(
-            Records(records),
-            ReadRequest::new(locator).with_options(scan_options),
+            records,
+            MecaReadRequest::default().with_options(scan_options),
         )
         .await
     };
