@@ -54,10 +54,11 @@ pub unsafe extern "C" fn duckport_zenodo_open(
         } else if record_path.is_some() {
             return Err("record_path is only supported for XML attachments".into());
         }
-        let _ = storage_options; // This upstream service currently exposes public records only.
-        let files = ZenodoService::with_endpoint(&endpoint)?
-            .record(locator.parse()?)
-            .await?;
+        let mut service = ZenodoService::with_endpoint(&endpoint)?;
+        if let Some(token) = storage_options.token.as_deref() {
+            service = service.with_token(token)?;
+        }
+        let files = service.record(locator.parse()?).await?;
         match format {
             Some(format) => {
                 crate::service_files::open(files, file_name, format, record_path, scan_options)

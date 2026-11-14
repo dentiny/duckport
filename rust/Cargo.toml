@@ -11,7 +11,7 @@ crate-type = ["staticlib"]
 [dependencies]
 arrow-array = { version = "58", features = ["ffi"] }
 arrow-schema = "58"
-open-arrow-access = { version = "0.2.2", default-features = false, features = [
+open-arrow-access = { git = "https://github.com/dentiny/open-arrow-access", rev = "caebee096c87d3d762fbb04b536dd1afed396b27", default-features = false, features = [
     "decompression-bz2",
     "decompression-gzip",
     "decompression-lz4",
