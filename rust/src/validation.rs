@@ -41,3 +41,19 @@ pub(crate) fn boolean(name: &str, value: i32) -> Result<bool> {
         _ => Err(format!("{name} must be 0 or 1").into()),
     }
 }
+
+pub(crate) fn validate_huggingface_path(
+    owner: &str,
+    repository: &str,
+    revision: &str,
+    config: &str,
+    split: &str,
+) -> Result<()> {
+    if [owner, repository, config, split].iter().any(|value| {
+        value.is_empty() || matches!(*value, "." | "..") || value.contains(['/', '\\', '\0'])
+    }) || revision.is_empty()
+    {
+        return Err("Hugging Face URL contains an invalid path component".into());
+    }
+    Ok(())
+}

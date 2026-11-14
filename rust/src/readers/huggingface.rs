@@ -55,14 +55,7 @@ fn dataset_request(locator: &str) -> Result<HuggingFaceDatasetRequest> {
     let revision = decode(revision)?;
     let config = decode(config)?;
     let split = decode(split)?;
-    if [&owner, &repository, &config, &split].iter().any(|value| {
-        value.is_empty()
-            || matches!(value.as_str(), "." | "..")
-            || value.contains(['/', '\\', '\0'])
-    }) || revision.is_empty()
-    {
-        return Err("Hugging Face URL contains an invalid path component".into());
-    }
+    crate::validation::validate_huggingface_path(&owner, &repository, &revision, &config, &split)?;
     Ok(
         HuggingFaceDatasetRequest::new(format!("{owner}/{repository}"), config, split)
             .with_revision(if revision == "~parquet" {
