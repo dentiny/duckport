@@ -1,9 +1,11 @@
 #pragma once
 
-#include "duckdb.hpp"
+#include "duckdb/common/string.hpp"
 #include "duckport.h"
 
 namespace duckdb {
+class ClientContext;
+
 class StorageParameters {
   public:
 	StorageParameters(ClientContext &context, const string &locator, const string &secret_type,
