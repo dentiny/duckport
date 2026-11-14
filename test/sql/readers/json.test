@@ -1,9 +1,10 @@
 # name: test/sql/readers/json.test
-# description: duckport_read_json is registered independently
+# description: duckport_scan_json is registered independently
 # group: [sql]
+
 require duckport
 
 query I
-SELECT count(*) FROM duckdb_functions() WHERE function_name = 'duckport_read_json';
+SELECT count(*) FROM duckdb_functions() WHERE function_name = 'duckport_scan_json';
 ----
 1
