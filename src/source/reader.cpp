@@ -60,7 +60,7 @@ void RegisterReader(ExtensionLoader &loader, const string &name, ReaderOpen open
 					const std::function<void(TypedKwargs &)> &add_reader_options) {
 	ReaderBind bind = [open](ClientContext &context, const string &locator, const DuckportScanOptions &scan,
 							 const TableFunctionBindInput &, DuckportSource **output) {
-		StorageParameters storage(context, locator, {});
+		StorageParameters storage(context, locator, /*secret_type=*/{});
 		return open(locator.c_str(), storage.config, scan, output);
 	};
 	RegisterReader(loader, name, std::move(bind), add_reader_options);
