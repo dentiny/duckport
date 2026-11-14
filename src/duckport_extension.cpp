@@ -1,13 +1,14 @@
 #define DUCKDB_EXTENSION_MAIN
 #include "duckport_extension.hpp"
-#include "duckport_readers.hpp"
 #include "source/reader.hpp"
+#include "source/readers/xml.hpp"
 
 namespace duckdb {
 namespace {
 void LoadInternal(ExtensionLoader &loader) {
 	RegisterReader(loader, "duckport_scan_parquet", duckport_parquet_open);
-	RegisterAllReaders(loader);
+	RegisterReader(loader, "duckport_scan_xml", OpenXml,
+				   [](TypedKwargs &options) { options.Add("record_path", LogicalType::VARCHAR); });
 }
 } // namespace
 void DuckportExtension::Load(ExtensionLoader &loader) { LoadInternal(loader); }
