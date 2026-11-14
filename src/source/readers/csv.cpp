@@ -5,9 +5,9 @@
 
 namespace duckdb {
 namespace {
-char *Open(ClientContext &context, const string &locator, const ::ScanOptions *scan,
+char *Open(ClientContext &context, const string &locator, const DuckportScanOptions *scan,
 		   const TableFunctionBindInput &input, DuckportSource **output) {
-	::CsvOptions reader_options{};
+	CsvOptions reader_options{};
 	reader_options.header = -1;
 	ReadBooleanOption(input, "header", reader_options.header);
 	StorageParameters storage(context, locator, {});

@@ -1,6 +1,6 @@
 use crate::{
     ffi::{DuckportSource, open_reader},
-    options::{ScanOptions, StorageOptions},
+    options::{DuckportScanOptions, DuckportStorageOptions},
     source::DuckportSource as AsyncSource,
     storage,
 };
@@ -27,8 +27,8 @@ pub struct CsvOptions {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_csv_open(
     locator: *const c_char,
-    storage_options: *const StorageOptions,
-    scan_options: *const ScanOptions,
+    storage_options: *const DuckportStorageOptions,
+    scan_options: *const DuckportScanOptions,
     reader_options: *const CsvOptions,
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
