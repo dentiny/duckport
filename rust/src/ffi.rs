@@ -1,13 +1,14 @@
 use crate::{
     error::{Result, call, cleanup},
-    options::{ScanConfig, ScanOptions, StorageConfig, StorageOptions},
+    options::{ScanOptions, StorageConfig, StorageOptions},
     source::DuckportSource as AsyncSource,
     storage,
 };
 use arrow_array::{RecordBatch, RecordBatchReader, ffi_stream::FFI_ArrowArrayStream};
 use arrow_schema::{ArrowError, SchemaRef, ffi::FFI_ArrowSchema};
 use open_arrow_access::{
-    ReadRequest, RecordReader, file_format::parquet::ParquetAccessor, storage::OpenDalAccessor,
+    ReadOptions, ReadRequest, RecordReader, file_format::parquet::ParquetAccessor,
+    storage::OpenDalAccessor,
 };
 use std::{
     ffi::{CStr, c_char},
@@ -105,11 +106,7 @@ pub unsafe extern "C" fn duckport_parquet_open(
             |locator, storage_options, scan_options| async move {
                 let (operator, path) = storage::operator(&locator, &storage_options)?;
                 let accessor = ParquetAccessor::new(OpenDalAccessor::new(operator));
-                AsyncSource::new(
-                    accessor,
-                    ReadRequest::new(path).with_options(scan_options.read_options),
-                )
-                .await
+                AsyncSource::new(accessor, ReadRequest::new(path).with_options(scan_options)).await
             },
         )
     }
@@ -176,7 +173,7 @@ pub(crate) unsafe fn open_reader<F, Fut>(
     open: F,
 ) -> *mut c_char
 where
-    F: FnOnce(String, StorageConfig, ScanConfig) -> Fut,
+    F: FnOnce(String, StorageConfig, ReadOptions) -> Fut,
     Fut: std::future::Future<Output = Result<AsyncSource>>,
 {
     call(|| unsafe {
