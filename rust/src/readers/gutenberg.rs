@@ -19,21 +19,14 @@ pub unsafe extern "C" fn duckport_gutenberg_open(
     scan_options: &DuckportScanOptions,
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
-    unsafe {
-        open_reader(
-            locator,
-            storage_options,
-            scan_options,
-            output,
-            |locator, storage_options, scan_options| async move {
-                let (operator, path) = storage::operator(&locator, &storage_options)?;
-                let storage = OpenDalAccessor::new(operator).layer(AutoDecompressionLayer::new());
-                AsyncSource::new(
-                    GutenbergAccessor::with_default_decoder(storage),
-                    ReadRequest::new(path).with_options(scan_options),
-                )
-                .await
-            },
+    let open = |locator: String, storage_options, scan_options| async move {
+        let (operator, path) = storage::operator(&locator, &storage_options)?;
+        let storage = OpenDalAccessor::new(operator).layer(AutoDecompressionLayer::new());
+        AsyncSource::new(
+            GutenbergAccessor::with_default_decoder(storage),
+            ReadRequest::new(path).with_options(scan_options),
         )
-    }
+        .await
+    };
+    unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }
