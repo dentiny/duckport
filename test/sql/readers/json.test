@@ -1,0 +1,36 @@
+# name: test/sql/readers/json.test
+# description: JSON, JSONL, and NDJSON share the same object reader
+# group: [sql]
+
+require duckport
+
+query IT rowsort
+SELECT id, title FROM duckport_scan_json('testdata/json/good.json', batch_size := 2);
+----
+1	雪
+2	NULL
+3	NULL
+
+query IT rowsort
+SELECT id, replace(title, chr(10), '|') FROM duckport_scan_jsonl('testdata/json/good.jsonl', batch_size := 2);
+----
+1	hello
+2	NULL
+3	two|lines
+
+query IT rowsort
+SELECT id, replace(title, chr(10), '|') FROM duckport_scan_ndjson('testdata/json/good.jsonl', batch_size := 1);
+----
+1	hello
+2	NULL
+3	two|lines
+
+statement error
+SELECT * FROM duckport_scan_jsonl('testdata/json/bad_truncated.json');
+----
+EOF while parsing
+
+statement error
+SELECT * FROM duckport_scan_ndjson('testdata/json/bad_array.json');
+----
+expected a JSON object
