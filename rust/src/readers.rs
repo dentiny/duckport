@@ -2,6 +2,7 @@ mod atif;
 mod commoncrawl;
 mod csv;
 mod dataverse;
+mod figshare;
 mod gutenberg;
 mod huggingface;
 mod json;
