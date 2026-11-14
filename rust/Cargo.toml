@@ -21,6 +21,7 @@ open-arrow-access = { version = "0.1.0", default-features = false, features = [
     "service-warc",
     "format-xml",
     "service-huggingface",
+    "service-biorxiv",
     "service-uspto",
     "service-regulations",
     "service-bhl",

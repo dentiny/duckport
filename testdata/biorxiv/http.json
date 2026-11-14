@@ -1,0 +1,15 @@
+{
+  "routes": [
+    {
+      "path": "/details/biorxiv/2026-11-01/2026-11-02/0/json",
+      "file": "metadata.json"
+    }
+  ],
+  "downloads": [
+    {
+      "path": "/paper.xml",
+      "file": "attachment.bin"
+    }
+  ],
+  "reject_route": "/details/biorxiv/2026-11-01/2026-11-02/0/json"
+}

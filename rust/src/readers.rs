@@ -1,5 +1,6 @@
 mod atif;
 mod bhl;
+mod biorxiv;
 mod commoncrawl;
 mod csv;
 mod dataverse;
