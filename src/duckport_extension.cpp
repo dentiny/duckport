@@ -1,5 +1,6 @@
 #define DUCKDB_EXTENSION_MAIN
 #include "duckport_extension.hpp"
+#include "readers/json.h"
 #include "source/reader.hpp"
 #include "source/readers/csv.hpp"
 
@@ -10,6 +11,9 @@ void LoadInternal(ExtensionLoader &loader) {
 	auto add_csv_options = [](TypedKwargs &options) { options.Add("header", LogicalType::BOOLEAN); };
 	RegisterReader(loader, "duckport_scan_csv", OpenCsv, add_csv_options);
 	RegisterReader(loader, "duckport_scan_tsv", OpenTsv, add_csv_options);
+	RegisterReader(loader, "duckport_scan_json", duckport_json_open);
+	RegisterReader(loader, "duckport_scan_jsonl", duckport_json_open);
+	RegisterReader(loader, "duckport_scan_ndjson", duckport_json_open);
 }
 } // namespace
 void DuckportExtension::Load(ExtensionLoader &loader) { LoadInternal(loader); }

@@ -2438,12 +2438,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "816d917b9085b92e02a47463155f73fe4ac227cbaca9959e6c24b4f67e8cd617"
 dependencies = [
  "arrow-csv",
+ "arrow-json",
  "arrow-schema",
+ "bytes",
  "csv",
  "csv-async",
  "futures",
  "open-arrow-access-core",
  "parquet",
+ "serde_json",
 ]
 
 [[package]]
