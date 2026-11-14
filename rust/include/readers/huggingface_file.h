@@ -11,7 +11,7 @@ struct HuggingFaceFileOptions {
 };
 
 extern "C" {
-char *duckport_huggingface_file_open(const char *locator, const DuckportStorageOptions *storage_options,
-									 const DuckportScanOptions *scan_options,
-									 const HuggingFaceFileOptions *reader_options, DuckportSource **output);
+char *duckport_huggingface_file_open(const char *locator, const DuckportStorageOptions &storage_options,
+									 const DuckportScanOptions &scan_options,
+									 const HuggingFaceFileOptions &reader_options, DuckportSource **output);
 }

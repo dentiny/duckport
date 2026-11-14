@@ -1,0 +1,59 @@
+# name: test/sql/readers/csv.test
+# description: Read CSV and TSV with and without headers and reject malformed input
+# group: [sql]
+
+require duckport
+
+query IT rowsort
+SELECT id, replace(title, chr(10), '|') FROM duckport_scan_csv('testdata/csv/good.csv', header := true, batch_size := 2);
+----
+1	hello,world
+2	NULL
+3	two|lines
+4	say "yes"
+5	last
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_csv('testdata/csv/good.csv');
+----
+5	15
+
+query IT rowsort
+SELECT column_1, column_2 FROM duckport_scan_csv('testdata/csv/good_no_header.csv', header := false, batch_size := 2);
+----
+1	one
+2	two
+3	three
+
+statement error
+SELECT * FROM duckport_scan_csv('testdata/csv/bad_extra_column.csv', header := true);
+----
+Expected 2 records, found 3 records
+
+statement error
+SELECT * FROM duckport_scan_csv('testdata/csv/bad_missing_column.csv', header := true);
+----
+Expected 2 records, found 1 records
+
+statement error
+SELECT * FROM duckport_scan_csv('testdata/csv/bad_utf8.csv', header := false);
+----
+UTF-8 error
+
+query IT rowsort
+SELECT id, replace(title, chr(9), '|') FROM duckport_scan_tsv('testdata/csv/good.tsv', header := true, batch_size := 1);
+----
+1	你好
+2	two|columns
+
+query IT rowsort
+SELECT column_1, column_2 FROM duckport_scan_tsv('testdata/csv/good_no_header.tsv', header := false, batch_size := 2);
+----
+1	one
+2	two
+3	three
+
+statement error
+SELECT * FROM duckport_scan_tsv('testdata/csv/bad_extra_column.tsv', header := true);
+----
+Expected 2 records, found 3 records
