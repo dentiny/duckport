@@ -89,8 +89,8 @@ async fn open_commoncrawl(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_commoncrawl_open(
     locator: *const c_char,
-    storage_options: *const DuckportStorageOptions,
-    scan_options: *const DuckportScanOptions,
+    storage_options: &DuckportStorageOptions,
+    scan_options: &DuckportScanOptions,
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
     let open = |locator, options, scan| open_commoncrawl(locator, options, scan, Scope::Dataset);
@@ -103,8 +103,8 @@ pub unsafe extern "C" fn duckport_commoncrawl_open(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_commoncrawl_segment_open(
     locator: *const c_char,
-    storage_options: *const DuckportStorageOptions,
-    scan_options: *const DuckportScanOptions,
+    storage_options: &DuckportStorageOptions,
+    scan_options: &DuckportScanOptions,
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
     let open = |locator, options, scan| open_commoncrawl(locator, options, scan, Scope::Segment);

@@ -18,8 +18,8 @@ use std::ffi::c_char;
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_json_open(
     locator: *const c_char,
-    storage_options: *const DuckportStorageOptions,
-    scan_options: *const DuckportScanOptions,
+    storage_options: &DuckportStorageOptions,
+    scan_options: &DuckportScanOptions,
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
     let open = |locator: String, storage_options, scan_options| async move {
