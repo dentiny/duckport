@@ -10,6 +10,7 @@ mod hathifiles;
 mod huggingface;
 mod internet_archive;
 mod json;
+mod library_of_congress;
 mod pmc;
 mod warc;
 mod xml;
