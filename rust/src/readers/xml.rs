@@ -28,25 +28,18 @@ pub unsafe extern "C" fn duckport_xml_open(
     reader_options: &XmlOptions,
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
-    unsafe {
-        open_reader(
-            locator,
-            storage_options,
-            scan_options,
-            output,
-            |locator, storage_options, scan_options| async move {
-                let record_path = optional_string(reader_options.record_path)?
-                    .ok_or("record_path is required")?;
+    let open = |locator: String, storage_options, scan_options| async move {
+        let record_path = unsafe { optional_string(reader_options.record_path) }?
+            .ok_or("record_path is required")?;
 
-                let (operator, path) = storage::operator(&locator, &storage_options)?;
-                let storage = OpenDalAccessor::new(operator).layer(AutoDecompressionLayer::new());
-                let format = XmlFormat::new(record_path);
-                AsyncSource::new(
-                    FileAccessor::from_format(storage, format),
-                    ReadRequest::new(path).with_options(scan_options),
-                )
-                .await
-            },
+        let (operator, path) = storage::operator(&locator, &storage_options)?;
+        let storage = OpenDalAccessor::new(operator).layer(AutoDecompressionLayer::new());
+        let format = XmlFormat::new(record_path);
+        AsyncSource::new(
+            FileAccessor::from_format(storage, format),
+            ReadRequest::new(path).with_options(scan_options),
         )
-    }
+        .await
+    };
+    unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }
