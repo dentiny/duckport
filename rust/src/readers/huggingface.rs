@@ -4,28 +4,8 @@ use crate::{
     options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig, optional_string},
     source::DuckportSource as AsyncSource,
 };
-use open_arrow_access::{
-    Accessor, ReadRequest, RecordCapability, RecordReader, async_trait, service::huggingface::*,
-};
+use open_arrow_access::service::huggingface::*;
 use std::ffi::c_char;
-
-struct Dataset {
-    service: HuggingFaceService,
-    request: HuggingFaceDatasetRequest,
-}
-#[async_trait]
-impl Accessor for Dataset {
-    type Request = ReadRequest;
-    type Reader = dyn RecordReader;
-    fn capability(&self) -> RecordCapability {
-        self.service.capability()
-    }
-    async fn open(&self, request: ReadRequest) -> open_arrow_access::Result<Box<dyn RecordReader>> {
-        self.service
-            .dataset(self.request.clone().with_options(request.options))
-            .await
-    }
-}
 
 // The service takes a typed request; adapt a fully qualified split URI at the SQL boundary.
 fn dataset_request(locator: &str) -> Result<HuggingFaceDatasetRequest> {
@@ -122,11 +102,7 @@ pub unsafe extern "C" fn duckport_huggingface_open(
             settings = settings.with_token(token);
         }
         let service = HuggingFaceService::new(settings).await?;
-        AsyncSource::new(
-            Dataset { service, request },
-            ReadRequest::new(locator).with_options(scan_options),
-        )
-        .await
+        AsyncSource::new(service, request.with_options(scan_options)).await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }

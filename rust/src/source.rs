@@ -1,41 +1,23 @@
 use crate::error::Result;
 use arrow_schema::SchemaRef;
-use open_arrow_access::{Accessor, ReadRequest, RecordReader};
-use std::sync::Mutex;
+use open_arrow_access::{Accessor, BoundSource, RecordReader};
 
-pub struct DuckportSource {
-    schema: SchemaRef,
-    accessor: Box<dyn Accessor<Request = ReadRequest, Reader = dyn RecordReader>>,
-    request: ReadRequest,
-    bound: Mutex<Option<Box<dyn RecordReader>>>,
-}
+pub struct DuckportSource(BoundSource);
+
 impl DuckportSource {
-    pub async fn new(
-        accessor: impl Accessor<Request = ReadRequest, Reader = dyn RecordReader> + 'static,
-        request: ReadRequest,
-    ) -> Result<Self> {
-        let reader = accessor.open(request.clone()).await?;
-        let schema = reader.metadata().schema.clone();
-        Ok(Self {
-            schema,
-            accessor: Box::new(accessor),
-            request,
-            bound: Mutex::new(Some(reader)),
-        })
+    pub async fn new<A>(accessor: A, request: A::Request) -> Result<Self>
+    where
+        A: Accessor<Reader = dyn RecordReader> + 'static,
+        A::Request: Clone + Sync + 'static,
+    {
+        Ok(Self(BoundSource::bind(accessor, request).await?))
     }
+
     pub fn schema(&self) -> SchemaRef {
-        self.schema.clone()
+        self.0.schema()
     }
 
     pub async fn reader(&self) -> Result<Box<dyn RecordReader>> {
-        let bound = self.bound.lock().unwrap().take();
-        let reader = match bound {
-            Some(reader) => reader,
-            None => self.accessor.open(self.request.clone()).await?,
-        };
-        if reader.metadata().schema != self.schema {
-            return Err("source schema changed; rebind the query".into());
-        }
-        Ok(reader)
+        Ok(self.0.reader().await?)
     }
 }
