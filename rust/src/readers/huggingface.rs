@@ -56,7 +56,7 @@ pub unsafe extern "C" fn duckport_huggingface_open(
                     scan_options.config.unwrap_or_else(|| "default".into()),
                     scan_options.split.unwrap_or_else(|| "train".into()),
                 );
-                if let Some(revision) = storage_options.revision {
+                if let Some(revision) = scan_options.revision {
                     request = request.with_revision(revision);
                 }
                 if scan_options.allow_partial {

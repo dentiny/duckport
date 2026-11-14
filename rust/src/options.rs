@@ -10,7 +10,6 @@ pub struct StorageOptions {
     pub secret_access_key: *const c_char,
     pub session_token: *const c_char,
     pub token: *const c_char,
-    pub revision: *const c_char,
     pub virtual_host_style: i32,
     pub allow_anonymous: i32,
 }
@@ -20,6 +19,7 @@ pub struct ScanOptions {
     pub batch_size: usize,
     /// -1 infers the CSV header; 0 disables it; 1 enables it.
     pub header: i32,
+    pub revision: *const c_char,
     pub record_path: *const c_char,
     pub format: *const c_char,
     pub path: *const c_char,
@@ -35,7 +35,6 @@ pub struct StorageConfig {
     pub secret_access_key: Option<String>,
     pub session_token: Option<String>,
     pub token: Option<String>,
-    pub revision: Option<String>,
     pub virtual_host_style: bool,
     pub allow_anonymous: bool,
 }
@@ -43,6 +42,7 @@ pub struct StorageConfig {
 pub struct ScanConfig {
     pub read_options: ReadOptions,
     pub header: Option<bool>,
+    pub revision: Option<String>,
     pub record_path: Option<String>,
     pub format: Option<String>,
     pub path: Option<String>,
@@ -60,7 +60,6 @@ impl StorageOptions {
             secret_access_key: unsafe { optional_string(self.secret_access_key) }?,
             session_token: unsafe { optional_string(self.session_token) }?,
             token: unsafe { optional_string(self.token) }?,
-            revision: unsafe { optional_string(self.revision) }?,
             virtual_host_style: validation::boolean("virtual_host_style", self.virtual_host_style)?,
             allow_anonymous: validation::boolean("allow_anonymous", self.allow_anonymous)?,
         })
@@ -75,6 +74,7 @@ impl ScanOptions {
                 ..Default::default()
             },
             header: validation::optional_boolean("header", self.header)?,
+            revision: unsafe { optional_string(self.revision) }?,
             record_path: unsafe { optional_string(self.record_path) }?,
             format: unsafe { optional_string(self.format) }?,
             path: unsafe { optional_string(self.path) }?,
