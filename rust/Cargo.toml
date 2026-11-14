@@ -9,6 +9,8 @@ publish = false
 crate-type = ["staticlib"]
 
 [dependencies]
+arrow-array = { version = "58", features = ["ffi"] }
+arrow-schema = "58"
 open-arrow-access = { version = "0.2.0", default-features = false, features = [
     "decompression-bz2",
     "decompression-gzip",
@@ -17,33 +19,41 @@ open-arrow-access = { version = "0.2.0", default-features = false, features = [
     "format-atif",
     "format-csv",
     "format-json",
+    "format-parquet",
+    "format-parquet-brotli",
+    "format-parquet-gzip",
+    "format-parquet-lz4",
+    "format-parquet-zstd",
     "format-warc",
-    "service-warc",
     "format-xml",
-    "service-huggingface",
-    "service-uspto",
-    "service-regulations",
     "service-bhl",
-    "service-openstax",
-    "service-semantic-scholar",
-    "service-library-of-congress",
-    "service-hathifiles",
-    "service-govinfo",
-    "service-federal-register",
-    "service-internet-archive",
-    "service-figshare",
     "service-dataverse",
-    "service-zenodo",
-    "service-pmc",
+    "service-federal-register",
+    "service-figshare",
+    "service-govinfo",
     "service-gutenberg",
-    "format-parquet", "format-parquet-zstd", "format-parquet-lz4", "format-parquet-gzip", "format-parquet-brotli",
+    "service-hathifiles",
+    "service-huggingface",
+    "service-internet-archive",
+    "service-library-of-congress",
+    "service-openstax",
+    "service-pmc",
+    "service-regulations",
+    "service-semantic-scholar",
+    "service-uspto",
+    "service-warc",
+    "service-zenodo",
 ] }
-opendal = { version = "0.59.2", default-features = false, features = ["services-fs", "services-http", "services-s3", "http-transport-reqwest", "auto-register-services"] }
-arrow-array = { version = "58", features = ["ffi"] }
-arrow-schema = "58"
-tokio = { version = "1", features = ["rt-multi-thread", "time", "net", "fs"] }
-url = "2"
+opendal = { version = "0.59.2", default-features = false, features = [
+    "auto-register-services",
+    "http-transport-reqwest",
+    "services-fs",
+    "services-http",
+    "services-s3",
+] }
 percent-encoding = "2"
+tokio = { version = "1", features = ["fs", "net", "rt-multi-thread", "time"] }
+url = "2"
 
 [profile.dev]
 debug = 0
