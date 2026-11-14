@@ -58,6 +58,7 @@ add_dependencies(duckport_source_rust duckport_rust_build)
 
 include_directories(src/include rust/include)
 set(EXTENSION_SOURCES src/duckport_extension.cpp src/error.cpp src/storage_options.cpp src/source/options.cpp src/source/reader.cpp src/source/source_factory.cpp)
+list(APPEND EXTENSION_SOURCES src/source/readers/atif.cpp)
 list(APPEND EXTENSION_SOURCES src/source/readers/csv.cpp)
 list(APPEND EXTENSION_SOURCES src/source/readers/huggingface.cpp)
 list(APPEND EXTENSION_SOURCES src/source/readers/xml.cpp)
