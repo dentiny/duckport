@@ -19,7 +19,7 @@ use open_arrow_access::{
 use std::ffi::c_char;
 
 /// # Safety
-/// Locator and option JSON are NUL-terminated UTF-8. Option structs are valid for
+/// Locator and optional strings are NUL-terminated UTF-8. Option structs are valid for
 /// this call; output points to writable source-pointer storage. No inputs are retained.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_huggingface_file_open(
@@ -34,23 +34,23 @@ pub unsafe extern "C" fn duckport_huggingface_file_open(
             storage_options,
             scan_options,
             output,
-            |locator, mut storage_options, mut options, read_options| async move {
+            |locator, storage_options, scan_options| async move {
                 let mut settings = HuggingFaceOptions::default();
-                if let Some(endpoint) = storage_options.remove("endpoint") {
+                if let Some(endpoint) = storage_options.endpoint {
                     settings = settings.with_endpoint(endpoint);
                 }
-                if let Some(token) = storage_options.remove("token") {
+                if let Some(token) = storage_options.token {
                     settings = settings.with_token(token);
                 }
                 let service = HuggingFaceService::new(settings).await?;
                 let mut repository = HuggingFaceRepository::new(locator);
-                if let Some(revision) = storage_options.remove("revision") {
+                if let Some(revision) = storage_options.revision {
                     repository = repository.with_revision(revision);
                 }
-                let path = options.remove("path").ok_or("path is required")?;
-                let format = options.remove("format").ok_or("format is required")?;
+                let path = scan_options.path.ok_or("path is required")?;
+                let format = scan_options.format.ok_or("format is required")?;
                 let storage = service.repository(repository).await?;
-                let request = ReadRequest::new(path).with_options(read_options);
+                let request = ReadRequest::new(path).with_options(scan_options.read_options);
                 match format.as_str() {
                     "parquet" => {
                         AsyncSource::new(FileAccessor::from_format(storage, ParquetFormat), request)
@@ -64,10 +64,7 @@ pub unsafe extern "C" fn duckport_huggingface_file_open(
                         let format = CsvFileFormat::infer()
                             .with_dialect(dialect)
                             .with_inference_options(CsvInferenceOptions {
-                                has_header: options
-                                    .remove("header")
-                                    .map(|value| value.parse())
-                                    .transpose()?,
+                                has_header: scan_options.header,
                                 ..Default::default()
                             });
                         AsyncSource::new(FileAccessor::from_format(storage, format), request).await
@@ -84,9 +81,7 @@ pub unsafe extern "C" fn duckport_huggingface_file_open(
                             FileAccessor::from_format(
                                 storage,
                                 XmlFormat::new(
-                                    options
-                                        .remove("record_path")
-                                        .ok_or("record_path is required")?,
+                                    scan_options.record_path.ok_or("record_path is required")?,
                                 ),
                             ),
                             request,

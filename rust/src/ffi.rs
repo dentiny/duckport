@@ -1,19 +1,16 @@
 use crate::{
     error::{Result, call, cleanup},
-    options::{ScanOptions, StorageOptions},
+    options::{ScanConfig, ScanOptions, StorageConfig, StorageOptions},
     source::DuckportSource as AsyncSource,
     storage,
 };
 use arrow_array::{RecordBatch, RecordBatchReader, ffi_stream::FFI_ArrowArrayStream};
 use arrow_schema::{ArrowError, SchemaRef, ffi::FFI_ArrowSchema};
 use open_arrow_access::{
-    ReadOptions, ReadRequest, RecordReader, file_format::parquet::ParquetAccessor,
-    storage::OpenDalAccessor,
+    ReadRequest, RecordReader, file_format::parquet::ParquetAccessor, storage::OpenDalAccessor,
 };
 use std::{
-    collections::HashMap,
     ffi::{CStr, c_char},
-    num::NonZeroUsize,
     panic::{AssertUnwindSafe, catch_unwind},
     ptr,
     sync::LazyLock,
@@ -90,7 +87,7 @@ unsafe fn string(value: *const c_char) -> Result<String> {
 }
 
 /// # Safety
-/// Locator and option JSON are NUL-terminated UTF-8. Option structs are valid for
+/// Locator and optional strings are NUL-terminated UTF-8. Option structs are valid for
 /// this call; output points to writable source-pointer storage. No inputs are retained.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_parquet_open(
@@ -105,10 +102,14 @@ pub unsafe extern "C" fn duckport_parquet_open(
             storage_options,
             scan_options,
             output,
-            |locator, storage_options, _scan_options, read_options| async move {
-                let (operator, path) = storage::operator(&locator, storage_options)?;
+            |locator, storage_options, scan_options| async move {
+                let (operator, path) = storage::operator(&locator, &storage_options)?;
                 let accessor = ParquetAccessor::new(OpenDalAccessor::new(operator));
-                AsyncSource::new(accessor, ReadRequest::new(path).with_options(read_options)).await
+                AsyncSource::new(
+                    accessor,
+                    ReadRequest::new(path).with_options(scan_options.read_options),
+                )
+                .await
             },
         )
     }
@@ -175,7 +176,7 @@ pub(crate) unsafe fn open_reader<F, Fut>(
     open: F,
 ) -> *mut c_char
 where
-    F: FnOnce(String, HashMap<String, String>, HashMap<String, String>, ReadOptions) -> Fut,
+    F: FnOnce(String, StorageConfig, ScanConfig) -> Fut,
     Fut: std::future::Future<Output = Result<AsyncSource>>,
 {
     call(|| unsafe {
@@ -186,20 +187,9 @@ where
         let locator = string(locator)?;
         let storage_options = storage_options.as_ref().ok_or("null storage options")?;
         let scan_options = scan_options.as_ref().ok_or("null scan options")?;
-        let storage = serde_json::from_str(&string(storage_options.json)?)?;
-        let scan = serde_json::from_str(&string(scan_options.json)?)?;
-        let batch_size = NonZeroUsize::new(scan_options.batch_size)
-            .filter(|size| size.get() <= 1048576)
-            .ok_or("batch_size must be between 1 and 1048576")?;
-        let source = RUNTIME.block_on(open(
-            locator,
-            storage,
-            scan,
-            ReadOptions {
-                batch_size,
-                ..Default::default()
-            },
-        ))?;
+        let storage = storage_options.read()?;
+        let scan = scan_options.read()?;
+        let source = RUNTIME.block_on(open(locator, storage, scan))?;
         *output = Box::into_raw(Box::new(DuckportSource {
             source: Some(source),
         }));
