@@ -1,8 +1,8 @@
 #define DUCKDB_EXTENSION_MAIN
 #include "duckport_extension.hpp"
-#include "readers/atif.h"
 #include "readers/json.h"
 #include "source/reader.hpp"
+#include "source/readers/atif.hpp"
 #include "source/readers/csv.hpp"
 #include "source/readers/xml.hpp"
 
@@ -10,8 +10,8 @@ namespace duckdb {
 namespace {
 void LoadInternal(ExtensionLoader &loader) {
 	RegisterReader(loader, "duckport_scan_parquet", duckport_parquet_open);
-	RegisterReader(loader, "duckport_scan_atif", duckport_atif_open);
-	RegisterReader(loader, "duckport_scan_atif_jsonl", duckport_atif_jsonl_open);
+	RegisterReader(loader, "duckport_scan_atif", OpenAtif,
+				   [](TypedKwargs &options) { options.Add("jsonl", LogicalType::BOOLEAN); });
 	auto add_csv_options = [](TypedKwargs &options) { options.Add("header", LogicalType::BOOLEAN); };
 	RegisterReader(loader, "duckport_scan_csv", OpenCsv, add_csv_options);
 	RegisterReader(loader, "duckport_scan_tsv", OpenTsv, add_csv_options);
