@@ -33,12 +33,12 @@ fn create_remote_operator(
         opendal::Operator::new(builder)?
     } else {
         let mut builder = opendal::services::S3::default()
-            .bucket(url.host_str().ok_or("S3 URI must name a bucket")?);
+            .bucket(url.host_str().ok_or("S3 URI must name a bucket")?)
+            .region(config.region.as_deref().unwrap_or("us-east-1"))
+            .disable_config_load()
+            .disable_ec2_metadata();
         if let Some(endpoint) = &config.endpoint {
             builder = builder.endpoint(endpoint);
-        }
-        if let Some(region) = &config.region {
-            builder = builder.region(region);
         }
         if let Some(key) = &config.access_key_id {
             builder = builder.access_key_id(key);
