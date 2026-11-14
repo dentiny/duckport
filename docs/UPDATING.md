@@ -25,10 +25,12 @@ To update open-arrow-access, change the version requirement in `rust/Cargo.toml`
 
 Every opener uses `(locator, const StorageOptions *, const ScanOptions *, output)`.
 Both structs use named fields; there is no JSON or key/value options payload.
-Storage fields cover endpoint, region, credentials, and provider revision. Scan fields
-cover batch size, CSV header, XML record path, and dataset/file selection. Null strings
-mean unset; booleans use 0/1, with -1 for inferred CSV headers. C++ owns input strings
-for the call, and Rust copies them before asynchronous reads.
+C++ resolves S3, HTTP, and Hugging Face credentials through DuckDB's scoped secret
+manager, then passes the resolved storage fields to Rust. Connection settings are
+not scan SQL parameters. Scan fields cover batch size, header, record path, revision,
+and dataset/file selection. C++ owns input strings for the call; Rust copies them
+before asynchronous reads. S3 uses the resolved secret rather than an independent
+Rust credential chain.
 
 C++ binds SQL parameters and uses DuckDB's Arrow scanner. Rust owns the schema and async reader factory; its FFI layer uses a shared Tokio runtime and adapts readers to synchronous Arrow streams. The FFI exposes `open`, `get_schema`, `get_stream`, and `destroy`; registrations and source lists are explicit.
 
