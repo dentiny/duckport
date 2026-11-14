@@ -1,6 +1,6 @@
 mod error;
 mod ffi;
-mod options;
+pub mod options;
 mod readers;
 mod source;
 mod storage;
