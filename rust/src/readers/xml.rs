@@ -1,6 +1,6 @@
 use crate::{
     ffi::{DuckportSource, open_reader},
-    options::{ScanOptions, StorageOptions},
+    options::{ScanOptions, StorageOptions, optional_string},
     source::DuckportSource as AsyncSource,
     storage,
 };
@@ -12,6 +12,11 @@ use open_arrow_access::{
 };
 use std::ffi::c_char;
 
+#[repr(C)]
+pub struct XmlOptions {
+    pub record_path: *const c_char,
+}
+
 /// # Safety
 /// Locator and optional strings are NUL-terminated UTF-8. Option structs are valid for
 /// this call; output points to writable source-pointer storage. No inputs are retained.
@@ -20,6 +25,7 @@ pub unsafe extern "C" fn duckport_xml_open(
     locator: *const c_char,
     storage_options: *const StorageOptions,
     scan_options: *const ScanOptions,
+    reader_options: *const XmlOptions,
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
     unsafe {
@@ -29,13 +35,16 @@ pub unsafe extern "C" fn duckport_xml_open(
             scan_options,
             output,
             |locator, storage_options, scan_options| async move {
+                let reader_options = reader_options.as_ref().ok_or("null reader options")?;
+                let record_path = optional_string(reader_options.record_path)?
+                    .ok_or("record_path is required")?;
+
                 let (operator, path) = storage::operator(&locator, &storage_options)?;
                 let storage = OpenDalAccessor::new(operator).layer(AutoDecompressionLayer::new());
-                let format =
-                    XmlFormat::new(scan_options.record_path.ok_or("record_path is required")?);
+                let format = XmlFormat::new(record_path);
                 AsyncSource::new(
                     FileAccessor::from_format(storage, format),
-                    ReadRequest::new(path).with_options(scan_options.read_options),
+                    ReadRequest::new(path).with_options(scan_options),
                 )
                 .await
             },
