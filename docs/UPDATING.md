@@ -24,10 +24,11 @@ To update open-arrow-access, change the version requirement in `rust/Cargo.toml`
 ## Reader bridge
 
 Every opener uses `(locator, const StorageOptions *, const ScanOptions *, output)`.
-`StorageOptions.json` holds string-valued storage settings (including provider endpoint,
-token, and revision). `ScanOptions` holds `batch_size` and a JSON map of string-valued
-format/dataset settings. Both structs and their JSON strings are borrowed for the call;
-Rust copies and validates them before opening the reader. SQL arguments are unchanged.
+Both structs use named fields; there is no JSON or key/value options payload.
+Storage fields cover endpoint, region, credentials, and provider revision. Scan fields
+cover batch size, CSV header, XML record path, and dataset/file selection. Null strings
+mean unset; booleans use 0/1, with -1 for inferred CSV headers. C++ owns input strings
+for the call, and Rust copies them before asynchronous reads.
 
 C++ binds SQL parameters and uses DuckDB's Arrow scanner. Rust owns the schema and async reader factory; its FFI layer uses a shared Tokio runtime and adapts readers to synchronous Arrow streams. The FFI exposes `open`, `get_schema`, `get_stream`, and `destroy`; registrations and source lists are explicit.
 
