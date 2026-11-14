@@ -1,5 +1,5 @@
 //! Decode one explicitly selected provider attachment. File membership stays with the provider.
-use crate::{error::Result, source::DuckportSource};
+use crate::{error::Result, source::DuckportSource, validation};
 use arrow_array::{ArrayRef, LargeBinaryArray};
 use arrow_schema::{DataType, Field, Schema};
 use open_arrow_access::{
@@ -16,22 +16,6 @@ use open_arrow_access::{
 };
 use std::sync::Arc;
 
-pub fn validate_format(format: &str, record_path: Option<&str>) -> Result<()> {
-    if !matches!(
-        format,
-        "binary" | "csv" | "tsv" | "json" | "jsonl" | "parquet" | "xml"
-    ) {
-        return Err("format must be binary, csv, tsv, json, jsonl, parquet, or xml".into());
-    }
-    if format == "xml" && record_path.is_none_or(str::is_empty) {
-        return Err("record_path is required for XML attachments".into());
-    }
-    if format != "xml" && record_path.is_some() {
-        return Err("record_path is only supported for XML attachments".into());
-    }
-    Ok(())
-}
-
 pub async fn open<A: ByteAccessor + 'static>(
     files: A,
     file: String,
@@ -39,7 +23,7 @@ pub async fn open<A: ByteAccessor + 'static>(
     record_path: Option<String>,
     options: ReadOptions,
 ) -> Result<DuckportSource> {
-    validate_format(format, record_path.as_deref())?;
+    validation::validate_format(format, record_path.as_deref())?;
     let request = ReadRequest::new(file).with_options(options);
     if format == "binary" {
         return DuckportSource::new(DocumentAccessor::new(files, BinaryDecoder), request).await;
