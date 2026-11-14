@@ -25,14 +25,14 @@ string ReadSourceString(const Value &value) {
 	return text;
 }
 
-::ScanOptions ReadScanOptions(const TableFunctionBindInput &input) {
+DuckportScanOptions ReadScanOptions(const TableFunctionBindInput &input) {
 	for (const auto &entry : input.named_parameters) {
 		if (entry.second.IsNull()) {
 			throw BinderException("DuckPort arguments cannot be NULL");
 		}
 	}
 	constexpr idx_t DEFAULT_BATCH_SIZE = 8192;
-	::ScanOptions scan{DEFAULT_BATCH_SIZE};
+	DuckportScanOptions scan{DEFAULT_BATCH_SIZE};
 	auto batch = input.named_parameters.find("batch_size");
 	if (batch != input.named_parameters.end()) {
 		scan.batch_size = idx_t(BigIntValue::Get(batch->second));

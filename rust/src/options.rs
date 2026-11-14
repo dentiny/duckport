@@ -3,7 +3,7 @@ use open_arrow_access::ReadOptions;
 use std::ffi::{CStr, c_char};
 
 #[repr(C)]
-pub struct StorageOptions {
+pub struct DuckportStorageOptions {
     pub endpoint: *const c_char,
     pub region: *const c_char,
     pub access_key_id: *const c_char,
@@ -15,7 +15,7 @@ pub struct StorageOptions {
 }
 
 #[repr(C)]
-pub struct ScanOptions {
+pub struct DuckportScanOptions {
     /// Target rows per Arrow record batch; SQL default: 8192.
     pub batch_size: usize,
 }
@@ -31,7 +31,7 @@ pub struct StorageConfig {
     pub allow_anonymous: bool,
 }
 
-impl StorageOptions {
+impl DuckportStorageOptions {
     pub(crate) unsafe fn read(&self) -> Result<StorageConfig> {
         Ok(StorageConfig {
             endpoint: unsafe { optional_string(self.endpoint) }?,
@@ -46,7 +46,7 @@ impl StorageOptions {
     }
 }
 
-impl ScanOptions {
+impl DuckportScanOptions {
     pub(crate) fn read(&self) -> Result<ReadOptions> {
         Ok(ReadOptions {
             batch_size: validation::batch_size(self.batch_size)?,
