@@ -9,7 +9,7 @@ publish = false
 crate-type = ["staticlib"]
 
 [dependencies]
-open-arrow-access = { version = "0.1.0", default-features = false, features = [
+open-arrow-access = { version = "0.2.0", default-features = false, features = [
     "decompression-bz2",
     "decompression-gzip",
     "decompression-lz4",
@@ -28,8 +28,8 @@ open-arrow-access = { version = "0.1.0", default-features = false, features = [
     "format-parquet", "format-parquet-zstd", "format-parquet-lz4", "format-parquet-gzip", "format-parquet-brotli",
 ] }
 opendal = { version = "0.59.2", default-features = false, features = ["services-fs", "services-http", "services-s3", "http-transport-reqwest", "auto-register-services"] }
-arrow-array = { version = "59.3.0", features = ["ffi"] }
-arrow-schema = "59.3.0"
+arrow-array = { version = "58", features = ["ffi"] }
+arrow-schema = "58"
 tokio = { version = "1", features = ["rt-multi-thread", "time", "net", "fs"] }
 url = "2"
 percent-encoding = "2"
