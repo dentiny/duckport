@@ -31,7 +31,5 @@ void duckport_source_error_free(char *);
 char *duckport_parquet_open(const char *locator, const StorageOptions *storage_options, const ScanOptions *scan_options,
 							DuckportSource **output);
 
-// Storage service-related functions
-char *duckport_huggingface_open(const char *locator, const StorageOptions *storage_options,
-								const ScanOptions *scan_options, DuckportSource **output);
+// Storage service-related functions (future)
 }
