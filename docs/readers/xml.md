@@ -1,7 +1,8 @@
 # duckport_scan_xml
 
 ```sql
-SELECT * FROM duckport_scan_xml('records.xml', record_path := '/records/record');
+SELECT "@id", "@owner"
+FROM duckport_scan_xml('testdata/xml/inventory.xml', record_path := '/inventory/warehouse');
 ```
 
 Requires `record_path`. Infers a schema from a bounded sample; later incompatible records fail the query.

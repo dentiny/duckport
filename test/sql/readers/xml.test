@@ -1,10 +1,44 @@
 # name: test/sql/readers/xml.test
-# description: duckport_scan_xml is registered independently
+# description: Read XML attributes and nested records and reject malformed documents
 # group: [sql]
 
 require duckport
 
-query I
-SELECT count(*) FROM duckdb_functions() WHERE function_name = 'duckport_scan_xml';
+query IT rowsort
+SELECT "@id", "@owner" FROM duckport_scan_xml('testdata/xml/inventory.xml', record_path := '/inventory/warehouse', batch_size := 1);
 ----
-1
+0	ExampleCo
+1	ExampleCo
+
+query IIT rowsort
+SELECT "@id", rack[1]."@capacity", rack[1].device[1]."@id" FROM duckport_scan_xml('testdata/xml/inventory.xml', record_path := '/inventory/warehouse', batch_size := 1);
+----
+0	16	north-gpu-1
+1	16	south-gpu-1
+
+query TT rowsort
+SELECT "@id", "@kind" FROM duckport_scan_xml('testdata/xml/inventory.xml', record_path := '/inventory/warehouse/rack/device', batch_size := 3);
+----
+north-gpu-1	gpu
+north-gpu-2	gpu
+north-nic-1	network
+north-nic-2	network
+south-gpu-1	gpu
+south-gpu-2	gpu
+south-nic-1	network
+south-nic-2	network
+
+statement error
+SELECT * FROM duckport_scan_xml('testdata/xml/bad_truncated.xml', record_path := '/inventory/warehouse');
+----
+expected one complete XML document
+
+statement error
+SELECT * FROM duckport_scan_xml('testdata/xml/bad_entity.xml', record_path := '/inventory/warehouse');
+----
+unknown entity reference
+
+statement error
+SELECT * FROM duckport_scan_xml('testdata/xml/bad_dtd.xml', record_path := '/inventory/warehouse');
+----
+DTDs and custom entities are not supported

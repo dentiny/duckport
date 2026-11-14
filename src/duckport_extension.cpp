@@ -16,7 +16,7 @@ void LoadInternal(ExtensionLoader &loader) {
 	RegisterReader(loader, "duckport_scan_jsonl", duckport_json_open);
 	RegisterReader(loader, "duckport_scan_ndjson", duckport_json_open);
 	RegisterReader(loader, "duckport_scan_xml", OpenXml,
-	               [](TypedKwargs &options) { options.Add("record_path", LogicalType::VARCHAR); });
+				   [](TypedKwargs &options) { options.Add("record_path", LogicalType::VARCHAR); });
 }
 } // namespace
 void DuckportExtension::Load(ExtensionLoader &loader) { LoadInternal(loader); }
