@@ -29,8 +29,8 @@ void duckport_source_destroy(DuckportSource *);
 void duckport_source_error_free(char *);
 
 // Format-related functions
-char *duckport_parquet_open(const char *locator, const DuckportStorageOptions *storage_options, const DuckportScanOptions *scan_options,
-							DuckportSource **output);
+char *duckport_parquet_open(const char *locator, const DuckportStorageOptions *storage_options,
+							const DuckportScanOptions *scan_options, DuckportSource **output);
 
 // Storage service-related functions (future)
 }
