@@ -1,10 +1,44 @@
 # name: test/sql/readers/huggingface.test
-# description: duckport_scan_huggingface is registered independently
+# description: Read a public Hugging Face dataset through the service reader
 # group: [sql]
 
 require duckport
 
-query I
-SELECT count(*) FROM duckdb_functions() WHERE function_name = 'duckport_scan_huggingface';
+# Live integration test: requires access to Hugging Face Hub.
+# The default config and split select the five training reviews in this small repo.
+query II
+SELECT count(*), sum(star) FROM duckport_scan_huggingface('lhoestq/demo1');
 ----
-1
+5	21
+
+# Read actual columns across multiple batches, independently of source row order.
+query TTI rowsort
+SELECT id, package_name, star
+FROM duckport_scan_huggingface('lhoestq/demo1', config := 'default', split := 'train', batch_size := 2);
+----
+7bd227d9-afc9-11e6-aba1-c4b301cdf627	com.mantz_it.rfanalyzer	4
+7bd22905-afc9-11e6-a5dc-c4b301cdf627	com.mantz_it.rfanalyzer	4
+7bd2299c-afc9-11e6-85d6-c4b301cdf627	com.mantz_it.rfanalyzer	5
+7bd22a26-afc9-11e6-9309-c4b301cdf627	com.mantz_it.rfanalyzer	3
+7bd22aba-afc9-11e6-8293-c4b301cdf627	com.mantz_it.rfanalyzer	5
+
+# The test split has the same number of rows but different values.
+query II
+SELECT count(*), sum(star)
+FROM duckport_scan_huggingface('lhoestq/demo1', config := 'default', split := 'test', batch_size := 1);
+----
+5	18
+
+# A prepared scan can be opened again after its previous stream was consumed.
+statement ok
+PREPARE hf_scan AS SELECT count(*) FROM duckport_scan_huggingface('lhoestq/demo1');
+
+query I
+EXECUTE hf_scan;
+----
+5
+
+query I
+EXECUTE hf_scan;
+----
+5
