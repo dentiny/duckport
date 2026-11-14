@@ -7,6 +7,6 @@ struct TsvOptions {
 };
 
 extern "C" {
-char *duckport_tsv_open(const char *locator, const StorageOptions *storage_options, const ScanOptions *scan_options,
+char *duckport_tsv_open(const char *locator, const DuckportStorageOptions *storage_options, const DuckportScanOptions *scan_options,
 						const TsvOptions *reader_options, DuckportSource **output);
 }
