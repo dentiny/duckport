@@ -28,13 +28,12 @@ pub struct CsvOptions {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_csv_open(
     locator: *const c_char,
-    storage_options: *const DuckportStorageOptions,
-    scan_options: *const DuckportScanOptions,
-    reader_options: *const CsvOptions,
+    storage_options: &DuckportStorageOptions,
+    scan_options: &DuckportScanOptions,
+    reader_options: &CsvOptions,
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
     let open = |locator: String, storage_options, scan_options| async move {
-        let reader_options = unsafe { reader_options.as_ref() }.ok_or("null reader options")?;
         let header = if reader_options.header == -1 {
             None
         } else {

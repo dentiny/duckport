@@ -93,8 +93,8 @@ unsafe fn string(value: *const c_char) -> Result<String> {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_parquet_open(
     locator: *const c_char,
-    storage_options: *const DuckportStorageOptions,
-    scan_options: *const DuckportScanOptions,
+    storage_options: &DuckportStorageOptions,
+    scan_options: &DuckportScanOptions,
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
     unsafe {
@@ -167,8 +167,8 @@ pub unsafe extern "C" fn duckport_source_destroy(source: *mut DuckportSource) {
 
 pub(crate) unsafe fn open_reader<F, Fut>(
     locator: *const c_char,
-    storage_options: *const DuckportStorageOptions,
-    scan_options: *const DuckportScanOptions,
+    storage_options: &DuckportStorageOptions,
+    scan_options: &DuckportScanOptions,
     output: *mut *mut DuckportSource,
     open: F,
 ) -> *mut c_char
@@ -182,8 +182,6 @@ where
         }
         *output = ptr::null_mut();
         let locator = string(locator)?;
-        let storage_options = storage_options.as_ref().ok_or("null storage options")?;
-        let scan_options = scan_options.as_ref().ok_or("null scan options")?;
         let storage = storage_options.read()?;
         let scan = scan_options.read()?;
         let source = RUNTIME.block_on(open(locator, storage, scan))?;
