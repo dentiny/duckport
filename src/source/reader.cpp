@@ -58,7 +58,7 @@ void RegisterReader(ExtensionLoader &loader, const string &name, ReaderBind open
 }
 void RegisterReader(ExtensionLoader &loader, const string &name, ReaderOpen open,
 					const std::function<void(TypedKwargs &)> &configure) {
-	ReaderBind bind = [open](ClientContext &context, const string &locator, const ::ScanOptions *scan,
+	ReaderBind bind = [open](ClientContext &context, const string &locator, const DuckportScanOptions *scan,
 							 const TableFunctionBindInput &, DuckportSource **output) {
 		StorageParameters storage(context, locator, {});
 		return open(locator.c_str(), &storage.config, scan, output);
