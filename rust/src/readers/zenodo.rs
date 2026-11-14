@@ -1,6 +1,9 @@
 use crate::{
     ffi::{DuckportSource, open_reader},
-    options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig, optional_string},
+    options::{
+        AttachmentFormat, DuckportScanOptions, DuckportStorageOptions, StorageConfig,
+        optional_string,
+    },
 };
 use open_arrow_access::service::zenodo::ZenodoService;
 use std::ffi::c_char;
@@ -27,17 +30,19 @@ pub unsafe extern "C" fn duckport_zenodo_open(
         let file_name = unsafe { optional_string(reader_options.file_name) }?
             .filter(|s| !s.is_empty())
             .ok_or("file_name is required")?;
-        let format =
-            unsafe { optional_string(reader_options.format) }?.unwrap_or_else(|| "binary".into());
+        let format: AttachmentFormat = unsafe { optional_string(reader_options.format) }?
+            .as_deref()
+            .unwrap_or("binary")
+            .parse()?;
         let record_path = unsafe { optional_string(reader_options.record_path) }?;
         let endpoint = unsafe { optional_string(reader_options.endpoint) }?
             .unwrap_or_else(|| "https://zenodo.org".into());
-        crate::validation::validate_format(&format, record_path.as_deref())?;
+        crate::validation::validate_format(format, record_path.as_deref())?;
         let _ = storage_options; // This upstream service currently exposes public records only.
         let files = ZenodoService::with_endpoint(&endpoint)?
             .record(locator.parse()?)
             .await?;
-        crate::service_files::open(files, file_name, &format, record_path, scan_options).await
+        crate::service_files::open(files, file_name, format, record_path, scan_options).await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }
