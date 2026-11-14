@@ -1,9 +1,10 @@
 # name: test/sql/readers/atif.test
-# description: duckport_read_atif is registered independently
+# description: duckport_scan_atif is registered independently
 # group: [sql]
+
 require duckport
 
 query I
-SELECT count(*) FROM duckdb_functions() WHERE function_name = 'duckport_read_atif';
+SELECT count(*) FROM duckdb_functions() WHERE function_name = 'duckport_scan_atif';
 ----
 1

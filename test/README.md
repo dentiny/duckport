@@ -1,10 +1,9 @@
 # Tests
 
-Run from the repository root after building:
+Run SQL tests from the repository root after building:
 
 ```sh
-cargo test --manifest-path rust/Cargo.toml --locked
 make test
 ```
 
-Rust tests cover the Arrow bridge. Each reader owns a SQL smoke test in `test/sql/readers`.
+Reader tests live in `test/sql/readers`; fixtures live in `test/data`.
