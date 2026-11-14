@@ -27,6 +27,7 @@ Openers share `locator`, `DuckportStorageOptions`, and `DuckportScanOptions`. `D
 only format/service-independent scan settings: currently `batch_size`. Each reader
 introduces its own typed options in its PR when needed, as a separate opener argument.
 Reader-specific fields do not belong in the common scan options or binder.
+Required option structs are borrowed as C++ `const &` and Rust `&T` for the open call.
 C++ resolves scoped DuckDB secrets and passes named storage fields to Rust. It owns
 input strings for the open call; Rust copies them before asynchronous reads.
 
