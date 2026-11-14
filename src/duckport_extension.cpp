@@ -12,6 +12,8 @@ void LoadInternal(ExtensionLoader &loader) {
 	RegisterReader(loader, "duckport_scan_csv", OpenCsv, add_csv_options);
 	RegisterReader(loader, "duckport_scan_tsv", OpenTsv, add_csv_options);
 	RegisterReader(loader, "duckport_scan_json", duckport_json_open);
+	RegisterReader(loader, "duckport_scan_jsonl", duckport_json_open);
+	RegisterReader(loader, "duckport_scan_ndjson", duckport_json_open);
 }
 } // namespace
 void DuckportExtension::Load(ExtensionLoader &loader) { LoadInternal(loader); }
