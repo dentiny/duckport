@@ -18,7 +18,7 @@ char *Open(ClientContext &context, const string &locator, const DuckportScanOpti
 	ReadBooleanOption(input, "header", reader_options.header);
 	auto record_path = ReadStringOption(input, "record_path");
 	reader_options.record_path = record_path ? record_path->c_str() : nullptr;
-	StorageParameters storage(context, locator, "huggingface", reader_options.path);
+	StorageParameters storage(context, locator, "huggingface");
 	return duckport_huggingface_file_open(locator.c_str(), &storage.config, scan, &reader_options, output);
 }
 } // namespace
