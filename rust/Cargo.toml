@@ -11,7 +11,7 @@ crate-type = ["staticlib"]
 [dependencies]
 arrow-array = { version = "58", features = ["ffi"] }
 arrow-schema = "58"
-open-arrow-access = { version = "0.2.0", default-features = false, features = [
+open-arrow-access = { version = "0.2.1", default-features = false, features = [
     "decompression-bz2",
     "decompression-gzip",
     "decompression-lz4",
