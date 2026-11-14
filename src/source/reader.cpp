@@ -24,7 +24,7 @@ unique_ptr<FunctionData> BindReader(ClientContext &context, TableFunctionBindInp
 	auto path = ReadSourceString(input.inputs[0]);
 	ScanParameters options(input);
 	const auto &info = input.info->Cast<ReaderInfo>();
-	StorageParameters storage(context, path, info.secret_type);
+	StorageParameters storage(context, path, info.secret_type, options.scan.path);
 	DuckportSource *raw = nullptr;
 	CheckError(info.open(path.c_str(), &storage.config, &options.scan, &raw));
 	auto factory = make_shared_ptr<SourceFactory>(SourcePtr(raw, duckport_source_destroy));
