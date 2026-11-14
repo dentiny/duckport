@@ -9,9 +9,9 @@ publish = false
 crate-type = ["staticlib"]
 
 [dependencies]
-arrow-array = { version = "59.3.0", features = ["ffi"] }
-arrow-schema = "59.3.0"
-open-arrow-access = { version = "0.1.0", default-features = false, features = [
+arrow-array = { version = "58", features = ["ffi"] }
+arrow-schema = "58"
+open-arrow-access = { version = "0.2.0", default-features = false, features = [
     "decompression-bz2",
     "decompression-gzip",
     "decompression-lz4",
