@@ -1,5 +1,5 @@
 use crate::error::Result;
-use crate::options::StorageConfig;
+use crate::options::{AttachmentFormat, StorageConfig};
 use std::num::NonZeroUsize;
 use url::Url;
 
@@ -65,6 +65,16 @@ pub(crate) fn validate_huggingface_url_options(
 ) -> Result<()> {
     if revision.is_some() || config.is_some() || split.is_some() {
         return Err("revision, config, and split cannot be combined with a fully qualified Hugging Face URL".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_format(format: AttachmentFormat, record_path: Option<&str>) -> Result<()> {
+    if format == AttachmentFormat::Xml && record_path.is_none_or(str::is_empty) {
+        return Err("record_path is required for XML attachments".into());
+    }
+    if format != AttachmentFormat::Xml && record_path.is_some() {
+        return Err("record_path is only supported for XML attachments".into());
     }
     Ok(())
 }
