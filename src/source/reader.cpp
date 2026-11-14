@@ -1,8 +1,8 @@
-#include "source/reader.hpp"
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/function/table/arrow.hpp"
 #include "duckdb/main/settings.hpp"
 #include "error.hpp"
+#include "source/reader.hpp"
 #include "source/source_factory.hpp"
 
 namespace duckdb {
