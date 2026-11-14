@@ -1,0 +1,38 @@
+# name: test/sql/readers/pmc.test
+# description: Decode pmc metadata without fetching linked content
+# group: [sql]
+
+require duckport
+
+query TIT
+SELECT pmcid, version, title FROM duckport_scan_pmc('testdata/pmc/PMC123.json', batch_size := 1);
+----
+PMC123	1	Test article
+
+statement ok
+PREPARE pmc_scan AS SELECT pmcid, version, title FROM duckport_scan_pmc('testdata/pmc/PMC123.json', batch_size := 1);
+
+query TIT
+EXECUTE pmc_scan;
+----
+PMC123	1	Test article
+
+query TIT
+EXECUTE pmc_scan;
+----
+PMC123	1	Test article
+
+statement error
+SELECT * FROM duckport_scan_pmc(NULL);
+----
+NULL
+
+query TTI
+SELECT trim(pmcid), license_code, version FROM duckport_scan_pmc('testdata/pmc/metadata.json');
+----
+pmc00123	CC BY	2
+
+query I
+SELECT count(*) FROM duckport_scan_pmc_inventory('testdata/pmc/inventory/manifest.json', batch_size := 1);
+----
+3

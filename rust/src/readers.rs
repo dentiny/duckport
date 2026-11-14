@@ -4,5 +4,6 @@ mod csv;
 mod gutenberg;
 mod huggingface;
 mod json;
+mod pmc;
 mod warc;
 mod xml;

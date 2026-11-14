@@ -2865,6 +2865,7 @@ dependencies = [
  "httpdate",
  "open-arrow-access-core",
  "open-arrow-access-dataset",
+ "open-arrow-access-decompression",
  "open-arrow-access-file-format",
  "open-arrow-access-storage",
  "opendal",

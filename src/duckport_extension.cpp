@@ -4,6 +4,7 @@
 #include "readers/json.h"
 #include "readers/warc.h"
 #include "source/reader.hpp"
+#include "readers/pmc.h"
 #include "readers/gutenberg.h"
 #include "source/readers/atif.hpp"
 #include "source/readers/csv.hpp"
@@ -13,6 +14,8 @@
 namespace duckdb {
 namespace {
 void LoadInternal(ExtensionLoader &loader) {
+	RegisterReader(loader, "duckport_scan_pmc", duckport_pmc_open);
+	RegisterReader(loader, "duckport_scan_pmc_inventory", duckport_pmc_inventory_open);
 	RegisterReader(loader, "duckport_scan_gutenberg", duckport_gutenberg_open);
 	RegisterReader(loader, "duckport_scan_parquet", duckport_parquet_open);
 	RegisterReader(loader, "duckport_scan_warc", duckport_warc_open);
