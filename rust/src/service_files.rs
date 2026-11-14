@@ -8,7 +8,7 @@ use open_arrow_access::{
     decompression::AutoDecompressionLayer,
     file_format::{
         FileAccessor,
-        csv::{CsvDialect, CsvFileFormat, CsvInferenceOptions},
+        csv::{CsvDialect, CsvFileFormat, CsvHeader},
         json::JsonFormat,
         parquet::ParquetAccessor,
         xml::XmlFormat,
@@ -39,19 +39,15 @@ pub async fn open<A: ByteAccessor + 'static>(
         }
         AttachmentFormat::Csv | AttachmentFormat::Tsv => {
             let attachment_accessor = attachment_accessor.layer(AutoDecompressionLayer::new());
-            let format = CsvFileFormat::infer()
-                .with_dialect(CsvDialect {
-                    delimiter: if format == AttachmentFormat::Tsv {
-                        b'\t'
-                    } else {
-                        b','
-                    },
-                    ..Default::default()
-                })
-                .with_inference_options(CsvInferenceOptions {
-                    has_header: Some(true),
-                    ..Default::default()
-                });
+            let format = CsvFileFormat::infer().with_dialect(CsvDialect {
+                header: CsvHeader::Present,
+                delimiter: if format == AttachmentFormat::Tsv {
+                    b'\t'
+                } else {
+                    b','
+                },
+                ..Default::default()
+            });
             DuckportSource::new(
                 FileAccessor::from_format(attachment_accessor, format),
                 request,
