@@ -28,8 +28,6 @@ void duckport_source_destroy(DuckportSource *);
 void duckport_source_error_free(char *);
 
 // Format-related functions
-char *duckport_csv_open(const char *locator, const StorageOptions *storage_options, const ScanOptions *scan_options,
-						DuckportSource **output);
 char *duckport_parquet_open(const char *locator, const StorageOptions *storage_options, const ScanOptions *scan_options,
 							DuckportSource **output);
 

@@ -15,6 +15,12 @@ use open_arrow_access::{
 };
 use std::ffi::c_char;
 
+#[repr(C)]
+pub struct CsvOptions {
+    /// -1 infers the header; 0 disables it; 1 enables it.
+    pub header: i32,
+}
+
 /// # Safety
 /// Locator and optional strings are NUL-terminated UTF-8. Option structs are valid for
 /// this call; output points to writable source-pointer storage. No inputs are retained.
@@ -23,6 +29,7 @@ pub unsafe extern "C" fn duckport_csv_open(
     locator: *const c_char,
     storage_options: *const StorageOptions,
     scan_options: *const ScanOptions,
+    reader_options: *const CsvOptions,
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
     unsafe {
@@ -32,6 +39,13 @@ pub unsafe extern "C" fn duckport_csv_open(
             scan_options,
             output,
             |locator, storage_options, scan_options| async move {
+                let reader_options = reader_options.as_ref().ok_or("null reader options")?;
+                let header = if reader_options.header == -1 {
+                    None
+                } else {
+                    Some(crate::validation::boolean("header", reader_options.header)?)
+                };
+
                 let (operator, path) = storage::operator(&locator, &storage_options)?;
                 let storage = OpenDalAccessor::new(operator).layer(AutoDecompressionLayer::new());
                 let format = CsvFileFormat::infer()
@@ -40,12 +54,12 @@ pub unsafe extern "C" fn duckport_csv_open(
                         ..Default::default()
                     })
                     .with_inference_options(CsvInferenceOptions {
-                        has_header: scan_options.header,
+                        has_header: header,
                         ..Default::default()
                     });
                 AsyncSource::new(
                     FileAccessor::from_format(storage, format),
-                    ReadRequest::new(path).with_options(scan_options.read_options),
+                    ReadRequest::new(path).with_options(scan_options),
                 )
                 .await
             },
