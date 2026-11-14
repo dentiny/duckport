@@ -300,3 +300,15 @@ SELECT item_id, href, data FROM duckport_scan_meca('submission.meca');
 ```
 Reads validated MECA manifest entries as Arrow rows, preserving binary payloads,
 manifest order, media types, and ZIP limits. Local, HTTP(S), and S3 use existing secrets.
+
+### Arxiv
+
+```sql
+SELECT shard_uri, entry_index, entry_name, data
+FROM duckport_scan_arxiv('/data/arxiv-mirror', kind := 'source', month := '2410');
+```
+The locator roots a local/HTTP(S)/S3 mirror above `pdf/` and `src/`. Reads only
+manifest-selected TAR shards; `month` is YYMM, `kind` is `source` (default) or `pdf`.
+Returns unchanged entry names and binary payloads, with upstream TAR limits.
+Direct access to a requester-pays bucket requires billing support in the storage adapter;
+a local or HTTP mirror can be used with this interface.

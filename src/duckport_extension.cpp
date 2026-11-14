@@ -4,6 +4,7 @@
 #include "readers/json.h"
 #include "readers/warc.h"
 #include "source/reader.hpp"
+#include "source/readers/arxiv.hpp"
 #include "readers/meca.h"
 #include "source/readers/courtlistener.hpp"
 #include "source/readers/biorxiv.hpp"
@@ -30,6 +31,10 @@
 namespace duckdb {
 namespace {
 void LoadInternal(ExtensionLoader &loader) {
+	RegisterReader(loader, "duckport_scan_arxiv", OpenArxiv, [](TypedKwargs &options) {
+		options.Add("kind", LogicalType::VARCHAR);
+		options.Add("month", LogicalType::VARCHAR);
+	});
 	RegisterReader(loader, "duckport_scan_meca", duckport_meca_open);
 	RegisterReader(loader, "duckport_scan_courtlistener", OpenCourtlistener, [](TypedKwargs &options) {
 		options.Add("table_name", LogicalType::VARCHAR);

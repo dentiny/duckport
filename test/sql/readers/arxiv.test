@@ -1,0 +1,30 @@
+# name: test/sql/readers/arxiv.test
+# description: Read arxiv through its native service accessor
+# group: [sql]
+
+require duckport
+
+statement error
+SELECT * FROM duckport_scan_arxiv('testdata', kind := 'invalid');
+----
+kind must be source or pdf
+
+statement error
+SELECT * FROM duckport_scan_arxiv(NULL);
+----
+NULL
+
+query II
+SELECT count(*), sum(octet_length(data)) FROM duckport_scan_arxiv('testdata/arxiv', kind := 'source', month := '2410', batch_size := 1);
+----
+2	25
+
+query I
+SELECT count(*) FROM duckport_scan_arxiv('testdata/arxiv', kind := 'source', month := '2501');
+----
+0
+
+statement error
+SELECT * FROM duckport_scan_arxiv('testdata/arxiv', month := '2413');
+----
+month
