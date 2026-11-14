@@ -32,7 +32,7 @@ pub unsafe extern "C" fn duckport_zenodo_open(
         let record_path = unsafe { optional_string(reader_options.record_path) }?;
         let endpoint = unsafe { optional_string(reader_options.endpoint) }?
             .unwrap_or_else(|| "https://zenodo.org".into());
-        crate::service_files::validate_format(&format, record_path.as_deref())?;
+        crate::validation::validate_format(&format, record_path.as_deref())?;
         let _ = storage_options; // This upstream service currently exposes public records only.
         let files = ZenodoService::with_endpoint(&endpoint)?
             .record(locator.parse()?)
