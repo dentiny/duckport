@@ -6,8 +6,7 @@
 namespace duckdb {
 namespace {
 void LoadInternal(ExtensionLoader &loader) {
-	RegisterReader(loader, "duckport_scan_parquet", duckport_parquet_open,
-				   [](TypedKwargs &options) { options.Add("storage_options", LogicalType::VARCHAR); });
+	RegisterReader(loader, "duckport_scan_parquet", duckport_parquet_open);
 	RegisterAllReaders(loader);
 }
 } // namespace
