@@ -93,9 +93,11 @@ pub unsafe extern "C" fn duckport_huggingface_open(
             crate::validation::boolean("allow_partial", reader_options.allow_partial)?;
 
         let mut request = if locator.contains("://") {
-            if revision.is_some() || config.is_some() || split.is_some() {
-                return Err("revision, config, and split cannot be combined with a fully qualified Hugging Face URL".into());
-            }
+            crate::validation::validate_huggingface_url_options(
+                revision.as_deref(),
+                config.as_deref(),
+                split.as_deref(),
+            )?;
             dataset_request(&locator)?
         } else {
             let mut request = HuggingFaceDatasetRequest::new(

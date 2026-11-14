@@ -57,3 +57,14 @@ pub(crate) fn validate_huggingface_path(
     }
     Ok(())
 }
+
+pub(crate) fn validate_huggingface_url_options(
+    revision: Option<&str>,
+    config: Option<&str>,
+    split: Option<&str>,
+) -> Result<()> {
+    if revision.is_some() || config.is_some() || split.is_some() {
+        return Err("revision, config, and split cannot be combined with a fully qualified Hugging Face URL".into());
+    }
+    Ok(())
+}
