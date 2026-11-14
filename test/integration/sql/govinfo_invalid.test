@@ -1,0 +1,5 @@
+# Invalid provider metadata must fail before downloading content.
+statement error
+SELECT octet_length(data) FROM duckport_scan_govinfo('FR/2026', file_name := 'issue.xml', endpoint := '__ENDPOINT__');
+----
+DuckPort

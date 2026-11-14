@@ -4,6 +4,7 @@ mod csv;
 mod dataverse;
 mod federal_register;
 mod figshare;
+mod govinfo;
 mod gutenberg;
 mod huggingface;
 mod internet_archive;
