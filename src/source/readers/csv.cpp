@@ -11,7 +11,7 @@ char *OpenDelimited(ClientContext &context, const string &locator, const Duckpor
 	reader_options.header = -1;
 	reader_options.delimiter = delimiter;
 	ReadBooleanOption(input, "header", reader_options.header);
-	StorageParameters storage(context, locator, {});
+	StorageParameters storage(context, locator, /*secret_type=*/{});
 	return duckport_csv_open(locator.c_str(), storage.config, scan, reader_options, output);
 }
 } // namespace

@@ -9,7 +9,7 @@ char *OpenXml(ClientContext &context, const string &locator, const DuckportScanO
 	XmlOptions reader_options{};
 	auto record_path = ReadStringOption(input, "record_path");
 	reader_options.record_path = record_path ? record_path->c_str() : nullptr;
-	StorageParameters storage(context, locator, {});
+	StorageParameters storage(context, locator, /*secret_type=*/{});
 	return duckport_xml_open(locator.c_str(), storage.config, scan, reader_options, output);
 }
 } // namespace duckdb
