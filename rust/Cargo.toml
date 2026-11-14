@@ -9,6 +9,8 @@ publish = false
 crate-type = ["staticlib"]
 
 [dependencies]
+arrow-array = { version = "59.3.0", features = ["ffi"] }
+arrow-schema = "59.3.0"
 open-arrow-access = { version = "0.1.0", default-features = false, features = [
     "decompression-bz2",
     "decompression-gzip",
@@ -17,19 +19,27 @@ open-arrow-access = { version = "0.1.0", default-features = false, features = [
     "format-atif",
     "format-csv",
     "format-json",
+    "format-parquet",
+    "format-parquet-brotli",
+    "format-parquet-gzip",
+    "format-parquet-lz4",
+    "format-parquet-zstd",
     "format-warc",
-    "service-warc",
     "format-xml",
-    "service-huggingface",
     "service-gutenberg",
-    "format-parquet", "format-parquet-zstd", "format-parquet-lz4", "format-parquet-gzip", "format-parquet-brotli",
+    "service-huggingface",
+    "service-warc",
 ] }
-opendal = { version = "0.59.2", default-features = false, features = ["services-fs", "services-http", "services-s3", "http-transport-reqwest", "auto-register-services"] }
-arrow-array = { version = "59.3.0", features = ["ffi"] }
-arrow-schema = "59.3.0"
-tokio = { version = "1", features = ["rt-multi-thread", "time", "net", "fs"] }
-url = "2"
+opendal = { version = "0.59.2", default-features = false, features = [
+    "auto-register-services",
+    "http-transport-reqwest",
+    "services-fs",
+    "services-http",
+    "services-s3",
+] }
 percent-encoding = "2"
+tokio = { version = "1", features = ["fs", "net", "rt-multi-thread", "time"] }
+url = "2"
 
 [profile.dev]
 debug = 0

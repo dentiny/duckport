@@ -1,0 +1,27 @@
+name: Cargo manifest formatting
+
+on:
+  pull_request:
+    paths:
+      - rust/Cargo.toml
+      - taplo.toml
+      - .github/workflows/toml-format.yml
+  push:
+    branches: [main]
+    paths:
+      - rust/Cargo.toml
+      - taplo.toml
+      - .github/workflows/toml-format.yml
+
+permissions:
+  contents: read
+
+jobs:
+  toml-format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Taplo
+        run: cargo install taplo-cli --version 0.10.0 --locked
+      - name: Check manifest formatting and alphabetical order
+        run: taplo fmt --check
