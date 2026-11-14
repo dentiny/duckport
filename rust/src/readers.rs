@@ -12,6 +12,7 @@ mod internet_archive;
 mod json;
 mod library_of_congress;
 mod pmc;
+mod semantic_scholar;
 mod warc;
 mod xml;
 mod zenodo;
