@@ -17,15 +17,6 @@ pub struct StorageOptions {
 #[repr(C)]
 pub struct ScanOptions {
     pub batch_size: usize,
-    /// -1 infers the CSV header; 0 disables it; 1 enables it.
-    pub header: i32,
-    pub revision: *const c_char,
-    pub record_path: *const c_char,
-    pub format: *const c_char,
-    pub path: *const c_char,
-    pub config: *const c_char,
-    pub split: *const c_char,
-    pub allow_partial: i32,
 }
 
 pub struct StorageConfig {
@@ -37,18 +28,6 @@ pub struct StorageConfig {
     pub token: Option<String>,
     pub virtual_host_style: bool,
     pub allow_anonymous: bool,
-}
-
-pub struct ScanConfig {
-    pub read_options: ReadOptions,
-    pub header: Option<bool>,
-    pub revision: Option<String>,
-    pub record_path: Option<String>,
-    pub format: Option<String>,
-    pub path: Option<String>,
-    pub config: Option<String>,
-    pub split: Option<String>,
-    pub allow_partial: bool,
 }
 
 impl StorageOptions {
@@ -67,25 +46,15 @@ impl StorageOptions {
 }
 
 impl ScanOptions {
-    pub(crate) unsafe fn read(&self) -> Result<ScanConfig> {
-        Ok(ScanConfig {
-            read_options: ReadOptions {
-                batch_size: validation::batch_size(self.batch_size)?,
-                ..Default::default()
-            },
-            header: validation::optional_boolean("header", self.header)?,
-            revision: unsafe { optional_string(self.revision) }?,
-            record_path: unsafe { optional_string(self.record_path) }?,
-            format: unsafe { optional_string(self.format) }?,
-            path: unsafe { optional_string(self.path) }?,
-            config: unsafe { optional_string(self.config) }?,
-            split: unsafe { optional_string(self.split) }?,
-            allow_partial: validation::boolean("allow_partial", self.allow_partial)?,
+    pub(crate) fn read(&self) -> Result<ReadOptions> {
+        Ok(ReadOptions {
+            batch_size: validation::batch_size(self.batch_size)?,
+            ..Default::default()
         })
     }
 }
 
-unsafe fn optional_string(value: *const c_char) -> Result<Option<String>> {
+pub(crate) unsafe fn optional_string(value: *const c_char) -> Result<Option<String>> {
     if value.is_null() {
         return Ok(None);
     }
