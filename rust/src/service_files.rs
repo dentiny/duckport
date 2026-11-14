@@ -16,6 +16,10 @@ use open_arrow_access::{
 };
 use std::sync::Arc;
 
+/// Decode one selected attachment into Arrow records.
+///
+/// `record_path` selects the XML elements that become individual rows, for example
+/// `/records/row`. It must be nonempty for XML and `None` for all other formats.
 pub async fn open<A: ByteAccessor + 'static>(
     files: A,
     file: String,
