@@ -21,6 +21,20 @@ DuckPort uses DuckDB's internal C++ API. Review [DuckDB release notes](https://g
 
 To update open-arrow-access, change the version requirement in `rust/Cargo.toml`, regenerate `rust/Cargo.lock`, and rerun the SQL tests.
 
+## Cargo manifest formatting
+
+Use [Taplo](https://taplo.tamasfe.dev/configuration/file) to format `rust/Cargo.toml` and keep dependency names and feature lists
+in alphabetical order. `cargo fmt` formats Rust source files only.
+
+```sh
+cargo install taplo-cli --version 0.10.0 --locked
+make toml-format       # Apply formatting and sorting.
+make toml-format-check # Check without modifying files.
+```
+
+The repository's `taplo.toml` limits formatting to its own manifest, excluding
+submodules. Package metadata retains its existing field order.
+
 ## Reader bridge
 
 Openers share `locator`, `DuckportStorageOptions`, and `DuckportScanOptions`. `DuckportScanOptions` contains
