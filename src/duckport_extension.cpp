@@ -4,10 +4,7 @@
 
 namespace duckdb {
 namespace {
-void LoadInternal(ExtensionLoader &loader) {
-	RegisterReader(loader, "duckport_scan_parquet", duckport_parquet_open,
-				   [](TypedKwargs &options) { options.Add("storage_options", LogicalType::VARCHAR); });
-}
+void LoadInternal(ExtensionLoader &loader) { RegisterReader(loader, "duckport_scan_parquet", duckport_parquet_open); }
 } // namespace
 void DuckportExtension::Load(ExtensionLoader &loader) { LoadInternal(loader); }
 std::string DuckportExtension::Name() { return "duckport"; }
