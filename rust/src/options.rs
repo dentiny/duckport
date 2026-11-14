@@ -16,6 +16,7 @@ pub struct StorageOptions {
 
 #[repr(C)]
 pub struct ScanOptions {
+    /// Target rows per Arrow record batch; SQL default: 8192.
     pub batch_size: usize,
 }
 
