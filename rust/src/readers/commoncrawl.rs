@@ -6,8 +6,7 @@ use crate::{
     storage,
 };
 use open_arrow_access::{
-    Accessor, AccessorExt, ReadOptions, ReadOptionsProvider, ReadRequest, RecordCapability,
-    RecordReader, async_trait,
+    AccessorExt, ReadOptions,
     decompression::AutoDecompressionLayer,
     file_format::{FileAccessor, warc::WarcArrowFormat},
     service::{
@@ -17,39 +16,6 @@ use open_arrow_access::{
     storage::{OpenDalAccessor, opendal},
 };
 use std::ffi::c_char;
-
-struct CrawlSource<A: Accessor> {
-    accessor: A,
-    request: A::Request,
-}
-
-impl<A: Accessor> CrawlSource<A> {
-    async fn bind(accessor: A, request: A::Request, read: ReadRequest) -> Result<AsyncSource>
-    where
-        Self: Accessor<Request = ReadRequest, Reader = dyn RecordReader> + 'static,
-    {
-        AsyncSource::new(Self { accessor, request }, read).await
-    }
-}
-
-#[async_trait]
-impl<A> Accessor for CrawlSource<A>
-where
-    A: Accessor<Reader = dyn RecordReader>,
-    A::Request: Clone + ReadOptionsProvider + Sync,
-{
-    type Request = ReadRequest;
-    type Reader = dyn RecordReader;
-
-    fn capability(&self) -> RecordCapability {
-        self.accessor.capability()
-    }
-    async fn open(&self, request: ReadRequest) -> open_arrow_access::Result<Box<dyn RecordReader>> {
-        let mut selected = self.request.clone();
-        *selected.read_options_mut() = request.options;
-        self.accessor.open(selected).await
-    }
-}
 
 enum Scope {
     Dataset,
@@ -86,21 +52,18 @@ async fn open_commoncrawl(
     let selection = format!("https://data.commoncrawl.org/{key}");
     let manifests = OpenDalAccessor::new(operator).layer(AutoDecompressionLayer::new());
     let files = FileAccessor::from_format(manifests.clone(), WarcArrowFormat);
-    let read = ReadRequest::new(locator).with_options(scan);
     match scope {
         Scope::Dataset => {
-            CrawlSource::bind(
+            AsyncSource::new(
                 CommonCrawlWarcAccessor::new(manifests, files),
-                CommonCrawlWarcRequest::from_url(&selection)?,
-                read,
+                CommonCrawlWarcRequest::from_url(&selection)?.with_options(scan),
             )
             .await
         }
         Scope::Segment => {
-            CrawlSource::bind(
+            AsyncSource::new(
                 CommonCrawlSegmentAccessor::new(manifests, files),
-                CommonCrawlSegmentRequest::from_url(&selection)?,
-                read,
+                CommonCrawlSegmentRequest::from_url(&selection)?.with_options(scan),
             )
             .await
         }
