@@ -6,7 +6,8 @@
 namespace duckdb {
 class StorageParameters {
   public:
-	StorageParameters(ClientContext &context, const string &locator, const string &secret_type);
+	StorageParameters(ClientContext &context, const string &locator, const string &secret_type,
+					  const char *file_path = nullptr);
 	StorageParameters(const StorageParameters &) = delete;
 	StorageParameters &operator=(const StorageParameters &) = delete;
 	::StorageOptions config{};
