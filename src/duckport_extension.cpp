@@ -1,13 +1,13 @@
 #define DUCKDB_EXTENSION_MAIN
 #include "duckport_extension.hpp"
-#include "duckport_readers.hpp"
+#include "readers/atif_jsonl.h"
 #include "source/reader.hpp"
 
 namespace duckdb {
 namespace {
 void LoadInternal(ExtensionLoader &loader) {
 	RegisterReader(loader, "duckport_scan_parquet", duckport_parquet_open);
-	RegisterAllReaders(loader);
+	RegisterReader(loader, "duckport_scan_atif_jsonl", duckport_atif_jsonl_open);
 }
 } // namespace
 void DuckportExtension::Load(ExtensionLoader &loader) { LoadInternal(loader); }

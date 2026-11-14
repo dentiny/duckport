@@ -1,8 +1,0 @@
-#include "readers/atif_jsonl.h"
-#include "source/reader.hpp"
-
-namespace duckdb {
-void RegisterReader_atif_jsonl(ExtensionLoader &loader) {
-	RegisterReader(loader, "duckport_scan_atif_jsonl", duckport_atif_jsonl_open);
-}
-} // namespace duckdb
