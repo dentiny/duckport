@@ -1,12 +1,11 @@
 #include "readers/huggingface_file.h"
 #include "source/options.hpp"
-#include "source/reader.hpp"
+#include "source/readers/huggingface_file.hpp"
 #include "storage_options.hpp"
 
 namespace duckdb {
-namespace {
-char *Open(ClientContext &context, const string &locator, const DuckportScanOptions *scan,
-		   const TableFunctionBindInput &input, DuckportSource **output) {
+char *OpenHuggingFaceFile(ClientContext &context, const string &locator, const DuckportScanOptions *scan,
+						  const TableFunctionBindInput &input, DuckportSource **output) {
 	HuggingFaceFileOptions reader_options{};
 	reader_options.header = -1;
 	auto revision = ReadStringOption(input, "revision");
@@ -20,15 +19,5 @@ char *Open(ClientContext &context, const string &locator, const DuckportScanOpti
 	reader_options.record_path = record_path ? record_path->c_str() : nullptr;
 	StorageParameters storage(context, locator, "huggingface");
 	return duckport_huggingface_file_open(locator.c_str(), &storage.config, scan, &reader_options, output);
-}
-} // namespace
-void RegisterReader_huggingface_file(ExtensionLoader &loader) {
-	RegisterReader(loader, "duckport_scan_huggingface_file", Open, [](TypedKwargs &options) {
-		options.Add("revision", LogicalType::VARCHAR);
-		options.Add("path", LogicalType::VARCHAR);
-		options.Add("format", LogicalType::VARCHAR);
-		options.Add("header", LogicalType::BOOLEAN);
-		options.Add("record_path", LogicalType::VARCHAR);
-	});
 }
 } // namespace duckdb
