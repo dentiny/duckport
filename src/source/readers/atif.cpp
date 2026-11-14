@@ -1,3 +1,4 @@
+#include "readers/atif.h"
 #include "source/reader.hpp"
 
 namespace duckdb {
