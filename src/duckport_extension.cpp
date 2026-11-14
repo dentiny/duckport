@@ -22,7 +22,7 @@
 #include "source/readers/zenodo.hpp"
 #include "readers/pmc.h"
 #include "readers/gutenberg.h"
-#include "source/readers/atif.hpp"
+#include "readers/atif.h"
 #include "source/readers/csv.hpp"
 #include "source/readers/huggingface.hpp"
 #include "source/readers/xml.hpp"
@@ -137,8 +137,7 @@ void LoadInternal(ExtensionLoader &loader) {
 	RegisterReader(loader, "duckport_scan_warc", duckport_warc_open);
 	RegisterReader(loader, "duckport_scan_commoncrawl", duckport_commoncrawl_open);
 	RegisterReader(loader, "duckport_scan_commoncrawl_segment", duckport_commoncrawl_segment_open);
-	RegisterReader(loader, "duckport_scan_atif", OpenAtif,
-				   [](TypedKwargs &options) { options.Add("jsonl", LogicalType::BOOLEAN); });
+	RegisterReader(loader, "duckport_scan_atif", duckport_atif_open);
 	auto add_csv_options = [](TypedKwargs &options) { options.Add("header", LogicalType::BOOLEAN); };
 	RegisterReader(loader, "duckport_scan_csv", OpenCsv, add_csv_options);
 	RegisterReader(loader, "duckport_scan_tsv", OpenTsv, add_csv_options);
