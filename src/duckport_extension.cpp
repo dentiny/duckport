@@ -11,6 +11,7 @@ namespace {
 void LoadInternal(ExtensionLoader &loader) {
 	RegisterReader(loader, "duckport_scan_parquet", duckport_parquet_open);
 	RegisterReader(loader, "duckport_scan_atif", duckport_atif_open);
+	RegisterReader(loader, "duckport_scan_atif_jsonl", duckport_atif_jsonl_open);
 	auto add_csv_options = [](TypedKwargs &options) { options.Add("header", LogicalType::BOOLEAN); };
 	RegisterReader(loader, "duckport_scan_csv", OpenCsv, add_csv_options);
 	RegisterReader(loader, "duckport_scan_tsv", OpenTsv, add_csv_options);

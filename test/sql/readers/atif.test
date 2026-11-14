@@ -1,10 +1,32 @@
 # name: test/sql/readers/atif.test
-# description: duckport_scan_atif is registered independently
+# description: ATIF JSON and JSONL share one trajectory reader
 # group: [sql]
 
 require duckport
 
-query I
-SELECT count(*) FROM duckdb_functions() WHERE function_name = 'duckport_scan_atif';
+query TTI
+SELECT trajectory_id, agent.name, source_record_index FROM duckport_scan_atif('testdata/atif/trajectory.json');
 ----
-1
+first	fixture	1
+
+query ITT
+SELECT len(steps), steps[2].tool_calls[1].function_name, decode(steps[1].message[1].text) FROM duckport_scan_atif('testdata/atif/trajectory.json');
+----
+2	echo	你好🙂
+
+query TI rowsort
+SELECT trajectory_id, source_record_index FROM duckport_scan_atif_jsonl('testdata/atif/trajectories.jsonl', batch_size := 2);
+----
+first	1
+second	2
+third	3
+
+statement error
+SELECT * FROM duckport_scan_atif_jsonl('testdata/atif/bad_truncated.jsonl', batch_size := 2);
+----
+record 2
+
+statement error
+SELECT * FROM duckport_scan_atif_jsonl('testdata/atif/bad_version.jsonl', batch_size := 2);
+----
+expected ATIF-v1.0 through ATIF-v1.8
