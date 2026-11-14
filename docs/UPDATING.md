@@ -19,10 +19,10 @@ Cross builds must set `DUCKPORT_RUST_TARGET` to the matching Rust triple. The bu
 
 DuckPort uses DuckDB's internal C++ API. Review [DuckDB release notes](https://github.com/duckdb/duckdb/releases) and relevant header changes when upgrading.
 
-To update open-arrow-access, change the pinned version in `rust/Cargo.toml`, regenerate `rust/Cargo.lock`, and rerun the source tests.
+To update open-arrow-access, change the version requirement in `rust/Cargo.toml`, regenerate `rust/Cargo.lock`, and rerun the SQL tests.
 
-## Add a reader
+## Reader bridge
 
-Add a C++ registration in `src/readers`, a Rust implementation in `rust/src/readers`, a SQL test in `test/sql/readers`, and a page in `docs/readers`. Use the existing filename conventions. CMake and Cargo discover the files automatically; generated registrations are build outputs.
+C++ binds SQL parameters and uses DuckDB's Arrow scanner. Rust owns the schema and async reader factory; its FFI layer uses a shared Tokio runtime and adapts readers to synchronous Arrow streams. The FFI exposes `open`, `get_schema`, `get_stream`, and `destroy`; registrations and source lists are explicit.
 
-The pinned dependency set and lockfile are shared infrastructure. Reader PRs do not edit them.
+`rust/src/lib.rs` declares modules only. Async reader state lives in `source.rs`, runtime and C exports in `ffi.rs`, error conversion in `error.rs`, URI validation in `validation.rs`, and storage setup in `storage.rs`. C++ source adapters live under `src/source/`, with headers under `src/include/source/`.

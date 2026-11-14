@@ -1,9 +1,10 @@
 # name: test/sql/readers/huggingface_file.test
-# description: duckport_read_huggingface_file is registered independently
+# description: duckport_scan_huggingface_file is registered independently
 # group: [sql]
+
 require duckport
 
 query I
-SELECT count(*) FROM duckdb_functions() WHERE function_name = 'duckport_read_huggingface_file';
+SELECT count(*) FROM duckdb_functions() WHERE function_name = 'duckport_scan_huggingface_file';
 ----
 1
