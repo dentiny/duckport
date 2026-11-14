@@ -34,7 +34,7 @@ pub unsafe extern "C" fn duckport_json_open(
                 let format = JsonFormat::infer();
                 AsyncSource::new(
                     FileAccessor::from_format(storage, format),
-                    ReadRequest::new(path).with_options(scan_options.read_options),
+                    ReadRequest::new(path).with_options(scan_options),
                 )
                 .await
             },

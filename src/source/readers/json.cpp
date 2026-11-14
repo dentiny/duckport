@@ -1,3 +1,4 @@
+#include "readers/json.h"
 #include "source/reader.hpp"
 
 namespace duckdb {
