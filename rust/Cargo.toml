@@ -21,6 +21,7 @@ open-arrow-access = { version = "0.1.0", default-features = false, features = [
     "service-warc",
     "format-xml",
     "service-huggingface",
+    "service-gutenberg",
     "format-parquet", "format-parquet-zstd", "format-parquet-lz4", "format-parquet-gzip", "format-parquet-brotli",
 ] }
 opendal = { version = "0.59.2", default-features = false, features = ["services-fs", "services-http", "services-s3", "http-transport-reqwest", "auto-register-services"] }

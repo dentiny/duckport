@@ -1,6 +1,6 @@
 # DuckPort
 
-Read Parquet into DuckDB through [open-arrow-access 0.1.0](https://github.com/dentiny/open-arrow-access/releases/tag/v0.1.0).
+Read file formats and dataset service providers into DuckDB through [open-arrow-access 0.1.0](https://github.com/dentiny/open-arrow-access/releases/tag/v0.1.0).
 
 ## Build
 
@@ -30,7 +30,7 @@ SELECT * FROM duckport_scan_parquet('s3://bucket/people.parquet');
 
 Local paths, `file://`, HTTP(S), and S3 use OpenDAL. S3 connection settings and credentials come from the matching DuckDB `CREATE SECRET`. HTTP bearer tokens use a scoped HTTP secret. Scan functions accept only scan options. `batch_size` defaults to 8192 and accepts 1–1,048,576 rows.
 
-Parquet page codecs: Snappy, Zstd, LZ4, gzip, Brotli. Archive members, directory/glob scans, HTTP query/signed URLs, and outer compression such as `.parquet.gz` are unsupported. Source projection/filter pushdown is not enabled.
+Parquet page codecs: Snappy, Zstd, LZ4, gzip, Brotli. For standalone Parquet scans, archive members, directory/glob scans, HTTP query/signed URLs, and outer compression such as `.parquet.gz` are unsupported. Source projection/filter pushdown is not enabled.
 
 ## Write
 
@@ -40,3 +40,12 @@ TO 'output.parquet' (FORMAT PARQUET);
 ```
 
 [Tests](test/README.md) · [Development](docs/UPDATING.md)
+
+### Gutenberg
+
+```sql
+SELECT ebook_id, title FROM duckport_scan_gutenberg('testdata/gutenberg/book.rdf', batch_size := 1);
+```
+
+Reads one RDF book metadata row; linked book files remain metadata.
+Local, HTTP(S), and S3 sources use the existing scoped DuckDB secrets.
