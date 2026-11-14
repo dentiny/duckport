@@ -10,7 +10,7 @@ using ReaderOpen = char *(*)(const char *, const DuckportStorageOptions *, const
 using ReaderBind = std::function<char *(ClientContext &, const string &, const DuckportScanOptions *,
 										const TableFunctionBindInput &, DuckportSource **)>;
 void RegisterReader(ExtensionLoader &loader, const string &name, ReaderOpen open,
-					const std::function<void(TypedKwargs &)> &configure = {});
+					const std::function<void(TypedKwargs &)> &add_reader_options = {});
 void RegisterReader(ExtensionLoader &loader, const string &name, ReaderBind open,
-					const std::function<void(TypedKwargs &)> &configure = {});
+					const std::function<void(TypedKwargs &)> &add_reader_options = {});
 } // namespace duckdb
