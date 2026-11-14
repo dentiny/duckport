@@ -19,14 +19,6 @@ struct StorageOptions {
 };
 struct ScanOptions {
 	size_t batch_size;
-	int32_t header; // -1: infer; 0: no header; 1: header
-	const char *revision;
-	const char *record_path;
-	const char *format;
-	const char *path;
-	const char *config;
-	const char *split;
-	int32_t allow_partial; // 0 or 1
 };
 extern "C" {
 // Common functions

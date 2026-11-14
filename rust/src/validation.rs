@@ -41,10 +41,3 @@ pub(crate) fn boolean(name: &str, value: i32) -> Result<bool> {
         _ => Err(format!("{name} must be 0 or 1").into()),
     }
 }
-
-pub(crate) fn optional_boolean(name: &str, value: i32) -> Result<Option<bool>> {
-    if value == -1 {
-        return Ok(None);
-    }
-    boolean(name, value).map(Some)
-}
