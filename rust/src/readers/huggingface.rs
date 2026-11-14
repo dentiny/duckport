@@ -27,7 +27,7 @@ impl Accessor for Dataset {
 }
 
 /// # Safety
-/// Locator and option JSON are NUL-terminated UTF-8. Option structs are valid for
+/// Locator and optional strings are NUL-terminated UTF-8. Option structs are valid for
 /// this call; output points to writable source-pointer storage. No inputs are retained.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_huggingface_open(
@@ -42,34 +42,29 @@ pub unsafe extern "C" fn duckport_huggingface_open(
             storage_options,
             scan_options,
             output,
-            |locator, mut storage_options, mut options, read_options| async move {
+            |locator, storage_options, scan_options| async move {
                 let mut settings = HuggingFaceOptions::default();
-                if let Some(endpoint) = storage_options.remove("endpoint") {
+                if let Some(endpoint) = storage_options.endpoint {
                     settings = settings.with_endpoint(endpoint);
                 }
-                if let Some(token) = storage_options.remove("token") {
+                if let Some(token) = storage_options.token {
                     settings = settings.with_token(token);
                 }
                 let service = HuggingFaceService::new(settings).await?;
                 let mut request = HuggingFaceDatasetRequest::new(
                     &locator,
-                    options.remove("config").unwrap_or_else(|| "default".into()),
-                    options.remove("split").unwrap_or_else(|| "train".into()),
+                    scan_options.config.unwrap_or_else(|| "default".into()),
+                    scan_options.split.unwrap_or_else(|| "train".into()),
                 );
-                if let Some(revision) = storage_options.remove("revision") {
+                if let Some(revision) = storage_options.revision {
                     request = request.with_revision(revision);
                 }
-                if options
-                    .remove("allow_partial")
-                    .map(|value| value.parse())
-                    .transpose()?
-                    .unwrap_or(false)
-                {
+                if scan_options.allow_partial {
                     request = request.with_partial_exports();
                 }
                 AsyncSource::new(
                     Dataset { service, request },
-                    ReadRequest::new(locator).with_options(read_options),
+                    ReadRequest::new(locator).with_options(scan_options.read_options),
                 )
                 .await
             },
