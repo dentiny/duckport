@@ -1,6 +1,8 @@
 #define DUCKDB_EXTENSION_MAIN
 #include "duckport_extension.hpp"
+#include "readers/commoncrawl.h"
 #include "readers/json.h"
+#include "readers/warc.h"
 #include "source/reader.hpp"
 #include "source/readers/atif.hpp"
 #include "source/readers/csv.hpp"
@@ -10,6 +12,9 @@ namespace duckdb {
 namespace {
 void LoadInternal(ExtensionLoader &loader) {
 	RegisterReader(loader, "duckport_scan_parquet", duckport_parquet_open);
+	RegisterReader(loader, "duckport_scan_warc", duckport_warc_open);
+	RegisterReader(loader, "duckport_scan_commoncrawl", duckport_commoncrawl_open);
+	RegisterReader(loader, "duckport_scan_commoncrawl_segment", duckport_commoncrawl_segment_open);
 	RegisterReader(loader, "duckport_scan_atif", OpenAtif,
 				   [](TypedKwargs &options) { options.Add("jsonl", LogicalType::BOOLEAN); });
 	auto add_csv_options = [](TypedKwargs &options) { options.Add("header", LogicalType::BOOLEAN); };

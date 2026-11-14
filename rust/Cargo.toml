@@ -17,6 +17,8 @@ open-arrow-access = { version = "0.1.0", default-features = false, features = [
     "format-atif",
     "format-csv",
     "format-json",
+    "format-warc",
+    "service-warc",
     "format-xml",
     "format-parquet", "format-parquet-zstd", "format-parquet-lz4", "format-parquet-gzip", "format-parquet-brotli",
 ] }

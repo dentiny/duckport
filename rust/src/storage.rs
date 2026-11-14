@@ -1,11 +1,11 @@
 use crate::{error::Result, options::StorageConfig};
 use open_arrow_access::storage::opendal;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use url::Url;
 
 pub fn operator(locator: &str, config: &StorageConfig) -> Result<(opendal::Operator, String)> {
     opendal::install_default();
-    if !locator.contains("://") || locator.starts_with("file://") {
+    if is_local(locator) {
         return create_local_operator(locator);
     }
     create_remote_operator(locator, config)
@@ -60,7 +60,11 @@ fn create_remote_operator(
     Ok((operator, path))
 }
 
-fn create_local_operator(locator: &str) -> Result<(opendal::Operator, String)> {
+pub(crate) fn is_local(locator: &str) -> bool {
+    !locator.contains("://") || locator.starts_with("file://")
+}
+
+pub(crate) fn local_path(locator: &str) -> Result<PathBuf> {
     let path = if locator.starts_with("file://") {
         Url::parse(locator)?
             .to_file_path()
@@ -68,19 +72,23 @@ fn create_local_operator(locator: &str) -> Result<(opendal::Operator, String)> {
     } else {
         Path::new(locator).to_path_buf()
     };
-    let path = std::path::absolute(path)?;
-    let root = path
-        .parent()
-        .ok_or("source must name a file")?
-        .to_str()
-        .ok_or("path must be UTF-8")?;
+    Ok(std::path::absolute(path)?)
+}
+
+pub(crate) fn create_local_directory_operator(root: &Path) -> Result<opendal::Operator> {
+    let root = root.to_str().ok_or("path must be UTF-8")?;
+    Ok(opendal::Operator::new(
+        opendal::services::Fs::default().root(root),
+    )?)
+}
+
+fn create_local_operator(locator: &str) -> Result<(opendal::Operator, String)> {
+    let path = local_path(locator)?;
+    let root = path.parent().ok_or("source must name a file")?;
     let name = path
         .file_name()
         .and_then(|s| s.to_str())
         .ok_or("source must name a UTF-8 file")?
         .into();
-    Ok((
-        opendal::Operator::new(opendal::services::Fs::default().root(root))?,
-        name,
-    ))
+    Ok((create_local_directory_operator(root)?, name))
 }
