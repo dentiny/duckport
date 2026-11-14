@@ -23,6 +23,15 @@ struct CrawlSource<A: Accessor> {
     request: A::Request,
 }
 
+impl<A: Accessor> CrawlSource<A> {
+    async fn bind(accessor: A, request: A::Request, read: ReadRequest) -> Result<AsyncSource>
+    where
+        Self: Accessor<Request = ReadRequest, Reader = dyn RecordReader> + 'static,
+    {
+        AsyncSource::new(Self { accessor, request }, read).await
+    }
+}
+
 #[async_trait]
 impl<A> Accessor for CrawlSource<A>
 where
@@ -59,23 +68,17 @@ async fn open_commoncrawl(
     let read = ReadRequest::new(locator.clone()).with_options(scan);
     match scope {
         Scope::Dataset => {
-            let request = CommonCrawlWarcRequest::from_url(&locator)?;
-            AsyncSource::new(
-                CrawlSource {
-                    accessor: CommonCrawlWarcAccessor::new(manifests, files),
-                    request,
-                },
+            CrawlSource::bind(
+                CommonCrawlWarcAccessor::new(manifests, files),
+                CommonCrawlWarcRequest::from_url(&locator)?,
                 read,
             )
             .await
         }
         Scope::Segment => {
-            let request = CommonCrawlSegmentRequest::from_url(&locator)?;
-            AsyncSource::new(
-                CrawlSource {
-                    accessor: CommonCrawlSegmentAccessor::new(manifests, files),
-                    request,
-                },
+            CrawlSource::bind(
+                CommonCrawlSegmentAccessor::new(manifests, files),
+                CommonCrawlSegmentRequest::from_url(&locator)?,
                 read,
             )
             .await
