@@ -49,8 +49,8 @@ pub unsafe extern "C" fn duckport_arxiv_open(
 ) -> *mut c_char {
     let open = |locator: String, storage_options: StorageConfig, scan_options| async move {
         let kind =
-            unsafe { optional_string(reader_options.kind)?.unwrap_or_else(|| "source".into()) };
-        let month = unsafe { optional_string(reader_options.month)? };
+            unsafe { optional_string(reader_options.kind) }?.unwrap_or_else(|| "source".into());
+        let month = unsafe { optional_string(reader_options.month) }?;
         let kind = match kind.as_str() {
             "source" => ArxivKind::Source,
             "pdf" => ArxivKind::Pdf,
