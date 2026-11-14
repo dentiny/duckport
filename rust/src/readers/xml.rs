@@ -23,9 +23,9 @@ pub struct XmlOptions {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_xml_open(
     locator: *const c_char,
-    storage_options: *const DuckportStorageOptions,
-    scan_options: *const DuckportScanOptions,
-    reader_options: *const XmlOptions,
+    storage_options: &DuckportStorageOptions,
+    scan_options: &DuckportScanOptions,
+    reader_options: &XmlOptions,
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
     unsafe {
@@ -35,7 +35,6 @@ pub unsafe extern "C" fn duckport_xml_open(
             scan_options,
             output,
             |locator, storage_options, scan_options| async move {
-                let reader_options = reader_options.as_ref().ok_or("null reader options")?;
                 let record_path = optional_string(reader_options.record_path)?
                     .ok_or("record_path is required")?;
 

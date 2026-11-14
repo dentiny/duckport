@@ -14,8 +14,8 @@ use std::ffi::c_char;
 
 unsafe fn open_atif(
     locator: *const c_char,
-    storage_options: *const DuckportStorageOptions,
-    scan_options: *const DuckportScanOptions,
+    storage_options: &DuckportStorageOptions,
+    scan_options: &DuckportScanOptions,
     output: *mut *mut DuckportSource,
     format: AtifFormat,
 ) -> *mut c_char {
@@ -37,8 +37,8 @@ unsafe fn open_atif(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_atif_open(
     locator: *const c_char,
-    storage_options: *const DuckportStorageOptions,
-    scan_options: *const DuckportScanOptions,
+    storage_options: &DuckportStorageOptions,
+    scan_options: &DuckportScanOptions,
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
     unsafe {
@@ -58,8 +58,8 @@ pub unsafe extern "C" fn duckport_atif_open(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_atif_jsonl_open(
     locator: *const c_char,
-    storage_options: *const DuckportStorageOptions,
-    scan_options: *const DuckportScanOptions,
+    storage_options: &DuckportStorageOptions,
+    scan_options: &DuckportScanOptions,
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
     unsafe {
