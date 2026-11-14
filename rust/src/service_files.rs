@@ -1,5 +1,5 @@
 //! Decode one explicitly selected provider attachment. File membership stays with the provider.
-use crate::{error::Result, source::DuckportSource, validation};
+use crate::{error::Result, options::AttachmentFormat, source::DuckportSource, validation};
 use arrow_array::{ArrayRef, LargeBinaryArray};
 use arrow_schema::{DataType, Field, Schema};
 use open_arrow_access::{
@@ -19,21 +19,25 @@ use std::sync::Arc;
 pub async fn open<A: ByteAccessor + 'static>(
     files: A,
     file: String,
-    format: &str,
+    format: AttachmentFormat,
     record_path: Option<String>,
     options: ReadOptions,
 ) -> Result<DuckportSource> {
     validation::validate_format(format, record_path.as_deref())?;
     let request = ReadRequest::new(file).with_options(options);
-    if format == "binary" {
-        return DuckportSource::new(DocumentAccessor::new(files, BinaryDecoder), request).await;
-    }
-    let files = files.layer(AutoDecompressionLayer::new());
     match format {
-        "csv" | "tsv" => {
+        AttachmentFormat::Binary => {
+            DuckportSource::new(DocumentAccessor::new(files, BinaryDecoder), request).await
+        }
+        AttachmentFormat::Csv | AttachmentFormat::Tsv => {
+            let files = files.layer(AutoDecompressionLayer::new());
             let format = CsvFileFormat::infer()
                 .with_dialect(CsvDialect {
-                    delimiter: if format == "tsv" { b'\t' } else { b',' },
+                    delimiter: if format == AttachmentFormat::Tsv {
+                        b'\t'
+                    } else {
+                        b','
+                    },
                     ..Default::default()
                 })
                 .with_inference_options(CsvInferenceOptions {
@@ -42,22 +46,26 @@ pub async fn open<A: ByteAccessor + 'static>(
                 });
             DuckportSource::new(FileAccessor::from_format(files, format), request).await
         }
-        "json" | "jsonl" => {
+        AttachmentFormat::Json | AttachmentFormat::Jsonl => {
+            let files = files.layer(AutoDecompressionLayer::new());
             DuckportSource::new(
                 FileAccessor::from_format(files, JsonFormat::infer()),
                 request,
             )
             .await
         }
-        "parquet" => DuckportSource::new(ParquetAccessor::new(files), request).await,
-        "xml" => {
+        AttachmentFormat::Parquet => {
+            let files = files.layer(AutoDecompressionLayer::new());
+            DuckportSource::new(ParquetAccessor::new(files), request).await
+        }
+        AttachmentFormat::Xml => {
+            let files = files.layer(AutoDecompressionLayer::new());
             DuckportSource::new(
                 FileAccessor::from_format(files, XmlFormat::new(record_path.unwrap())),
                 request,
             )
             .await
         }
-        _ => unreachable!("validated format"),
     }
 }
 
