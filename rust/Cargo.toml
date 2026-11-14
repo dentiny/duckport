@@ -28,6 +28,7 @@ open-arrow-access = { version = "0.2.0", default-features = false, features = [
     "format-xml",
     "service-gutenberg",
     "service-huggingface",
+    "service-pmc",
     "service-warc",
 ] }
 opendal = { version = "0.59.2", default-features = false, features = [

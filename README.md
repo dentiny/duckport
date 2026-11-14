@@ -49,3 +49,12 @@ SELECT ebook_id, title FROM duckport_scan_gutenberg('testdata/gutenberg/book.rdf
 
 Reads one RDF book metadata row; linked book files remain metadata.
 Local, HTTP(S), and S3 sources use the existing scoped DuckDB secrets.
+
+### Pmc
+
+```sql
+SELECT pmcid, version, title FROM duckport_scan_pmc('testdata/pmc/PMC123.json', batch_size := 1);
+```
+
+Reads one PMC article-version metadata row. `duckport_scan_pmc_inventory(manifest_uri)` streams the gzip CSV shards named by an S3 inventory manifest; the manifest and shard keys must share a bucket root. Linked article content is not fetched.
+Local, HTTP(S), and S3 sources use the existing scoped DuckDB secrets.
