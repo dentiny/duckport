@@ -14,6 +14,7 @@ mod huggingface;
 mod internet_archive;
 mod json;
 mod library_of_congress;
+mod meca;
 mod openstax;
 mod pmc;
 mod regulations;
