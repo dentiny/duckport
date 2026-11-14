@@ -5,9 +5,9 @@
 
 namespace duckdb {
 namespace {
-char *Open(ClientContext &context, const string &locator, const ::ScanOptions *scan,
+char *Open(ClientContext &context, const string &locator, const DuckportScanOptions *scan,
 		   const TableFunctionBindInput &input, DuckportSource **output) {
-	::HuggingFaceFileOptions reader_options{};
+	HuggingFaceFileOptions reader_options{};
 	reader_options.header = -1;
 	auto revision = ReadStringOption(input, "revision");
 	reader_options.revision = revision ? revision->c_str() : nullptr;
