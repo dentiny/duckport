@@ -19,6 +19,7 @@ use std::ffi::c_char;
 pub struct CsvOptions {
     /// -1 infers the header; 0 disables it; 1 enables it.
     pub header: i32,
+    pub delimiter: u8,
 }
 
 /// # Safety
@@ -44,7 +45,7 @@ pub unsafe extern "C" fn duckport_csv_open(
         let storage = OpenDalAccessor::new(operator).layer(AutoDecompressionLayer::new());
         let format = CsvFileFormat::infer()
             .with_dialect(CsvDialect {
-                delimiter: b',',
+                delimiter: reader_options.delimiter,
                 ..Default::default()
             })
             .with_inference_options(CsvInferenceOptions {

@@ -5,4 +5,6 @@
 namespace duckdb {
 char *OpenCsv(ClientContext &context, const string &locator, const DuckportScanOptions *scan,
 			  const TableFunctionBindInput &input, DuckportSource **output);
+char *OpenTsv(ClientContext &context, const string &locator, const DuckportScanOptions *scan,
+			  const TableFunctionBindInput &input, DuckportSource **output);
 } // namespace duckdb

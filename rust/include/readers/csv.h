@@ -4,6 +4,7 @@
 
 struct CsvOptions {
 	int32_t header; // -1: infer; 0: no header; 1: header
+	uint8_t delimiter;
 };
 
 extern "C" {
