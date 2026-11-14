@@ -64,19 +64,10 @@ pub(crate) unsafe fn optional_string(value: *const c_char) -> Result<Option<Stri
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AttachmentFormat {
-    Binary,
     Csv,
     Tsv,
     Json,
     Jsonl,
     Parquet,
     Xml,
-}
-
-impl std::str::FromStr for AttachmentFormat {
-    type Err = Box<dyn std::error::Error + Send + Sync>;
-
-    fn from_str(value: &str) -> Result<Self> {
-        validation::parse_attachment_format(value)
-    }
 }

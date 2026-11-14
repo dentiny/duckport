@@ -1,20 +1,16 @@
 //! Decode one explicitly selected provider attachment. File membership stays with the provider.
 use crate::{error::Result, options::AttachmentFormat, source::DuckportSource, validation};
-use arrow_array::{ArrayRef, LargeBinaryArray};
-use arrow_schema::{DataType, Field, Schema};
 use open_arrow_access::{
-    AccessorExt, ByteAccessor, Capability, DocumentAccessor, DocumentDecoder, OrderRequirement,
-    ReadOptions, ReadRequest, RecordBatch, RecordCapability, SchemaRef, async_trait,
+    AccessorExt, ByteAccessor, ReadOptions, ReadRequest,
     decompression::AutoDecompressionLayer,
     file_format::{
         FileAccessor,
-        csv::{CsvDialect, CsvFileFormat, CsvInferenceOptions},
+        csv::{CsvDialect, CsvFileFormat, CsvHeader},
         json::JsonFormat,
         parquet::ParquetAccessor,
         xml::XmlFormat,
     },
 };
-use std::sync::Arc;
 
 /// Decode one selected attachment into Arrow records.
 ///
@@ -30,28 +26,17 @@ pub async fn open<A: ByteAccessor + 'static>(
     validation::validate_format(format, record_path.as_deref())?;
     let request = ReadRequest::new(file).with_options(options);
     match format {
-        AttachmentFormat::Binary => {
-            DuckportSource::new(
-                DocumentAccessor::new(attachment_accessor, BinaryDecoder),
-                request,
-            )
-            .await
-        }
         AttachmentFormat::Csv | AttachmentFormat::Tsv => {
             let attachment_accessor = attachment_accessor.layer(AutoDecompressionLayer::new());
-            let format = CsvFileFormat::infer()
-                .with_dialect(CsvDialect {
-                    delimiter: if format == AttachmentFormat::Tsv {
-                        b'\t'
-                    } else {
-                        b','
-                    },
-                    ..Default::default()
-                })
-                .with_inference_options(CsvInferenceOptions {
-                    has_header: Some(true),
-                    ..Default::default()
-                });
+            let format = CsvFileFormat::infer().with_dialect(CsvDialect {
+                header: CsvHeader::Present,
+                delimiter: if format == AttachmentFormat::Tsv {
+                    b'\t'
+                } else {
+                    b','
+                },
+                ..Default::default()
+            });
             DuckportSource::new(
                 FileAccessor::from_format(attachment_accessor, format),
                 request,
@@ -81,43 +66,5 @@ pub async fn open<A: ByteAccessor + 'static>(
             )
             .await
         }
-    }
-}
-
-struct BinaryDecoder;
-#[async_trait]
-impl DocumentDecoder for BinaryDecoder {
-    type Request = ReadRequest;
-    fn capability(&self, input: Capability) -> RecordCapability {
-        Capability {
-            read: input.read,
-            read_with_range: false,
-            read_parallel: false,
-            list: false,
-        }
-        .with_ordering(OrderRequirement::Reorderable)
-    }
-    fn prepare(&self, _: &ReadRequest) -> open_arrow_access::Result<SchemaRef> {
-        Ok(Arc::new(Schema::new(vec![Field::new(
-            "data",
-            DataType::LargeBinary,
-            false,
-        )])))
-    }
-    async fn decode(
-        &self,
-        raw: &[u8],
-        _: ReadRequest,
-        schema: SchemaRef,
-    ) -> open_arrow_access::Result<RecordBatch> {
-        let data = Arc::new(LargeBinaryArray::from(vec![raw])) as ArrayRef;
-        RecordBatch::try_new(schema, vec![data]).map_err(|error| {
-            open_arrow_access::Error::new(
-                open_arrow_access::ErrorKind::Decode,
-                "decode_attachment",
-                error.to_string(),
-            )
-            .with_source(error)
-        })
     }
 }

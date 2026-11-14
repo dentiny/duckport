@@ -1,6 +1,6 @@
 # DuckPort
 
-Read file formats and dataset service providers into DuckDB through [open-arrow-access 0.2.0](https://github.com/dentiny/open-arrow-access/releases/tag/v0.2.0).
+Read file formats and dataset service providers into DuckDB through [open-arrow-access 0.2.1](https://crates.io/crates/open-arrow-access/0.2.1).
 
 ## Build
 
