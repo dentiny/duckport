@@ -28,27 +28,21 @@ pub unsafe extern "C" fn duckport_biorxiv_open(
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
     let open = |locator: String, storage_options: StorageConfig, scan_options| async move {
-        let file_name = unsafe {
-            optional_string(reader_options.file_name)?
-                .filter(|s| !s.is_empty())
-                .ok_or("file_name is required")?
-        };
+        let file_name = unsafe { optional_string(reader_options.file_name) }?
+            .filter(|s| !s.is_empty())
+            .ok_or("file_name is required")?;
         let format =
-            unsafe { optional_string(reader_options.format)?.unwrap_or_else(|| "binary".into()) };
-        let record_path = unsafe { optional_string(reader_options.record_path)? };
-        let endpoint = unsafe {
-            optional_string(reader_options.endpoint)?
-                .unwrap_or_else(|| "https://api.biorxiv.org".into())
-        };
-        let until = unsafe {
-            optional_string(reader_options.until)?
-                .filter(|s| !s.is_empty())
-                .ok_or("until is required")?
-        };
+            unsafe { optional_string(reader_options.format) }?.unwrap_or_else(|| "binary".into());
+        let record_path = unsafe { optional_string(reader_options.record_path) }?;
+        let endpoint = unsafe { optional_string(reader_options.endpoint) }?
+            .unwrap_or_else(|| "https://api.biorxiv.org".into());
+        let until = unsafe { optional_string(reader_options.until) }?
+            .filter(|s| !s.is_empty())
+            .ok_or("until is required")?;
         let server =
-            unsafe { optional_string(reader_options.server)?.unwrap_or_else(|| "biorxiv".into()) };
+            unsafe { optional_string(reader_options.server) }?.unwrap_or_else(|| "biorxiv".into());
         let cursor =
-            unsafe { optional_string(reader_options.cursor)?.unwrap_or_else(|| "0".into()) };
+            unsafe { optional_string(reader_options.cursor) }?.unwrap_or_else(|| "0".into());
         crate::service_files::validate_format(&format, record_path.as_deref())?;
         let server = match server.as_str() {
             "biorxiv" => Server::Biorxiv,
