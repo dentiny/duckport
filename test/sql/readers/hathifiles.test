@@ -1,0 +1,20 @@
+# name: test/sql/readers/hathifiles.test
+# description: Validate hathifiles attachment selection before network I/O
+# group: [sql]
+
+require duckport
+
+statement error
+SELECT * FROM duckport_scan_hathifiles('test');
+----
+file_name is required
+
+statement error
+SELECT * FROM duckport_scan_hathifiles(NULL);
+----
+NULL
+
+statement error
+SELECT * FROM duckport_scan_hathifiles('test', file_name := NULL);
+----
+NULL

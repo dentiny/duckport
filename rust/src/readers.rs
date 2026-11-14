@@ -6,6 +6,7 @@ mod federal_register;
 mod figshare;
 mod govinfo;
 mod gutenberg;
+mod hathifiles;
 mod huggingface;
 mod internet_archive;
 mod json;

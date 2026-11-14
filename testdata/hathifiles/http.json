@@ -1,0 +1,15 @@
+{
+  "routes": [
+    {
+      "path": "/files/hathifiles/hathi_file_list.json",
+      "file": "metadata.json"
+    },
+    {
+      "path": "/files/hathifiles/hathi_full_20261101.txt.gz",
+      "file": "attachment.bin"
+    }
+  ],
+  "downloads": [],
+  "same_origin_download": true,
+  "reject_route": "/files/hathifiles/hathi_file_list.json"
+}
