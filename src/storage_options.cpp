@@ -8,9 +8,17 @@ namespace {
 const char *OptionalString(const string &value) { return value.empty() ? nullptr : value.c_str(); }
 } // namespace
 
-StorageParameters::StorageParameters(ClientContext &context, const string &locator, const string &secret_type) {
+StorageParameters::StorageParameters(ClientContext &context, const string &locator, const string &secret_type,
+									 const char *file_path) {
 	if (secret_type == "huggingface") {
-		KeyValueSecretReader reader(*context.db, "huggingface", "hf://datasets/" + locator);
+		string scope = "hf://datasets/" + locator + "/";
+		if (file_path) {
+			while (*file_path == '/') {
+				file_path++;
+			}
+			scope += file_path;
+		}
+		KeyValueSecretReader reader(*context.db, "huggingface", scope);
 		reader.TryGetSecretKey("token", token);
 	} else if (StringUtil::StartsWith(locator, "s3://")) {
 		KeyValueSecretReader reader(*context.db, "s3", locator);
