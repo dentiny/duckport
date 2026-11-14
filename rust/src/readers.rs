@@ -5,6 +5,7 @@ mod dataverse;
 mod figshare;
 mod gutenberg;
 mod huggingface;
+mod internet_archive;
 mod json;
 mod pmc;
 mod warc;
