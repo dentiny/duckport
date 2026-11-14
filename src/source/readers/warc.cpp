@@ -1,3 +1,4 @@
+#include "readers/warc.h"
 #include "source/reader.hpp"
 
 namespace duckdb {

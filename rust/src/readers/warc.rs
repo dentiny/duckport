@@ -34,7 +34,7 @@ pub unsafe extern "C" fn duckport_warc_open(
                 let format = WarcArrowFormat;
                 AsyncSource::new(
                     FileAccessor::from_format(storage, format),
-                    ReadRequest::new(path).with_options(scan_options.read_options),
+                    ReadRequest::new(path).with_options(scan_options),
                 )
                 .await
             },
