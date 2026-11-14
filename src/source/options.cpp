@@ -1,12 +1,12 @@
 #include "source/options.hpp"
 
 namespace duckdb {
-void ReadStringOption(const TableFunctionBindInput &input, const char *name, string &owned, const char *&output) {
+std::optional<string> ReadStringOption(const TableFunctionBindInput &input, const char *name) {
 	auto entry = input.named_parameters.find(name);
-	if (entry != input.named_parameters.end()) {
-		owned = ReadSourceString(entry->second);
-		output = owned.c_str();
+	if (entry == input.named_parameters.end()) {
+		return std::nullopt;
 	}
+	return ReadSourceString(entry->second);
 }
 void ReadBooleanOption(const TableFunctionBindInput &input, const char *name, int32_t &output) {
 	auto entry = input.named_parameters.find(name);
