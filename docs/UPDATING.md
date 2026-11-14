@@ -23,7 +23,7 @@ To update open-arrow-access, change the version requirement in `rust/Cargo.toml`
 
 ## Reader bridge
 
-Openers share `locator`, `StorageOptions`, and `ScanOptions`. `ScanOptions` contains
+Openers share `locator`, `DuckportStorageOptions`, and `DuckportScanOptions`. `DuckportScanOptions` contains
 only format/service-independent scan settings: currently `batch_size`. Each reader
 introduces its own typed options in its PR when needed, as a separate opener argument.
 Reader-specific fields do not belong in the common scan options or binder.
