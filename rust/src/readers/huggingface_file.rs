@@ -44,7 +44,7 @@ pub unsafe extern "C" fn duckport_huggingface_file_open(
                 }
                 let service = HuggingFaceService::new(settings).await?;
                 let mut repository = HuggingFaceRepository::new(locator);
-                if let Some(revision) = storage_options.revision {
+                if let Some(revision) = scan_options.revision {
                     repository = repository.with_revision(revision);
                 }
                 let path = scan_options.path.ok_or("path is required")?;

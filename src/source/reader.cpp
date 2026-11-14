@@ -4,12 +4,14 @@
 #include "source/options.hpp"
 #include "source/reader.hpp"
 #include "source/source_factory.hpp"
+#include "storage_options.hpp"
 
 namespace duckdb {
 namespace {
 struct ReaderInfo : TableFunctionInfo {
-	explicit ReaderInfo(ReaderOpen open) : open(open) {}
+	ReaderInfo(ReaderOpen open, string secret_type) : open(open), secret_type(std::move(secret_type)) {}
 	ReaderOpen open;
+	string secret_type;
 };
 void CheckAccess(ClientContext &context) {
 	if (!Settings::Get<EnableExternalAccessSetting>(context)) {
@@ -20,9 +22,11 @@ unique_ptr<FunctionData> BindReader(ClientContext &context, TableFunctionBindInp
 									vector<Identifier> &names) {
 	CheckAccess(context);
 	auto path = ReadSourceString(input.inputs[0]);
-	ReaderOptions options(input);
+	ScanParameters options(input);
+	const auto &info = input.info->Cast<ReaderInfo>();
+	StorageParameters storage(context, path, info.secret_type, options.scan.path);
 	DuckportSource *raw = nullptr;
-	CheckError(input.info->Cast<ReaderInfo>().open(path.c_str(), &options.storage, &options.scan, &raw));
+	CheckError(info.open(path.c_str(), &storage.config, &options.scan, &raw));
 	auto factory = make_shared_ptr<SourceFactory>(SourcePtr(raw, duckport_source_destroy));
 	auto result = make_uniq<ArrowScanFunctionData>(std::move(factory));
 	result->factory->GetSchema(result->schema_root.arrow_schema);
@@ -42,13 +46,12 @@ unique_ptr<GlobalTableFunctionState> InitReader(ClientContext &context, TableFun
 }
 } // namespace
 void RegisterReader(ExtensionLoader &loader, const string &name, ReaderOpen open,
-					const std::function<void(TypedKwargs &)> &configure) {
+					const std::function<void(TypedKwargs &)> &configure, const string &secret_type) {
 	TableFunction function(Identifier(name), {LogicalType::VARCHAR}, ArrowTableFunction::ArrowScanFunction, BindReader,
 						   InitReader, ArrowTableFunction::ArrowScanInitLocal);
-	function.function_info = make_shared_ptr<ReaderInfo>(open);
+	function.function_info = make_shared_ptr<ReaderInfo>(open, secret_type);
 	function.GetSignature().WithTypedKwargs("options", [&](TypedKwargs &options) {
 		options.Add("batch_size", LogicalType::BIGINT);
-		RegisterStorageOptions(options);
 		if (configure) {
 			configure(options);
 		}
