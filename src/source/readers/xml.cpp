@@ -7,9 +7,9 @@ namespace duckdb {
 namespace {
 char *Open(ClientContext &context, const string &locator, const ::ScanOptions *scan,
 		   const TableFunctionBindInput &input, DuckportSource **output) {
-	string record_path;
 	::XmlOptions reader_options{};
-	ReadStringOption(input, "record_path", record_path, reader_options.record_path);
+	auto record_path = ReadStringOption(input, "record_path");
+	reader_options.record_path = record_path ? record_path->c_str() : nullptr;
 	StorageParameters storage(context, locator, {});
 	return duckport_xml_open(locator.c_str(), &storage.config, scan, &reader_options, output);
 }
