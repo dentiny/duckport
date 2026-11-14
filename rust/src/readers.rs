@@ -11,6 +11,7 @@ mod huggingface;
 mod internet_archive;
 mod json;
 mod library_of_congress;
+mod openstax;
 mod pmc;
 mod semantic_scholar;
 mod warc;

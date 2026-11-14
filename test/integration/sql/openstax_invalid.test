@@ -1,0 +1,5 @@
+# Invalid provider metadata must fail before downloading content.
+statement error
+SELECT octet_length(data) FROM duckport_scan_openstax('osbooks-biology-bundle', file_name := 'osbooks-biology-bundle.zip', endpoint := '__ENDPOINT__', revision := 'main', archive_endpoint := '__DOWNLOAD__');
+----
+DuckPort
