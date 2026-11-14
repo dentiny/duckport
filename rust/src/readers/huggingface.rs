@@ -1,6 +1,6 @@
 use crate::{
     ffi::{DuckportSource, open_reader},
-    options::{ScanOptions, StorageOptions, optional_string},
+    options::{DuckportScanOptions, DuckportStorageOptions, optional_string},
     source::DuckportSource as AsyncSource,
 };
 use open_arrow_access::{
@@ -40,8 +40,8 @@ pub struct HuggingFaceDatasetOptions {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_huggingface_open(
     locator: *const c_char,
-    storage_options: *const StorageOptions,
-    scan_options: *const ScanOptions,
+    storage_options: *const DuckportStorageOptions,
+    scan_options: *const DuckportScanOptions,
     reader_options: *const HuggingFaceDatasetOptions,
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
