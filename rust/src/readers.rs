@@ -14,6 +14,7 @@ mod json;
 mod library_of_congress;
 mod openstax;
 mod pmc;
+mod regulations;
 mod semantic_scholar;
 mod warc;
 mod xml;
