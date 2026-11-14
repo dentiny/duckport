@@ -27,6 +27,9 @@ Openers share `locator`, `DuckportStorageOptions`, and `DuckportScanOptions`. `D
 only format/service-independent scan settings: currently `batch_size`. Each reader
 introduces its own typed options in its PR when needed, as a separate opener argument.
 Reader-specific fields do not belong in the common scan options or binder.
+`source::open_file_source` resolves storage, binds the typed format and scan request,
+and opens the source. Each opener constructs its format and explicitly selects
+outer compression: `Auto` for CSV/JSON/XML, `None` for Parquet to retain range access.
 C++ resolves scoped DuckDB secrets and passes named storage fields to Rust. It owns
 input strings for the open call; Rust copies them before asynchronous reads.
 

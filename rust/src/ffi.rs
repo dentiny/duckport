@@ -1,15 +1,11 @@
 use crate::{
     error::{Result, call, cleanup},
     options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
-    source::DuckportSource as AsyncSource,
-    storage,
+    source::{DuckportSource as AsyncSource, OuterCompression, open_file_source},
 };
 use arrow_array::{RecordBatch, RecordBatchReader, ffi_stream::FFI_ArrowArrayStream};
 use arrow_schema::{ArrowError, SchemaRef, ffi::FFI_ArrowSchema};
-use open_arrow_access::{
-    ReadOptions, ReadRequest, RecordReader, file_format::parquet::ParquetAccessor,
-    storage::OpenDalAccessor,
-};
+use open_arrow_access::{ReadOptions, RecordReader, file_format::parquet::ParquetFormat};
 use std::{
     ffi::{CStr, c_char},
     panic::{AssertUnwindSafe, catch_unwind},
@@ -104,9 +100,14 @@ pub unsafe extern "C" fn duckport_parquet_open(
             scan_options,
             output,
             |locator, storage_options, scan_options| async move {
-                let (operator, path) = storage::operator(&locator, &storage_options)?;
-                let accessor = ParquetAccessor::new(OpenDalAccessor::new(operator));
-                AsyncSource::new(accessor, ReadRequest::new(path).with_options(scan_options)).await
+                open_file_source(
+                    &locator,
+                    &storage_options,
+                    scan_options,
+                    ParquetFormat,
+                    OuterCompression::None,
+                )
+                .await
             },
         )
     }

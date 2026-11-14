@@ -1,18 +1,9 @@
 use crate::{
     ffi::{DuckportSource, open_reader},
     options::{DuckportScanOptions, DuckportStorageOptions},
-    source::DuckportSource as AsyncSource,
-    storage,
+    source::{OuterCompression, open_file_source},
 };
-use open_arrow_access::{
-    AccessorExt, ReadRequest,
-    decompression::AutoDecompressionLayer,
-    file_format::{
-        FileAccessor,
-        csv::{CsvDialect, CsvFileFormat, CsvInferenceOptions},
-    },
-    storage::OpenDalAccessor,
-};
+use open_arrow_access::file_format::csv::{CsvDialect, CsvFileFormat, CsvInferenceOptions};
 use std::ffi::c_char;
 
 #[repr(C)]
@@ -41,8 +32,6 @@ pub unsafe extern "C" fn duckport_csv_open(
             Some(crate::validation::boolean("header", reader_options.header)?)
         };
 
-        let (operator, path) = storage::operator(&locator, &storage_options)?;
-        let storage = OpenDalAccessor::new(operator).layer(AutoDecompressionLayer::new());
         let format = CsvFileFormat::infer()
             .with_dialect(CsvDialect {
                 delimiter: reader_options.delimiter,
@@ -52,9 +41,12 @@ pub unsafe extern "C" fn duckport_csv_open(
                 has_header: header,
                 ..Default::default()
             });
-        AsyncSource::new(
-            FileAccessor::from_format(storage, format),
-            ReadRequest::new(path).with_options(scan_options),
+        open_file_source(
+            &locator,
+            &storage_options,
+            scan_options,
+            format,
+            OuterCompression::Auto,
         )
         .await
     };
