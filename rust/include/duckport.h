@@ -14,13 +14,13 @@ struct StorageOptions {
 	const char *secret_access_key;
 	const char *session_token;
 	const char *token;
-	const char *revision;
 	int32_t virtual_host_style; // 0 or 1
 	int32_t allow_anonymous;	// 0 or 1
 };
 struct ScanOptions {
 	size_t batch_size;
 	int32_t header; // -1: infer; 0: no header; 1: header
+	const char *revision;
 	const char *record_path;
 	const char *format;
 	const char *path;
