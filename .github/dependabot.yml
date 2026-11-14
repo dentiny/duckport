@@ -1,0 +1,12 @@
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/rust"
+    schedule:
+      interval: "weekly"
+    # These dependency families are upgraded manually.
+    ignore:
+      - dependency-name: "arrow*"
+      - dependency-name: "parquet*"
+      - dependency-name: "lance*"
+      - dependency-name: "datafusion*"

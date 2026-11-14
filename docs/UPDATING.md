@@ -47,4 +47,4 @@ input strings for the open call; Rust copies them before asynchronous reads.
 
 C++ binds SQL parameters and uses DuckDB's Arrow scanner. Rust owns the schema and async reader factory; its FFI layer uses a shared Tokio runtime and adapts readers to synchronous Arrow streams. The FFI exposes `open`, `get_schema`, `get_stream`, and `destroy`; registrations and source lists are explicit.
 
-`rust/src/lib.rs` declares modules only. Async reader state lives in `source.rs`, runtime and C exports in `ffi.rs`, C option structs in `options.rs`, error conversion in `error.rs`, URI validation in `validation.rs`, and storage setup in `storage.rs`. C++ source adapters live under `src/source/`, with headers under `src/include/source/`.
+`rust/src/lib.rs` declares modules only. `source.rs` wraps the library's `BoundSource` for reader binding and schema checks. Runtime and C exports live in `ffi.rs`, C option structs in `options.rs`, error conversion in `error.rs`, URI validation in `validation.rs`, and storage setup in `storage.rs`. C++ source adapters live under `src/source/`, with headers under `src/include/source/`.
