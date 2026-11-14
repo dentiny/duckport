@@ -44,25 +44,25 @@ unique_ptr<GlobalTableFunctionState> InitReader(ClientContext &context, TableFun
 }
 } // namespace
 void RegisterReader(ExtensionLoader &loader, const string &name, ReaderBind open,
-					const std::function<void(TypedKwargs &)> &configure) {
+					const std::function<void(TypedKwargs &)> &add_reader_options) {
 	TableFunction function(Identifier(name), {LogicalType::VARCHAR}, ArrowTableFunction::ArrowScanFunction, BindReader,
 						   InitReader, ArrowTableFunction::ArrowScanInitLocal);
 	function.function_info = make_shared_ptr<ReaderInfo>(std::move(open));
 	function.GetSignature().WithTypedKwargs("options", [&](TypedKwargs &options) {
 		options.Add("batch_size", LogicalType::BIGINT);
-		if (configure) {
-			configure(options);
+		if (add_reader_options) {
+			add_reader_options(options);
 		}
 	});
 	loader.RegisterFunction(function);
 }
 void RegisterReader(ExtensionLoader &loader, const string &name, ReaderOpen open,
-					const std::function<void(TypedKwargs &)> &configure) {
+					const std::function<void(TypedKwargs &)> &add_reader_options) {
 	ReaderBind bind = [open](ClientContext &context, const string &locator, const DuckportScanOptions *scan,
 							 const TableFunctionBindInput &, DuckportSource **output) {
 		StorageParameters storage(context, locator, {});
 		return open(locator.c_str(), &storage.config, scan, output);
 	};
-	RegisterReader(loader, name, std::move(bind), configure);
+	RegisterReader(loader, name, std::move(bind), add_reader_options);
 }
 } // namespace duckdb
