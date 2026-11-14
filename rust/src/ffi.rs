@@ -155,7 +155,7 @@ pub unsafe extern "C" fn duckport_source_get_stream(
     })
 }
 /// # Safety
-/// Source is null or a pointer returned by duckport_parquet_open, freed once.
+/// Source is null or a live source pointer returned by an opener, freed once.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_source_destroy(source: *mut DuckportSource) {
     cleanup(|| {
