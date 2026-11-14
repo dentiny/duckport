@@ -3,15 +3,14 @@
 # group: [sql]
 
 require duckport
-require-env DUCKPORT_COMMONCRAWL_ORIGIN
 
 query TT
-SELECT record_id, decode(body) FROM duckport_scan_warc('{DUCKPORT_COMMONCRAWL_ORIGIN}/crawl-data/CC-MAIN-2022-40/segments/1664030338280.51/warc/z.warc.gz');
+SELECT record_id, decode(body) FROM duckport_scan_warc('testdata/commoncrawl/crawl-data/CC-MAIN-2022-40/segments/1664030338280.51/warc/z.warc.gz');
 ----
 <urn:test:a>	123
 
 query TT rowsort
-SELECT record_id, record_type FROM duckport_scan_commoncrawl('{DUCKPORT_COMMONCRAWL_ORIGIN}/crawl-data/CC-MAIN-2022-40/', batch_size := 1);
+SELECT record_id, record_type FROM duckport_scan_commoncrawl('testdata/commoncrawl/crawl-data/CC-MAIN-2022-40/', batch_size := 1);
 ----
 <urn:test:a>	resource
 <urn:test:a>	resource
@@ -19,18 +18,18 @@ SELECT record_id, record_type FROM duckport_scan_commoncrawl('{DUCKPORT_COMMONCR
 <urn:test:one>	metadata
 
 query TT rowsort
-SELECT record_id, record_type FROM duckport_scan_commoncrawl_segment('{DUCKPORT_COMMONCRAWL_ORIGIN}/crawl-data/CC-MAIN-2022-40/segments/1664030338280.51/', batch_size := 2);
+SELECT record_id, record_type FROM duckport_scan_commoncrawl_segment('testdata/commoncrawl/crawl-data/CC-MAIN-2022-40/segments/1664030338280.51/', batch_size := 2);
 ----
 <urn:test:a>	resource
 <urn:test:a>	resource
 <urn:test:b>	resource
 
 query TT
-SELECT record_id, record_type FROM duckport_scan_commoncrawl_segment('{DUCKPORT_COMMONCRAWL_ORIGIN}/crawl-data/CC-MAIN-2022-40/segments/1664030338280.510/');
+SELECT record_id, record_type FROM duckport_scan_commoncrawl_segment('testdata/commoncrawl/crawl-data/CC-MAIN-2022-40/segments/1664030338280.510/');
 ----
 <urn:test:one>	metadata
 
 statement error
-SELECT * FROM duckport_scan_commoncrawl_segment('{DUCKPORT_COMMONCRAWL_ORIGIN}/crawl-data/CC-MAIN-2022-40/segments/1664030338280.52/');
+SELECT * FROM duckport_scan_commoncrawl_segment('testdata/commoncrawl/crawl-data/CC-MAIN-2022-40/segments/1664030338280.52/');
 ----
 manifest contains no files
