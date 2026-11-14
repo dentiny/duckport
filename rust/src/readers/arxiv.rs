@@ -34,6 +34,7 @@ impl Accessor for Records {
 pub struct ArxivOptions {
     pub kind: *const c_char,
     pub month: *const c_char,
+    pub requester_pays: i32,
 }
 
 /// # Safety
@@ -56,9 +57,12 @@ pub unsafe extern "C" fn duckport_arxiv_open(
             _ => return Err("kind must be source or pdf".into()),
         };
         let month = month.map(|s| s.parse::<u16>()).transpose()?;
-        let storage = OpenDalAccessor::new(crate::storage::directory_operator(
+        let requester_pays =
+            crate::validation::boolean("requester_pays", reader_options.requester_pays)?;
+        let storage = OpenDalAccessor::new(crate::storage::directory_operator_with_requester_pays(
             &locator,
             &storage_options,
+            requester_pays,
         )?);
         let records = ArxivService::new(storage).records();
         AsyncSource::new(

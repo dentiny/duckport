@@ -28,3 +28,8 @@ statement error
 SELECT * FROM duckport_scan_arxiv('testdata/arxiv', month := '2413');
 ----
 month
+
+statement error
+SELECT * FROM duckport_scan_arxiv('testdata/arxiv', requester_pays := true);
+----
+requester_pays requires an S3 root

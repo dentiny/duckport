@@ -310,5 +310,7 @@ FROM duckport_scan_arxiv('/data/arxiv-mirror', kind := 'source', month := '2410'
 The locator roots a local/HTTP(S)/S3 mirror above `pdf/` and `src/`. Reads only
 manifest-selected TAR shards; `month` is YYMM, `kind` is `source` (default) or `pdf`.
 Returns unchanged entry names and binary payloads, with upstream TAR limits.
-Direct access to a requester-pays bucket requires billing support in the storage adapter;
-a local or HTTP mirror can be used with this interface.
+For an official requester-pays S3 bucket, supply a scoped S3 secret and set
+`requester_pays := true` to explicitly opt into requester billing. The option defaults
+to false and requires S3 credentials. Example: `duckport_scan_arxiv('s3://arxiv/',
+kind := 'source', month := '2410', requester_pays := true)`.

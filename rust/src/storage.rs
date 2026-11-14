@@ -15,13 +15,14 @@ fn create_remote_operator(
     locator: &str,
     config: &StorageConfig,
 ) -> Result<(opendal::Operator, String)> {
-    remote_operator(locator, config, None)
+    remote_operator(locator, config, None, false)
 }
 
 fn remote_operator(
     locator: &str,
     config: &StorageConfig,
     root: Option<&str>,
+    requester_pays: bool,
 ) -> Result<(opendal::Operator, String)> {
     let mut url = Url::parse(locator)?;
     crate::validation::validate_uri(&url)?;
@@ -58,6 +59,9 @@ fn remote_operator(
         }
         if let Some(token) = &config.session_token {
             builder = builder.session_token(token);
+        }
+        if requester_pays {
+            builder = builder.enable_request_payer();
         }
         if config.virtual_host_style {
             builder = builder.enable_virtual_host_style();
@@ -108,6 +112,20 @@ pub(crate) fn directory_operator(
     locator: &str,
     config: &StorageConfig,
 ) -> Result<opendal::Operator> {
+    directory_operator_with_requester_pays(locator, config, false)
+}
+
+pub(crate) fn directory_operator_with_requester_pays(
+    locator: &str,
+    config: &StorageConfig,
+    requester_pays: bool,
+) -> Result<opendal::Operator> {
+    if requester_pays && !locator.starts_with("s3://") {
+        return Err("requester_pays requires an S3 root".into());
+    }
+    if requester_pays && (config.access_key_id.is_none() || config.secret_access_key.is_none()) {
+        return Err("requester_pays requires a scoped S3 secret with credentials".into());
+    }
     opendal::install_default();
     if is_local(locator) {
         return create_local_directory_operator(&local_path(locator)?);
@@ -117,5 +135,5 @@ pub(crate) fn directory_operator(
     let root = percent_encoding::percent_decode_str(url.path())
         .decode_utf8()?
         .into_owned();
-    Ok(remote_operator(locator, config, Some(&root))?.0)
+    Ok(remote_operator(locator, config, Some(&root), requester_pays)?.0)
 }

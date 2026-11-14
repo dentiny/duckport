@@ -4,6 +4,7 @@
 struct ArxivOptions {
 	const char *kind;
 	const char *month;
+	int32_t requester_pays;
 };
 
 extern "C" {
