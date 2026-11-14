@@ -1,3 +1,4 @@
+#include "readers/atif_jsonl.h"
 #include "source/reader.hpp"
 
 namespace duckdb {
