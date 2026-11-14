@@ -16,6 +16,7 @@ mod openstax;
 mod pmc;
 mod regulations;
 mod semantic_scholar;
+mod uspto;
 mod warc;
 mod xml;
 mod zenodo;

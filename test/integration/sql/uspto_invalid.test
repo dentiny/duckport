@@ -1,0 +1,5 @@
+# Invalid provider metadata must fail before downloading content.
+statement error
+SELECT octet_length(data) FROM duckport_scan_uspto('PTGRXML', file_name := 'grant.zip', endpoint := '__ENDPOINT__');
+----
+DuckPort

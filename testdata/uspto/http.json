@@ -1,0 +1,16 @@
+{
+  "routes": [
+    {
+      "path": "/api/v1/datasets/products/PTGRXML",
+      "file": "metadata.json"
+    }
+  ],
+  "downloads": [
+    {
+      "path": "/grant.zip?sig=a%2Bb",
+      "file": "attachment.bin"
+    }
+  ],
+  "auth": "X-API-KEY",
+  "reject_route": "/api/v1/datasets/products/PTGRXML"
+}

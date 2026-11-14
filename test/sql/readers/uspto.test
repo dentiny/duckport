@@ -1,0 +1,20 @@
+# name: test/sql/readers/uspto.test
+# description: Validate uspto attachment selection before network I/O
+# group: [sql]
+
+require duckport
+
+statement error
+SELECT * FROM duckport_scan_uspto('test');
+----
+file_name is required
+
+statement error
+SELECT * FROM duckport_scan_uspto(NULL);
+----
+NULL
+
+statement error
+SELECT * FROM duckport_scan_uspto('test', file_name := NULL);
+----
+NULL
