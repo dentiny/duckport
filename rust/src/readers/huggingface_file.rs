@@ -1,6 +1,6 @@
 use crate::{
     ffi::{DuckportSource, open_reader},
-    options::{ScanOptions, StorageOptions},
+    options::{ScanOptions, StorageOptions, optional_string},
     source::DuckportSource as AsyncSource,
 };
 use open_arrow_access::{
@@ -18,6 +18,15 @@ use open_arrow_access::{
 };
 use std::ffi::c_char;
 
+#[repr(C)]
+pub struct HuggingFaceFileOptions {
+    pub revision: *const c_char,
+    pub path: *const c_char,
+    pub format: *const c_char,
+    pub header: i32,
+    pub record_path: *const c_char,
+}
+
 /// # Safety
 /// Locator and optional strings are NUL-terminated UTF-8. Option structs are valid for
 /// this call; output points to writable source-pointer storage. No inputs are retained.
@@ -26,6 +35,7 @@ pub unsafe extern "C" fn duckport_huggingface_file_open(
     locator: *const c_char,
     storage_options: *const StorageOptions,
     scan_options: *const ScanOptions,
+    reader_options: *const HuggingFaceFileOptions,
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
     unsafe {
@@ -35,6 +45,17 @@ pub unsafe extern "C" fn duckport_huggingface_file_open(
             scan_options,
             output,
             |locator, storage_options, scan_options| async move {
+                let reader_options = reader_options.as_ref().ok_or("null reader options")?;
+                let header = if reader_options.header == -1 {
+                    None
+                } else {
+                    Some(crate::validation::boolean("header", reader_options.header)?)
+                };
+                let revision = optional_string(reader_options.revision)?;
+                let path = optional_string(reader_options.path)?.ok_or("path is required")?;
+                let format = optional_string(reader_options.format)?.ok_or("format is required")?;
+                let record_path = optional_string(reader_options.record_path)?;
+
                 let mut settings = HuggingFaceOptions::default();
                 if let Some(endpoint) = storage_options.endpoint {
                     settings = settings.with_endpoint(endpoint);
@@ -44,13 +65,11 @@ pub unsafe extern "C" fn duckport_huggingface_file_open(
                 }
                 let service = HuggingFaceService::new(settings).await?;
                 let mut repository = HuggingFaceRepository::new(locator);
-                if let Some(revision) = scan_options.revision {
+                if let Some(revision) = revision {
                     repository = repository.with_revision(revision);
                 }
-                let path = scan_options.path.ok_or("path is required")?;
-                let format = scan_options.format.ok_or("format is required")?;
                 let storage = service.repository(repository).await?;
-                let request = ReadRequest::new(path).with_options(scan_options.read_options);
+                let request = ReadRequest::new(path).with_options(scan_options);
                 match format.as_str() {
                     "parquet" => {
                         AsyncSource::new(FileAccessor::from_format(storage, ParquetFormat), request)
@@ -64,7 +83,7 @@ pub unsafe extern "C" fn duckport_huggingface_file_open(
                         let format = CsvFileFormat::infer()
                             .with_dialect(dialect)
                             .with_inference_options(CsvInferenceOptions {
-                                has_header: scan_options.header,
+                                has_header: header,
                                 ..Default::default()
                             });
                         AsyncSource::new(FileAccessor::from_format(storage, format), request).await
@@ -80,9 +99,7 @@ pub unsafe extern "C" fn duckport_huggingface_file_open(
                         AsyncSource::new(
                             FileAccessor::from_format(
                                 storage,
-                                XmlFormat::new(
-                                    scan_options.record_path.ok_or("record_path is required")?,
-                                ),
+                                XmlFormat::new(record_path.ok_or("record_path is required")?),
                             ),
                             request,
                         )
