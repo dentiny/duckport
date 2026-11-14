@@ -1,9 +1,9 @@
-# duckport_read_jsonl
+# duckport_scan_jsonl
 
 ```sql
-SELECT * FROM duckport_read_jsonl('events.jsonl.gz');
+SELECT * FROM duckport_scan_jsonl('events.jsonl.gz');
 ```
 
 Reads newline-delimited JSON objects. Schema inference is bounded; later incompatible records fail the query.
 
-See [shared settings](../../README.md#shared-settings) and [test instructions](../../test/README.md).
+See [shared settings](../../README.md#read) and [test instructions](../../test/README.md).
