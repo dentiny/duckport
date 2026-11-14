@@ -71,14 +71,13 @@ pub(crate) fn validate_huggingface_url_options(
 
 pub(crate) fn parse_attachment_format(format: &str) -> Result<AttachmentFormat> {
     match format {
-        "binary" => Ok(AttachmentFormat::Binary),
         "csv" => Ok(AttachmentFormat::Csv),
         "tsv" => Ok(AttachmentFormat::Tsv),
         "json" => Ok(AttachmentFormat::Json),
         "jsonl" => Ok(AttachmentFormat::Jsonl),
         "parquet" => Ok(AttachmentFormat::Parquet),
         "xml" => Ok(AttachmentFormat::Xml),
-        _ => Err("format must be binary, csv, tsv, json, jsonl, parquet, or xml".into()),
+        _ => Err("format must be csv, tsv, json, jsonl, parquet, or xml".into()),
     }
 }
 

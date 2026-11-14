@@ -64,7 +64,6 @@ pub(crate) unsafe fn optional_string(value: *const c_char) -> Result<Option<Stri
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AttachmentFormat {
-    Binary,
     Csv,
     Tsv,
     Json,
