@@ -1,5 +1,6 @@
 use crate::{
     ffi::{DuckportSource, open_reader},
+    options::{ScanOptions, StorageOptions},
     source::DuckportSource as AsyncSource,
 };
 use open_arrow_access::{
@@ -26,26 +27,27 @@ impl Accessor for Dataset {
 }
 
 /// # Safety
-/// Strings are NUL-terminated UTF-8; output points to writable source-pointer storage.
+/// Locator and option JSON are NUL-terminated UTF-8. Option structs are valid for
+/// this call; output points to writable source-pointer storage. No inputs are retained.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_huggingface_open(
     locator: *const c_char,
-    options: *const c_char,
-    batch_size: usize,
+    storage_options: *const StorageOptions,
+    scan_options: *const ScanOptions,
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
     unsafe {
         open_reader(
             locator,
-            options,
-            batch_size,
+            storage_options,
+            scan_options,
             output,
-            |locator, mut options, read_options| async move {
+            |locator, mut storage_options, mut options, read_options| async move {
                 let mut settings = HuggingFaceOptions::default();
-                if let Some(endpoint) = options.remove("endpoint") {
+                if let Some(endpoint) = storage_options.remove("endpoint") {
                     settings = settings.with_endpoint(endpoint);
                 }
-                if let Some(token) = options.remove("token") {
+                if let Some(token) = storage_options.remove("token") {
                     settings = settings.with_token(token);
                 }
                 let service = HuggingFaceService::new(settings).await?;
@@ -54,7 +56,7 @@ pub unsafe extern "C" fn duckport_huggingface_open(
                     options.remove("config").unwrap_or_else(|| "default".into()),
                     options.remove("split").unwrap_or_else(|| "train".into()),
                 );
-                if let Some(revision) = options.remove("revision") {
+                if let Some(revision) = storage_options.remove("revision") {
                     request = request.with_revision(revision);
                 }
                 if options
