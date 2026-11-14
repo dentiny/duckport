@@ -1,3 +1,4 @@
+mod atif;
 mod commoncrawl;
 mod csv;
 mod json;

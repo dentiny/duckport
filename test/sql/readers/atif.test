@@ -1,0 +1,32 @@
+# name: test/sql/readers/atif.test
+# description: One ATIF scan reads JSON documents or JSONL trajectories
+# group: [sql]
+
+require duckport
+
+query TTI
+SELECT trajectory_id, agent.name, source_record_index FROM duckport_scan_atif('testdata/atif/trajectory.json');
+----
+first	fixture	1
+
+query ITT
+SELECT len(steps), steps[2].tool_calls[1].function_name, decode(steps[1].message[1].text) FROM duckport_scan_atif('testdata/atif/trajectory.json');
+----
+2	echo	你好🙂
+
+query TI rowsort
+SELECT trajectory_id, source_record_index FROM duckport_scan_atif('testdata/atif/trajectories.jsonl', jsonl := true, batch_size := 2);
+----
+first	1
+second	2
+third	3
+
+statement error
+SELECT * FROM duckport_scan_atif('testdata/atif/bad_truncated.jsonl', jsonl := true, batch_size := 2);
+----
+record 2
+
+statement error
+SELECT * FROM duckport_scan_atif('testdata/atif/bad_version.jsonl', jsonl := true, batch_size := 2);
+----
+expected ATIF-v1.0 through ATIF-v1.8

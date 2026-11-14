@@ -4,6 +4,7 @@
 #include "readers/json.h"
 #include "readers/warc.h"
 #include "source/reader.hpp"
+#include "source/readers/atif.hpp"
 #include "source/readers/csv.hpp"
 #include "source/readers/xml.hpp"
 
@@ -14,6 +15,8 @@ void LoadInternal(ExtensionLoader &loader) {
 	RegisterReader(loader, "duckport_scan_warc", duckport_warc_open);
 	RegisterReader(loader, "duckport_scan_commoncrawl", duckport_commoncrawl_open);
 	RegisterReader(loader, "duckport_scan_commoncrawl_segment", duckport_commoncrawl_segment_open);
+	RegisterReader(loader, "duckport_scan_atif", OpenAtif,
+				   [](TypedKwargs &options) { options.Add("jsonl", LogicalType::BOOLEAN); });
 	auto add_csv_options = [](TypedKwargs &options) { options.Add("header", LogicalType::BOOLEAN); };
 	RegisterReader(loader, "duckport_scan_csv", OpenCsv, add_csv_options);
 	RegisterReader(loader, "duckport_scan_tsv", OpenTsv, add_csv_options);
