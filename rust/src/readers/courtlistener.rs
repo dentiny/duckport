@@ -31,16 +31,12 @@ pub unsafe extern "C" fn duckport_courtlistener_open(
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
     let open = |locator: String, storage_options: StorageConfig, scan_options| async move {
-        let table_name = unsafe {
-            optional_string(reader_options.table_name)?
-                .filter(|s| !s.is_empty())
-                .ok_or("table_name is required")?
-        };
-        let date = unsafe {
-            optional_string(reader_options.date)?
-                .filter(|s| !s.is_empty())
-                .ok_or("date is required")?
-        };
+        let table_name = unsafe { optional_string(reader_options.table_name) }?
+            .filter(|s| !s.is_empty())
+            .ok_or("table_name is required")?;
+        let date = unsafe { optional_string(reader_options.date) }?
+            .filter(|s| !s.is_empty())
+            .ok_or("date is required")?;
         let snapshot = CourtListenerSnapshot::new(table_name, date)?;
         let operator = crate::storage::directory_operator(&locator, &storage_options)?;
         let storage = CourtListenerBulkAccessor::new(OpenDalAccessor::new(operator));
