@@ -41,3 +41,30 @@ pub(crate) fn boolean(name: &str, value: i32) -> Result<bool> {
         _ => Err(format!("{name} must be 0 or 1").into()),
     }
 }
+
+pub(crate) fn validate_huggingface_path(
+    owner: &str,
+    repository: &str,
+    revision: &str,
+    config: &str,
+    split: &str,
+) -> Result<()> {
+    if [owner, repository, config, split].iter().any(|value| {
+        value.is_empty() || matches!(*value, "." | "..") || value.contains(['/', '\\', '\0'])
+    }) || revision.is_empty()
+    {
+        return Err("Hugging Face URL contains an invalid path component".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_huggingface_url_options(
+    revision: Option<&str>,
+    config: Option<&str>,
+    split: Option<&str>,
+) -> Result<()> {
+    if revision.is_some() || config.is_some() || split.is_some() {
+        return Err("revision, config, and split cannot be combined with a fully qualified Hugging Face URL".into());
+    }
+    Ok(())
+}

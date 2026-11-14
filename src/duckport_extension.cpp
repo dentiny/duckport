@@ -6,6 +6,7 @@
 #include "source/reader.hpp"
 #include "source/readers/atif.hpp"
 #include "source/readers/csv.hpp"
+#include "source/readers/huggingface.hpp"
 #include "source/readers/xml.hpp"
 
 namespace duckdb {
@@ -25,6 +26,12 @@ void LoadInternal(ExtensionLoader &loader) {
 	RegisterReader(loader, "duckport_scan_ndjson", duckport_json_open);
 	RegisterReader(loader, "duckport_scan_xml", OpenXml,
 				   [](TypedKwargs &options) { options.Add("record_path", LogicalType::VARCHAR); });
+	RegisterReader(loader, "duckport_scan_huggingface", OpenHuggingFace, [](TypedKwargs &options) {
+		options.Add("revision", LogicalType::VARCHAR);
+		options.Add("config", LogicalType::VARCHAR);
+		options.Add("split", LogicalType::VARCHAR);
+		options.Add("allow_partial", LogicalType::BOOLEAN);
+	});
 }
 } // namespace
 void DuckportExtension::Load(ExtensionLoader &loader) { LoadInternal(loader); }

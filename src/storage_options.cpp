@@ -10,7 +10,8 @@ const char *OptionalString(const string &value) { return value.empty() ? nullptr
 
 StorageParameters::StorageParameters(ClientContext &context, const string &locator, const string &secret_type) {
 	if (secret_type == "huggingface") {
-		KeyValueSecretReader reader(*context.db, "huggingface", "hf://datasets/" + locator);
+		const auto scope = StringUtil::StartsWith(locator, "hf://") ? locator : StringUtil::Format("hf://datasets/%s", locator);
+		KeyValueSecretReader reader(*context.db, "huggingface", scope);
 		reader.TryGetSecretKey("token", token);
 	} else if (StringUtil::StartsWith(locator, "s3://")) {
 		KeyValueSecretReader reader(*context.db, "s3", locator);
@@ -22,7 +23,7 @@ StorageParameters::StorageParameters(ClientContext &context, const string &locat
 		bool use_ssl = true;
 		reader.TryGetSecretKey("use_ssl", use_ssl);
 		if (!endpoint.empty() && endpoint.find("://") == string::npos) {
-			endpoint = (use_ssl ? "https://" : "http://") + endpoint;
+			endpoint = StringUtil::Format("%s://%s", use_ssl ? "https" : "http", endpoint);
 		}
 		string url_style;
 		reader.TryGetSecretKey("url_style", url_style);

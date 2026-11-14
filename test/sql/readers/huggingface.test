@@ -1,0 +1,94 @@
+# name: test/sql/readers/huggingface.test
+# description: Read a public Hugging Face dataset through the service reader
+# group: [sql]
+
+require duckport
+
+# Live integration test: requires access to Hugging Face Hub.
+# The default config and split select the five training reviews in this small repo.
+query II
+SELECT count(*), sum(star) FROM duckport_scan_huggingface('lhoestq/demo1');
+----
+5	21
+
+# Read actual columns across multiple batches, independently of source row order.
+query TTI rowsort
+SELECT id, package_name, star
+FROM duckport_scan_huggingface('lhoestq/demo1', config := 'default', split := 'train', batch_size := 2);
+----
+7bd227d9-afc9-11e6-aba1-c4b301cdf627	com.mantz_it.rfanalyzer	4
+7bd22905-afc9-11e6-a5dc-c4b301cdf627	com.mantz_it.rfanalyzer	4
+7bd2299c-afc9-11e6-85d6-c4b301cdf627	com.mantz_it.rfanalyzer	5
+7bd22a26-afc9-11e6-9309-c4b301cdf627	com.mantz_it.rfanalyzer	3
+7bd22aba-afc9-11e6-8293-c4b301cdf627	com.mantz_it.rfanalyzer	5
+
+# The test split has the same number of rows but different values.
+query II
+SELECT count(*), sum(star)
+FROM duckport_scan_huggingface('lhoestq/demo1', config := 'default', split := 'test', batch_size := 1);
+----
+5	18
+
+# A prepared scan can be opened again after its previous stream was consumed.
+statement ok
+PREPARE hf_scan AS SELECT count(*) FROM duckport_scan_huggingface('lhoestq/demo1');
+
+query I
+EXECUTE hf_scan;
+----
+5
+
+query I
+EXECUTE hf_scan;
+----
+5
+
+# A fully qualified split URL carries revision/config/split without named options.
+query II
+SELECT count(*), sum(star)
+FROM duckport_scan_huggingface('hf://datasets/lhoestq/demo1@~parquet/default/train/', batch_size := 2);
+----
+5	21
+
+# Percent-encoded revision separators and a path without a trailing slash work too.
+query II
+SELECT count(*), sum(star)
+FROM duckport_scan_huggingface('hf://datasets/lhoestq/demo1@refs%2Fconvert%2Fparquet/default/test', batch_size := 1);
+----
+5	18
+
+# Ambiguous options and malformed paths must fail before contacting the Hub.
+statement error
+SELECT * FROM duckport_scan_huggingface('hf://datasets/lhoestq/demo1@~parquet/default/train/', split := 'test');
+----
+cannot be combined with a fully qualified Hugging Face URL
+
+statement error
+SELECT * FROM duckport_scan_huggingface('hf://datasets/lhoestq/demo1@~parquet/default/');
+----
+must select a config/split directory
+
+statement error
+SELECT * FROM duckport_scan_huggingface('hf://datasets/lhoestq/demo1/default/train/');
+----
+must include @<revision>
+
+statement error
+SELECT * FROM duckport_scan_huggingface('hf://datasets/lhoestq/demo1@~parquet/default/train/0000.parquet');
+----
+must select a config/split directory
+
+statement error
+SELECT * FROM duckport_scan_huggingface('hf://datasets/lhoestq/demo1@~parquet/default/train/?token=invalid');
+----
+URI queries, fragments, and embedded credentials are unsupported
+
+statement error
+SELECT * FROM duckport_scan_huggingface('hf://models/lhoestq/demo1@~parquet/default/train/');
+----
+expected hf://datasets/
+
+statement error
+SELECT * FROM duckport_scan_huggingface('hf://datasets/lhoestq/demo1@~parquet/default%2Fother/train/');
+----
+invalid path component
