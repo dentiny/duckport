@@ -5,23 +5,15 @@
 
 namespace duckdb {
 string ReadSourceString(const Value &value);
-void RegisterStorageOptions(TypedKwargs &options);
 
-class ReaderOptions {
+class ScanParameters {
   public:
-	explicit ReaderOptions(const TableFunctionBindInput &input);
-	ReaderOptions(const ReaderOptions &) = delete;
-	ReaderOptions &operator=(const ReaderOptions &) = delete;
-	::StorageOptions storage{};
+	explicit ScanParameters(const TableFunctionBindInput &input);
+	ScanParameters(const ScanParameters &) = delete;
+	ScanParameters &operator=(const ScanParameters &) = delete;
 	::ScanOptions scan{};
 
   private:
-	string endpoint;
-	string region;
-	string access_key_id;
-	string secret_access_key;
-	string session_token;
-	string token;
 	string revision;
 	string record_path;
 	string format;
