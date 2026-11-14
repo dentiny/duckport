@@ -1,0 +1,43 @@
+# name: test/sql/readers/gutenberg.test
+# description: Decode gutenberg metadata without fetching linked content
+# group: [sql]
+
+require duckport
+
+query IT
+SELECT ebook_id, title FROM duckport_scan_gutenberg('testdata/gutenberg/book.rdf', batch_size := 1);
+----
+42	A & B
+
+statement ok
+PREPARE gutenberg_scan AS SELECT ebook_id, title FROM duckport_scan_gutenberg('testdata/gutenberg/book.rdf', batch_size := 1);
+
+query IT
+EXECUTE gutenberg_scan;
+----
+42	A & B
+
+query IT
+EXECUTE gutenberg_scan;
+----
+42	A & B
+
+statement error
+SELECT * FROM duckport_scan_gutenberg(NULL);
+----
+NULL
+
+query II
+SELECT ebook_id, array_length(files) FROM duckport_scan_gutenberg('testdata/gutenberg/metadata_only.rdf');
+----
+1	0
+
+statement error
+SELECT * FROM duckport_scan_gutenberg('testdata/gutenberg/bad_ebook_id.rdf');
+----
+invalid
+
+statement error
+SELECT * FROM duckport_scan_gutenberg('testdata/gutenberg/bad_date.rdf');
+----
+input is out of range
