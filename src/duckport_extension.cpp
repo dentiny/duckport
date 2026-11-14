@@ -1,13 +1,18 @@
 #define DUCKDB_EXTENSION_MAIN
 #include "duckport_extension.hpp"
-#include "duckport_readers.hpp"
 #include "source/reader.hpp"
+#include "source/readers/huggingface.hpp"
 
 namespace duckdb {
 namespace {
 void LoadInternal(ExtensionLoader &loader) {
 	RegisterReader(loader, "duckport_scan_parquet", duckport_parquet_open);
-	RegisterAllReaders(loader);
+	RegisterReader(loader, "duckport_scan_huggingface", OpenHuggingFace, [](TypedKwargs &options) {
+		options.Add("revision", LogicalType::VARCHAR);
+		options.Add("config", LogicalType::VARCHAR);
+		options.Add("split", LogicalType::VARCHAR);
+		options.Add("allow_partial", LogicalType::BOOLEAN);
+	});
 }
 } // namespace
 void DuckportExtension::Load(ExtensionLoader &loader) { LoadInternal(loader); }
