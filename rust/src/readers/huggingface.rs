@@ -1,6 +1,6 @@
 use crate::{
     ffi::{DuckportSource, open_reader},
-    options::{DuckportScanOptions, DuckportStorageOptions, optional_string},
+    options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig, optional_string},
     source::DuckportSource as AsyncSource,
 };
 use open_arrow_access::{
@@ -45,44 +45,37 @@ pub unsafe extern "C" fn duckport_huggingface_open(
     reader_options: &HuggingFaceDatasetOptions,
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
-    unsafe {
-        open_reader(
-            locator,
-            storage_options,
-            scan_options,
-            output,
-            |locator, storage_options, scan_options| async move {
-                let revision = optional_string(reader_options.revision)?;
-                let config = optional_string(reader_options.config)?;
-                let split = optional_string(reader_options.split)?;
-                let allow_partial =
-                    crate::validation::boolean("allow_partial", reader_options.allow_partial)?;
+    let open = |locator: String, storage_options: StorageConfig, scan_options| async move {
+        let revision = unsafe { optional_string(reader_options.revision) }?;
+        let config = unsafe { optional_string(reader_options.config) }?;
+        let split = unsafe { optional_string(reader_options.split) }?;
+        let allow_partial =
+            crate::validation::boolean("allow_partial", reader_options.allow_partial)?;
 
-                let mut settings = HuggingFaceOptions::default();
-                if let Some(endpoint) = storage_options.endpoint {
-                    settings = settings.with_endpoint(endpoint);
-                }
-                if let Some(token) = storage_options.token {
-                    settings = settings.with_token(token);
-                }
-                let service = HuggingFaceService::new(settings).await?;
-                let mut request = HuggingFaceDatasetRequest::new(
-                    &locator,
-                    config.unwrap_or_else(|| "default".into()),
-                    split.unwrap_or_else(|| "train".into()),
-                );
-                if let Some(revision) = revision {
-                    request = request.with_revision(revision);
-                }
-                if allow_partial {
-                    request = request.with_partial_exports();
-                }
-                AsyncSource::new(
-                    Dataset { service, request },
-                    ReadRequest::new(locator).with_options(scan_options),
-                )
-                .await
-            },
+        let mut settings = HuggingFaceOptions::default();
+        if let Some(endpoint) = storage_options.endpoint {
+            settings = settings.with_endpoint(endpoint);
+        }
+        if let Some(token) = storage_options.token {
+            settings = settings.with_token(token);
+        }
+        let service = HuggingFaceService::new(settings).await?;
+        let mut request = HuggingFaceDatasetRequest::new(
+            &locator,
+            config.unwrap_or_else(|| "default".into()),
+            split.unwrap_or_else(|| "train".into()),
+        );
+        if let Some(revision) = revision {
+            request = request.with_revision(revision);
+        }
+        if allow_partial {
+            request = request.with_partial_exports();
+        }
+        AsyncSource::new(
+            Dataset { service, request },
+            ReadRequest::new(locator).with_options(scan_options),
         )
-    }
+        .await
+    };
+    unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }
