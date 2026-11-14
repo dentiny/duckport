@@ -29,7 +29,7 @@ in alphabetical order. `cargo fmt` formats Rust source files only.
 ```sh
 cargo install taplo-cli --version 0.10.0 --locked
 make toml-format       # Apply formatting and sorting.
-make toml-format-check # Check without modifying files; also enforced in CI.
+make toml-format-check # Check without modifying files.
 ```
 
 The repository's `taplo.toml` limits formatting to its own manifest, excluding
