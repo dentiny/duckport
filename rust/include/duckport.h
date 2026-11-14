@@ -18,6 +18,7 @@ struct StorageOptions {
 	int32_t allow_anonymous;	// 0 or 1
 };
 struct ScanOptions {
+	// Target rows per Arrow record batch; SQL default: 8192.
 	size_t batch_size;
 };
 extern "C" {
