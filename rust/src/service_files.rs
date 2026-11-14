@@ -21,7 +21,7 @@ use std::sync::Arc;
 /// `record_path` selects the XML elements that become individual rows, for example
 /// `/records/row`. It must be nonempty for XML and `None` for all other formats.
 pub async fn open<A: ByteAccessor + 'static>(
-    files: A,
+    attachment_accessor: A,
     file: String,
     format: AttachmentFormat,
     record_path: Option<String>,
@@ -31,10 +31,14 @@ pub async fn open<A: ByteAccessor + 'static>(
     let request = ReadRequest::new(file).with_options(options);
     match format {
         AttachmentFormat::Binary => {
-            DuckportSource::new(DocumentAccessor::new(files, BinaryDecoder), request).await
+            DuckportSource::new(
+                DocumentAccessor::new(attachment_accessor, BinaryDecoder),
+                request,
+            )
+            .await
         }
         AttachmentFormat::Csv | AttachmentFormat::Tsv => {
-            let files = files.layer(AutoDecompressionLayer::new());
+            let attachment_accessor = attachment_accessor.layer(AutoDecompressionLayer::new());
             let format = CsvFileFormat::infer()
                 .with_dialect(CsvDialect {
                     delimiter: if format == AttachmentFormat::Tsv {
@@ -48,24 +52,31 @@ pub async fn open<A: ByteAccessor + 'static>(
                     has_header: Some(true),
                     ..Default::default()
                 });
-            DuckportSource::new(FileAccessor::from_format(files, format), request).await
+            DuckportSource::new(
+                FileAccessor::from_format(attachment_accessor, format),
+                request,
+            )
+            .await
         }
         AttachmentFormat::Json | AttachmentFormat::Jsonl => {
-            let files = files.layer(AutoDecompressionLayer::new());
+            let attachment_accessor = attachment_accessor.layer(AutoDecompressionLayer::new());
             DuckportSource::new(
-                FileAccessor::from_format(files, JsonFormat::infer()),
+                FileAccessor::from_format(attachment_accessor, JsonFormat::infer()),
                 request,
             )
             .await
         }
         AttachmentFormat::Parquet => {
-            let files = files.layer(AutoDecompressionLayer::new());
-            DuckportSource::new(ParquetAccessor::new(files), request).await
+            let attachment_accessor = attachment_accessor.layer(AutoDecompressionLayer::new());
+            DuckportSource::new(ParquetAccessor::new(attachment_accessor), request).await
         }
         AttachmentFormat::Xml => {
-            let files = files.layer(AutoDecompressionLayer::new());
+            let attachment_accessor = attachment_accessor.layer(AutoDecompressionLayer::new());
             DuckportSource::new(
-                FileAccessor::from_format(files, XmlFormat::new(record_path.unwrap())),
+                FileAccessor::from_format(
+                    attachment_accessor,
+                    XmlFormat::new(record_path.unwrap()),
+                ),
                 request,
             )
             .await
