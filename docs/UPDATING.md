@@ -23,6 +23,13 @@ To update open-arrow-access, change the version requirement in `rust/Cargo.toml`
 
 ## Reader bridge
 
+Openers share `locator`, `DuckportStorageOptions`, and `DuckportScanOptions`. `DuckportScanOptions` contains
+only format/service-independent scan settings: currently `batch_size`. Each reader
+introduces its own typed options in its PR when needed, as a separate opener argument.
+Reader-specific fields do not belong in the common scan options or binder.
+C++ resolves scoped DuckDB secrets and passes named storage fields to Rust. It owns
+input strings for the open call; Rust copies them before asynchronous reads.
+
 C++ binds SQL parameters and uses DuckDB's Arrow scanner. Rust owns the schema and async reader factory; its FFI layer uses a shared Tokio runtime and adapts readers to synchronous Arrow streams. The FFI exposes `open`, `get_schema`, `get_stream`, and `destroy`; registrations and source lists are explicit.
 
-`rust/src/lib.rs` declares modules only. Async reader state lives in `source.rs`, runtime and C exports in `ffi.rs`, error conversion in `error.rs`, URI validation in `validation.rs`, and storage setup in `storage.rs`. C++ source adapters live under `src/source/`, with headers under `src/include/source/`.
+`rust/src/lib.rs` declares modules only. Async reader state lives in `source.rs`, runtime and C exports in `ffi.rs`, C option structs in `options.rs`, error conversion in `error.rs`, URI validation in `validation.rs`, and storage setup in `storage.rs`. C++ source adapters live under `src/source/`, with headers under `src/include/source/`.

@@ -3,8 +3,7 @@
 ```sql
 SELECT * FROM duckport_scan_parquet('people.parquet');
 SELECT * FROM duckport_scan_parquet('https://example.com/people.parquet');
-SELECT * FROM duckport_scan_parquet('s3://bucket/people.parquet',
-    storage_options := '{"region":"us-east-1"}');
+SELECT * FROM duckport_scan_parquet('s3://bucket/people.parquet');
 ```
 
 Reads Parquet through open-arrow-access. Supports Snappy, Zstd, LZ4, gzip, and Brotli page codecs.

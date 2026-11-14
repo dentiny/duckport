@@ -1,5 +1,6 @@
 use crate::{
     error::{Result, call, cleanup},
+    options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
     source::DuckportSource as AsyncSource,
     storage,
 };
@@ -10,9 +11,7 @@ use open_arrow_access::{
     storage::OpenDalAccessor,
 };
 use std::{
-    collections::HashMap,
     ffi::{CStr, c_char},
-    num::NonZeroUsize,
     panic::{AssertUnwindSafe, catch_unwind},
     ptr,
     sync::LazyLock,
@@ -89,36 +88,28 @@ unsafe fn string(value: *const c_char) -> Result<String> {
 }
 
 /// # Safety
-/// Strings are NUL-terminated UTF-8; output points to writable source-pointer storage.
+/// Locator and optional strings are NUL-terminated UTF-8. Option structs are valid for
+/// this call; output points to writable source-pointer storage. No inputs are retained.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_parquet_open(
-    path: *const c_char,
-    storage_options: *const c_char,
-    batch_size: usize,
+    locator: *const c_char,
+    storage_options: *const DuckportStorageOptions,
+    scan_options: *const DuckportScanOptions,
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
-    call(|| unsafe {
-        if output.is_null() {
-            return Err("null source output".into());
-        }
-        *output = ptr::null_mut();
-        let path = string(path)?;
-        let config: HashMap<String, String> = serde_json::from_str(&string(storage_options)?)?;
-        let batch_size = NonZeroUsize::new(batch_size)
-            .filter(|s| s.get() <= 1048576)
-            .ok_or("batch_size must be between 1 and 1048576")?;
-        let (operator, path) = storage::operator(&path, config)?;
-        let accessor = ParquetAccessor::new(OpenDalAccessor::new(operator));
-        let request = ReadRequest::new(path).with_options(ReadOptions {
-            batch_size,
-            ..Default::default()
-        });
-        let source = RUNTIME.block_on(AsyncSource::new(accessor, request))?;
-        *output = Box::into_raw(Box::new(DuckportSource {
-            source: Some(source),
-        }));
-        Ok(())
-    })
+    unsafe {
+        open_reader(
+            locator,
+            storage_options,
+            scan_options,
+            output,
+            |locator, storage_options, scan_options| async move {
+                let (operator, path) = storage::operator(&locator, &storage_options)?;
+                let accessor = ParquetAccessor::new(OpenDalAccessor::new(operator));
+                AsyncSource::new(accessor, ReadRequest::new(path).with_options(scan_options)).await
+            },
+        )
+    }
 }
 
 /// # Safety
@@ -162,7 +153,7 @@ pub unsafe extern "C" fn duckport_source_get_stream(
     })
 }
 /// # Safety
-/// Source is null or a pointer returned by duckport_parquet_open, freed once.
+/// Source is null or a live source pointer returned by an opener, freed once.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_source_destroy(source: *mut DuckportSource) {
     cleanup(|| {
@@ -172,4 +163,33 @@ pub unsafe extern "C" fn duckport_source_destroy(source: *mut DuckportSource) {
             }
         }
     });
+}
+
+pub(crate) unsafe fn open_reader<F, Fut>(
+    locator: *const c_char,
+    storage_options: *const DuckportStorageOptions,
+    scan_options: *const DuckportScanOptions,
+    output: *mut *mut DuckportSource,
+    open: F,
+) -> *mut c_char
+where
+    F: FnOnce(String, StorageConfig, ReadOptions) -> Fut,
+    Fut: std::future::Future<Output = Result<AsyncSource>>,
+{
+    call(|| unsafe {
+        if output.is_null() {
+            return Err("null source output".into());
+        }
+        *output = ptr::null_mut();
+        let locator = string(locator)?;
+        let storage_options = storage_options.as_ref().ok_or("null storage options")?;
+        let scan_options = scan_options.as_ref().ok_or("null scan options")?;
+        let storage = storage_options.read()?;
+        let scan = scan_options.read()?;
+        let source = RUNTIME.block_on(open(locator, storage, scan))?;
+        *output = Box::into_raw(Box::new(DuckportSource {
+            source: Some(source),
+        }));
+        Ok(())
+    })
 }
