@@ -314,3 +314,17 @@ For an official requester-pays S3 bucket, supply a scoped S3 secret and set
 `requester_pays := true` to explicitly opt into requester billing. The option defaults
 to false and requires S3 credentials. Example: `duckport_scan_arxiv('s3://arxiv/',
 kind := 'source', month := '2410', requester_pays := true)`.
+
+### Doab
+
+```sql
+SELECT * FROM duckport_scan_doab('records', from_date := '2026-01-01');
+-- Pass an upstream resumption token as the locator to fetch the next page.
+```
+Fetches one OAI-PMH page and decodes its records, retaining deleted headers and
+nested provider metadata. `until_date`, `set_spec`, and `record_path` are optional.
+The default record path is `/oai:OAI-PMH/oai:ListRecords/oai:record`. The OAI namespace is bound to `oai`; inferred names such as `"oai:header"`
+retain that prefix. `endpoint` defaults to `https://directory.doabooks.org`.
+To obtain the next resumption token, scan the envelope with
+`record_path := '/oai:OAI-PMH/oai:ListRecords'` and select `"oai:resumptionToken"`.
+Automatic pagination is not enabled. Scoped HTTP bearer tokens are supported.

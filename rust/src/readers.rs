@@ -6,6 +6,7 @@ mod commoncrawl;
 mod courtlistener;
 mod csv;
 mod dataverse;
+mod doab;
 mod federal_register;
 mod figshare;
 mod govinfo;
