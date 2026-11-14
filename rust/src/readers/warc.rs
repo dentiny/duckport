@@ -13,7 +13,7 @@ use open_arrow_access::{
 use std::ffi::c_char;
 
 /// # Safety
-/// Locator and option JSON are NUL-terminated UTF-8. Option structs are valid for
+/// Locator and optional strings are NUL-terminated UTF-8. Option structs are valid for
 /// this call; output points to writable source-pointer storage. No inputs are retained.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_warc_open(
@@ -28,13 +28,13 @@ pub unsafe extern "C" fn duckport_warc_open(
             storage_options,
             scan_options,
             output,
-            |locator, storage_options, _options, read_options| async move {
-                let (operator, path) = storage::operator(&locator, storage_options)?;
+            |locator, storage_options, scan_options| async move {
+                let (operator, path) = storage::operator(&locator, &storage_options)?;
                 let storage = OpenDalAccessor::new(operator).layer(AutoDecompressionLayer::new());
                 let format = WarcArrowFormat;
                 AsyncSource::new(
                     FileAccessor::from_format(storage, format),
-                    ReadRequest::new(path).with_options(read_options),
+                    ReadRequest::new(path).with_options(scan_options.read_options),
                 )
                 .await
             },

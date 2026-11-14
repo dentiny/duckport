@@ -69,7 +69,7 @@ endforeach()
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/generated/duckport_readers.hpp"
   "#pragma once\nnamespace duckdb {\n${READER_DECLARATIONS}inline void RegisterAllReaders(ExtensionLoader &loader) {\n${READER_CALLS}}\n}\n")
 include_directories(src/include rust/include "${CMAKE_CURRENT_BINARY_DIR}/generated")
-set(EXTENSION_SOURCES src/duckport_extension.cpp src/error.cpp src/source/reader.cpp src/source/source_factory.cpp ${READER_SOURCES})
+set(EXTENSION_SOURCES src/duckport_extension.cpp src/error.cpp src/source/options.cpp src/source/reader.cpp src/source/source_factory.cpp ${READER_SOURCES})
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
 find_package(Threads REQUIRED)
