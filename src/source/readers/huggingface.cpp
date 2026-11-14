@@ -4,7 +4,7 @@
 #include "storage_options.hpp"
 
 namespace duckdb {
-char *OpenHuggingFace(ClientContext &context, const string &locator, const DuckportScanOptions *scan,
+char *OpenHuggingFace(ClientContext &context, const string &locator, const DuckportScanOptions &scan,
 					  const TableFunctionBindInput &input, DuckportSource **output) {
 	HuggingFaceDatasetOptions reader_options{};
 	auto revision = ReadStringOption(input, "revision");
@@ -15,6 +15,6 @@ char *OpenHuggingFace(ClientContext &context, const string &locator, const Duckp
 	reader_options.split = split ? split->c_str() : nullptr;
 	ReadBooleanOption(input, "allow_partial", reader_options.allow_partial);
 	StorageParameters storage(context, locator, "huggingface");
-	return duckport_huggingface_open(locator.c_str(), &storage.config, scan, &reader_options, output);
+	return duckport_huggingface_open(locator.c_str(), storage.config, scan, reader_options, output);
 }
 } // namespace duckdb

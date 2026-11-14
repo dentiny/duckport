@@ -40,9 +40,9 @@ pub struct HuggingFaceDatasetOptions {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_huggingface_open(
     locator: *const c_char,
-    storage_options: *const DuckportStorageOptions,
-    scan_options: *const DuckportScanOptions,
-    reader_options: *const HuggingFaceDatasetOptions,
+    storage_options: &DuckportStorageOptions,
+    scan_options: &DuckportScanOptions,
+    reader_options: &HuggingFaceDatasetOptions,
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
     unsafe {
@@ -52,7 +52,6 @@ pub unsafe extern "C" fn duckport_huggingface_open(
             scan_options,
             output,
             |locator, storage_options, scan_options| async move {
-                let reader_options = reader_options.as_ref().ok_or("null reader options")?;
                 let revision = optional_string(reader_options.revision)?;
                 let config = optional_string(reader_options.config)?;
                 let split = optional_string(reader_options.split)?;

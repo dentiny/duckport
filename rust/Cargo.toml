@@ -10,6 +10,13 @@ crate-type = ["staticlib"]
 
 [dependencies]
 open-arrow-access = { version = "0.1.0", default-features = false, features = [
+    "decompression-bz2",
+    "decompression-gzip",
+    "decompression-lz4",
+    "decompression-zstd",
+    "format-csv",
+    "format-json",
+    "format-xml",
     "service-huggingface",
     "format-parquet", "format-parquet-zstd", "format-parquet-lz4", "format-parquet-gzip", "format-parquet-brotli",
 ] }
