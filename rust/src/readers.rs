@@ -2,6 +2,7 @@ mod atif;
 mod bhl;
 mod biorxiv;
 mod commoncrawl;
+mod courtlistener;
 mod csv;
 mod dataverse;
 mod federal_register;

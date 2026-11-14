@@ -283,3 +283,12 @@ the selected attachment into one BLOB; use a record format for large tabular fil
 is implied. Unknown file names fail through the provider accessor.
 Scoped HTTP bearer tokens are used where the upstream service supports connection headers.
 All reader options above are VARCHAR; `batch_size` remains BIGINT.
+
+### Courtlistener
+
+```sql
+SELECT * FROM duckport_scan_courtlistener('s3://free.law/', table_name := 'courts', date := '2026-09-30');
+```
+The locator is a local directory or HTTP(S)/S3 root above `bulk-data/`.
+Reads exactly one validated, dated `.csv.bz2` table export with a header; all columns
+are retained as VARCHAR, including columns containing only null values. S3 uses the existing scoped DuckDB secret.

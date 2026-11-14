@@ -1600,6 +1600,7 @@ version = "0.1.0"
 dependencies = [
  "arrow-array",
  "arrow-schema",
+ "csv-async",
  "open-arrow-access",
  "opendal",
  "percent-encoding",

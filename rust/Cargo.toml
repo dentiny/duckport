@@ -9,6 +9,7 @@ publish = false
 crate-type = ["staticlib"]
 
 [dependencies]
+csv-async = { version = "1.3", default-features = false }
 open-arrow-access = { version = "0.1.0", default-features = false, features = [
     "decompression-bz2",
     "decompression-gzip",
@@ -21,6 +22,7 @@ open-arrow-access = { version = "0.1.0", default-features = false, features = [
     "service-warc",
     "format-xml",
     "service-huggingface",
+    "service-courtlistener",
     "service-biorxiv",
     "service-uspto",
     "service-regulations",
