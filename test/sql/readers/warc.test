@@ -1,10 +1,31 @@
 # name: test/sql/readers/warc.test
-# description: duckport_scan_warc is registered independently
+# description: Read physical WARC records and validate Common Crawl selections
 # group: [sql]
 
 require duckport
 
-query I
-SELECT count(*) FROM duckdb_functions() WHERE function_name = 'duckport_scan_warc';
+query TTT rowsort
+SELECT record_id, record_type, decode(body) FROM duckport_scan_warc('testdata/warc/good_resources.warc', batch_size := 1);
 ----
-1
+<urn:test:a>	resource	123
+<urn:test:b>	resource	456
+
+query TTT
+SELECT record_id, record_type, decode(body) FROM duckport_scan_warc('testdata/warc/good_metadata.warc');
+----
+<urn:test:one>	metadata	test
+
+statement error
+SELECT * FROM duckport_scan_warc('testdata/warc/bad_truncated_body.warc');
+----
+decode_warc
+
+statement error
+SELECT * FROM duckport_scan_commoncrawl('https://data.commoncrawl.org/crawl-data/not-a-crawl/');
+----
+expected CC-MAIN-YYYY-NN
+
+statement error
+SELECT * FROM duckport_scan_commoncrawl_segment('https://data.commoncrawl.org/crawl-data/CC-MAIN-2022-40/');
+----
+expected /crawl-data/<crawl>/segments/<segment>/

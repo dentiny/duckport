@@ -22,22 +22,15 @@ pub unsafe extern "C" fn duckport_warc_open(
     scan_options: *const DuckportScanOptions,
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
-    unsafe {
-        open_reader(
-            locator,
-            storage_options,
-            scan_options,
-            output,
-            |locator, storage_options, scan_options| async move {
-                let (operator, path) = storage::operator(&locator, &storage_options)?;
-                let storage = OpenDalAccessor::new(operator).layer(AutoDecompressionLayer::new());
-                let format = WarcArrowFormat;
-                AsyncSource::new(
-                    FileAccessor::from_format(storage, format),
-                    ReadRequest::new(path).with_options(scan_options),
-                )
-                .await
-            },
+    let open = |locator: String, storage_options, scan_options| async move {
+        let (operator, path) = storage::operator(&locator, &storage_options)?;
+        let storage = OpenDalAccessor::new(operator).layer(AutoDecompressionLayer::new());
+        let format = WarcArrowFormat;
+        AsyncSource::new(
+            FileAccessor::from_format(storage, format),
+            ReadRequest::new(path).with_options(scan_options),
         )
-    }
+        .await
+    };
+    unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }

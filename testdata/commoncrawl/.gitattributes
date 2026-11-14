@@ -1,0 +1,2 @@
+*.gz -text
+warc.paths -text whitespace=cr-at-eol
