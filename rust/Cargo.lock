@@ -1406,7 +1406,6 @@ dependencies = [
  "open-arrow-access",
  "opendal",
  "percent-encoding",
- "serde_json",
  "tokio",
  "url",
 ]
