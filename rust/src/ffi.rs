@@ -1,6 +1,6 @@
 use crate::{
     error::{Result, call, cleanup},
-    options::{ScanOptions, StorageConfig, StorageOptions},
+    options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
     source::DuckportSource as AsyncSource,
     storage,
 };
@@ -93,8 +93,8 @@ unsafe fn string(value: *const c_char) -> Result<String> {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_parquet_open(
     locator: *const c_char,
-    storage_options: *const StorageOptions,
-    scan_options: *const ScanOptions,
+    storage_options: *const DuckportStorageOptions,
+    scan_options: *const DuckportScanOptions,
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
     unsafe {
@@ -167,8 +167,8 @@ pub unsafe extern "C" fn duckport_source_destroy(source: *mut DuckportSource) {
 
 pub(crate) unsafe fn open_reader<F, Fut>(
     locator: *const c_char,
-    storage_options: *const StorageOptions,
-    scan_options: *const ScanOptions,
+    storage_options: *const DuckportStorageOptions,
+    scan_options: *const DuckportScanOptions,
     output: *mut *mut DuckportSource,
     open: F,
 ) -> *mut c_char
