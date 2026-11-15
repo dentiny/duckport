@@ -1,6 +1,6 @@
 # DuckPort
 
-Read file formats and dataset service providers into DuckDB through [open-arrow-access 0.2.0](https://github.com/dentiny/open-arrow-access/releases/tag/v0.2.0).
+Read file formats and dataset service providers into DuckDB through [open-arrow-access 0.3.0](https://crates.io/crates/open-arrow-access/0.3.0).
 
 ## Build
 
@@ -72,7 +72,16 @@ CSV/TSV expect headers. Text formats support outer compression. Binary mode buff
 the selected attachment into one BLOB; use a record format for large tabular files.
 `endpoint` defaults to `https://zenodo.org`. No discovery pagination or whole-dataset download
 is implied. Unknown file names fail through the provider accessor.
-Scoped HTTP bearer tokens are used where the upstream service supports connection headers.
+Scoped HTTP secrets supply Zenodo bearer tokens for metadata and attachment reads:
+
+```sql
+CREATE SECRET zenodo_auth (
+    TYPE http, BEARER_TOKEN 'your-token', SCOPE 'https://zenodo.org/api/records/'
+);
+```
+
+Tokens are omitted after redirects to another origin. Public records also work
+without a secret.
 All reader options above are VARCHAR; `batch_size` remains BIGINT.
 
 ### Dataverse

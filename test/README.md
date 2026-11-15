@@ -18,7 +18,7 @@ these tests.
 
 ## Provider integration fixtures
 
-Service SQL cases mirror the provider tests in open-arrow-access-service 0.2.0.
+Service SQL cases mirror the provider tests in open-arrow-access-service 0.3.0.
 Local fixtures run with `make test`. HTTP cases use loopback fixture servers and
 need no external accounts or credentials:
 
