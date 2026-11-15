@@ -33,6 +33,7 @@ open-arrow-access = { version = "0.3.0", default-features = false, features = [
     "service-biorxiv",
     "service-courtlistener",
     "service-dataverse",
+    "service-doab",
     "service-federal-register",
     "service-figshare",
     "service-govinfo",
