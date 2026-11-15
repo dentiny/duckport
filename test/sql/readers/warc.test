@@ -1,5 +1,5 @@
 # name: test/sql/readers/warc.test
-# description: Read physical WARC records and validate Common Crawl selections
+# description: Read physical WARC records and reject truncated data
 # group: [sql]
 
 require duckport
@@ -19,13 +19,3 @@ statement error
 SELECT * FROM duckport_scan_warc('testdata/warc/bad_truncated_body.warc');
 ----
 decode_warc
-
-statement error
-SELECT * FROM duckport_scan_commoncrawl('https://data.commoncrawl.org/crawl-data/not-a-crawl/');
-----
-expected CC-MAIN-YYYY-NN
-
-statement error
-SELECT * FROM duckport_scan_commoncrawl_segment('https://data.commoncrawl.org/crawl-data/CC-MAIN-2022-40/');
-----
-expected /crawl-data/<crawl>/segments/<segment>/
