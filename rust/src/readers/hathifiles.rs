@@ -33,7 +33,8 @@ pub unsafe extern "C" fn duckport_hathifiles_open(
         let record_path = unsafe { optional_string(reader_options.record_path) }?;
         let endpoint = unsafe { optional_string(reader_options.endpoint) }?
             .unwrap_or_else(|| "https://www.hathitrust.org".into());
-        crate::service_files::validate_format(&format, record_path.as_deref())?;
+        let attachment_options =
+            crate::service_files::attachment_options(&format, record_path.as_deref())?;
         if locator != "catalog" {
             return Err("Hathifiles locator must be catalog".into());
         }
@@ -46,7 +47,7 @@ pub unsafe extern "C" fn duckport_hathifiles_open(
         let files = HathifilesService::with_connection(connection)
             .catalog()
             .await?;
-        crate::service_files::open(files, file_name, &format, record_path, scan_options).await
+        crate::service_files::open(files, file_name, attachment_options, scan_options).await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }

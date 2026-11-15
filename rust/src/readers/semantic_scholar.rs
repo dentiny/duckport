@@ -37,7 +37,8 @@ pub unsafe extern "C" fn duckport_semantic_scholar_open(
         let release = unsafe { optional_string(reader_options.release) }?
             .filter(|s| !s.is_empty())
             .ok_or("release is required")?;
-        crate::service_files::validate_format(&format, record_path.as_deref())?;
+        let attachment_options =
+            crate::service_files::attachment_options(&format, record_path.as_deref())?;
         let connection = Connection::new(&endpoint)?;
         let token = storage_options
             .token
@@ -47,7 +48,7 @@ pub unsafe extern "C" fn duckport_semantic_scholar_open(
             .with_key(&token)?
             .dataset(&release, &locator)
             .await?;
-        crate::service_files::open(files, file_name, &format, record_path, scan_options).await
+        crate::service_files::open(files, file_name, attachment_options, scan_options).await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }
