@@ -1,5 +1,6 @@
 mod error;
 mod ffi;
+mod oai;
 pub mod options;
 mod readers;
 mod service_files;
