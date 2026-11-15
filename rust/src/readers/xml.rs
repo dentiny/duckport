@@ -5,10 +5,7 @@ use crate::{
     storage,
 };
 use open_arrow_access::{
-    AccessorExt, ReadRequest,
-    decompression::AutoDecompressionLayer,
-    file_format::{FileAccessor, xml::XmlFormat},
-    storage::OpenDalAccessor,
+    OuterCompression, ReadRequest, file_accessor, file_format::xml::XmlFormat,
 };
 use std::ffi::c_char;
 
@@ -33,10 +30,9 @@ pub unsafe extern "C" fn duckport_xml_open(
             .ok_or("record_path is required")?;
 
         let (operator, path) = storage::operator(&locator, &storage_options)?;
-        let storage = OpenDalAccessor::new(operator).layer(AutoDecompressionLayer::new());
         let format = XmlFormat::new(record_path);
         AsyncSource::new(
-            FileAccessor::from_format(storage, format),
+            file_accessor(operator, format, OuterCompression::Auto),
             ReadRequest::new(path).with_options(scan_options),
         )
         .await

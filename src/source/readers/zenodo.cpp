@@ -15,7 +15,11 @@ char *OpenZenodo(ClientContext &context, const string &locator, const DuckportSc
 	reader_options.record_path = record_path ? record_path->c_str() : nullptr;
 	auto endpoint = ReadStringOption(input, "endpoint");
 	reader_options.endpoint = endpoint ? endpoint->c_str() : nullptr;
-	StorageParameters storage(context, endpoint.value_or("https://zenodo.org") + "/", /*secret_type=*/ {});
+	auto origin = endpoint.value_or("https://zenodo.org");
+	if (!origin.empty() && origin.back() == '/') {
+		origin.pop_back();
+	}
+	StorageParameters storage(context, origin + "/api/records/" + locator, /*secret_type=*/ {});
 	return duckport_zenodo_open(locator.c_str(), storage.config, scan, reader_options, output);
 }
 } // namespace duckdb
