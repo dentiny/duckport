@@ -6,7 +6,7 @@ Run all SQLLogicTests from the repository root after building:
 make test
 ```
 
-All test definitions and assertions live in `test/sql/readers`; committed input
+Reader assertions live in `test/sql/readers`; COPY framework assertions live in `test/sql/writers`. Committed input
 fixtures are grouped under `testdata/<provider-or-format>/`.
 
 The HTTP tests use the same SQLLogicTest runner and a separate
