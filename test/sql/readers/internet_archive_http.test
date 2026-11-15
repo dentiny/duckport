@@ -1,0 +1,86 @@
+# name: test/sql/readers/internet_archive_http.test
+# description: Internet Archive scans against an in-process loopback HTTP fixture
+# group: [sql]
+
+require duckport
+
+require duckport_test_fixture
+
+# A local fixture failure must fail this test, not trigger the runner's default HTTP skip.
+set ignore_error_messages
+
+statement ok
+SET VARIABLE ia_endpoint = duckport_ia_fixture('start');
+
+# Adapted from open-arrow-access-service 0.2.0 provider fixture tests.
+# Binary preserves original bytes independently of filename extensions.
+query I
+SELECT octet_length(data) FROM duckport_scan_internet_archive('sample-item', file_name := 'papers/paper #1%.pdf', endpoint := getvariable('ia_endpoint'));
+----
+23
+
+# Each prepared execution obtains an independent reader of the selected attachment.
+statement ok
+PREPARE provider_scan AS SELECT octet_length(data) FROM duckport_scan_internet_archive('sample-item', file_name := 'papers/paper #1%.pdf', endpoint := getvariable('ia_endpoint'));
+
+query I
+EXECUTE provider_scan;
+----
+23
+
+query I
+EXECUTE provider_scan;
+----
+23
+
+query IT rowsort
+SELECT id, name FROM duckport_scan_internet_archive('sample-item', file_name := 'papers/paper #1%.pdf', endpoint := getvariable('ia_endpoint'), format := 'csv', batch_size := 1);
+----
+1	alpha
+2	beta
+
+statement error
+SELECT * FROM duckport_scan_internet_archive('sample-item', file_name := 'missing-file', endpoint := getvariable('ia_endpoint'));
+----
+filename is absent from manifest
+
+statement error
+SELECT * FROM duckport_scan_internet_archive('sample-item', file_name := 'papers/paper #1%.pdf', endpoint := getvariable('ia_endpoint'), format := 'invalid');
+----
+format must be
+
+statement error
+SELECT * FROM duckport_scan_internet_archive('sample-item', file_name := 'papers/paper #1%.pdf', endpoint := getvariable('ia_endpoint'), format := 'xml');
+----
+record_path is required
+
+# Verify the provider resolved metadata and actually read attachment bytes.
+query TT
+SELECT duckport_ia_fixture('metadata_requests')::BIGINT > 0,
+       duckport_ia_fixture('download_requests')::BIGINT > 0;
+----
+true	true
+
+statement ok
+SET VARIABLE ia_downloads = duckport_ia_fixture('download_requests');
+
+query T
+SELECT duckport_ia_fixture('reject_metadata');
+----
+ok
+
+# Invalid metadata must fail before any additional attachment request.
+statement error
+SELECT octet_length(data) FROM duckport_scan_internet_archive('sample-item', file_name := 'papers/paper #1%.pdf', endpoint := getvariable('ia_endpoint'));
+----
+DuckPort
+
+query T
+SELECT duckport_ia_fixture('download_requests') = getvariable('ia_downloads');
+----
+true
+
+query T
+SELECT duckport_ia_fixture('stop');
+----
+stopped

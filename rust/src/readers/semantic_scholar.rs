@@ -43,8 +43,8 @@ pub unsafe extern "C" fn duckport_semantic_scholar_open(
             .token
             .filter(|s| !s.is_empty())
             .ok_or("a scoped HTTP bearer_token secret is required for this service")?;
-        let connection = connection.with_header("x-api-key", &token)?;
         let files = SemanticScholarService::with_connection(connection)
+            .with_key(&token)?
             .dataset(&release, &locator)
             .await?;
         crate::service_files::open(files, file_name, &format, record_path, scan_options).await
