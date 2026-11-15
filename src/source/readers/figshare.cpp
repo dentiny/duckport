@@ -17,7 +17,15 @@ char *OpenFigshare(ClientContext &context, const string &locator, const Duckport
 	reader_options.endpoint = endpoint ? endpoint->c_str() : nullptr;
 	auto version = ReadStringOption(input, "version");
 	reader_options.version = version ? version->c_str() : nullptr;
-	StorageParameters storage(context, endpoint.value_or("https://api.figshare.com") + "/", /*secret_type=*/ {});
+	auto origin = endpoint.value_or("https://api.figshare.com");
+	while (!origin.empty() && origin.back() == '/') {
+		origin.pop_back();
+	}
+	auto scope = origin + "/v2/articles/" + locator;
+	if (version && !version->empty()) {
+		scope += "/versions/" + *version;
+	}
+	StorageParameters storage(context, scope, /*secret_type=*/ {});
 	return duckport_figshare_open(locator.c_str(), storage.config, scan, reader_options, output);
 }
 } // namespace duckdb

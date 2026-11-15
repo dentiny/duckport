@@ -1,0 +1,45 @@
+# name: test/sql/readers/figshare_http.test
+# description: Path-scoped Figshare credentials and cross-origin attachment reads
+# group: [sql]
+
+require duckport
+require duckport_test_fixture
+
+statement ok
+SET VARIABLE figshare_endpoint = duckport_fixture('figshare', 'start_authenticated');
+
+statement ok
+SET VARIABLE figshare_scope = duckport_fixture('figshare', 'scope');
+
+statement ok
+CREATE SECRET figshare_test (TYPE http, BEARER_TOKEN 'fixture-key', SCOPE getvariable('figshare_scope'));
+
+query IT rowsort
+SELECT id, name FROM duckport_scan_figshare('21422193', file_name := 'records.csv', format := 'csv', endpoint := getvariable('figshare_endpoint'), batch_size := 1);
+----
+1	alpha
+2	beta
+
+# Trailing-slash endpoints and versioned requests select the same path-scoped secret.
+query I
+SELECT octet_length(data) FROM duckport_scan_figshare('21422193', file_name := 'records.csv', version := '1', endpoint := getvariable('figshare_endpoint') || '/');
+----
+23
+
+query TT rowsort
+SELECT origin, bool_and(CASE WHEN origin = 'api'
+    THEN has_authorization AND "authorization" = 'Bearer fixture-key'
+    ELSE NOT has_authorization AND NOT contains(headers, 'fixture-key') AND NOT contains(target, 'fixture-key')
+END)
+FROM duckport_fixture_requests('figshare') GROUP BY origin;
+----
+api	true
+download	true
+
+statement ok
+DROP SECRET figshare_test;
+
+query T
+SELECT duckport_fixture('figshare', 'stop');
+----
+stopped
