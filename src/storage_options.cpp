@@ -19,7 +19,7 @@ StorageParameters::StorageParameters(ClientContext &context, const string &locat
 		KeyValueSecretReader reader(opener, &info, "huggingface");
 		reader.TryGetSecretKey("token", token);
 	} else if (secret_type == "internet_archive") {
-		KeyValueSecretReader reader(*context.db, "s3", locator);
+		KeyValueSecretReader reader(opener, &info, "s3");
 		reader.TryGetSecretKey("key_id", access_key_id);
 		reader.TryGetSecretKey("secret", secret_access_key);
 	} else if (StringUtil::StartsWith(locator, "s3://")) {
