@@ -1,36 +1,57 @@
 //! Decode one explicitly selected provider attachment. File membership stays with the provider.
-use crate::{error::Result, options::AttachmentFormat, source::DuckportSource, validation};
+use crate::{error::Result, source::DuckportSource};
 use open_arrow_access::{
-    AttachmentFormat as SourceFormat, AttachmentOptions, ByteAccessor, OuterCompression,
-    ReadOptions, ReadRequest, open_attachment_source,
+    AttachmentFormat, AttachmentOptions, ByteAccessor, OuterCompression, ReadOptions, ReadRequest,
+    open_attachment_source,
 };
 
-/// Decode one selected attachment into Arrow records.
-///
-/// `record_path` selects the XML elements that become individual rows, for example
-/// `/records/row`. It must be nonempty for XML and `None` for all other formats.
+fn attachment_options(format: &str, record_path: Option<&str>) -> Result<AttachmentOptions> {
+    let selection = match format {
+        "binary" => AttachmentFormat::Binary,
+        "csv" => AttachmentFormat::Csv,
+        "tsv" => AttachmentFormat::Tsv,
+        "json" => AttachmentFormat::Json,
+        "jsonl" => AttachmentFormat::Jsonl,
+        "parquet" => AttachmentFormat::Parquet,
+        "xml" => AttachmentFormat::Xml {
+            record_path: record_path
+                .filter(|path| !path.is_empty())
+                .ok_or("record_path is required for XML attachments")?
+                .to_owned(),
+        },
+        _ => return Err("format must be binary, csv, tsv, json, jsonl, parquet, or xml".into()),
+    };
+    if format != "xml" && record_path.is_some() {
+        return Err("record_path is only supported for XML attachments".into());
+    }
+    let compression = if format == "binary" {
+        OuterCompression::None
+    } else {
+        OuterCompression::Auto
+    };
+    let options = AttachmentOptions::new(selection).with_outer_compression(compression);
+    options.validate()?;
+    Ok(options)
+}
+
+/// Validate format options before resolving the provider's attachment namespace.
+pub fn validate_format(format: &str, record_path: Option<&str>) -> Result<()> {
+    attachment_options(format, record_path).map(|_| ())
+}
+
+/// Decode one selected attachment into Arrow records, preserving binary bytes unchanged.
 pub async fn open<A: ByteAccessor + 'static>(
     attachment_accessor: A,
     file: String,
-    format: AttachmentFormat,
+    format: &str,
     record_path: Option<String>,
     options: ReadOptions,
 ) -> Result<DuckportSource> {
-    validation::validate_format(format, record_path.as_deref())?;
-    let format = match format {
-        AttachmentFormat::Csv => SourceFormat::Csv,
-        AttachmentFormat::Tsv => SourceFormat::Tsv,
-        AttachmentFormat::Json => SourceFormat::Json,
-        AttachmentFormat::Jsonl => SourceFormat::Jsonl,
-        AttachmentFormat::Parquet => SourceFormat::Parquet,
-        AttachmentFormat::Xml => SourceFormat::Xml {
-            record_path: record_path.unwrap(),
-        },
-    };
+    let attachment_options = attachment_options(format, record_path.as_deref())?;
     Ok(open_attachment_source(
         attachment_accessor,
         ReadRequest::new(file).with_options(options),
-        AttachmentOptions::new(format).with_outer_compression(OuterCompression::Auto),
+        attachment_options,
     )
     .await?
     .into())

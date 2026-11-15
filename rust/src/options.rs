@@ -61,13 +61,3 @@ pub(crate) unsafe fn optional_string(value: *const c_char) -> Result<Option<Stri
     }
     Ok(Some(unsafe { CStr::from_ptr(value) }.to_str()?.to_owned()))
 }
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum AttachmentFormat {
-    Csv,
-    Tsv,
-    Json,
-    Jsonl,
-    Parquet,
-    Xml,
-}

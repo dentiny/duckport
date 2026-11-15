@@ -1,0 +1,130 @@
+# name: test/sql/readers/zenodo_http.test
+# description: Native loopback HTTP coverage for zenodo
+# group: [sql]
+
+require duckport
+
+require duckport_test_fixture
+
+set ignore_error_messages
+
+# Anonymous provider requests and attachment reads.
+
+statement ok
+SET VARIABLE fixture_endpoint = duckport_fixture('zenodo', 'start_anonymous');
+
+# Binary preserves original bytes independently of filename extensions.
+
+query I
+SELECT octet_length(data) FROM duckport_scan_zenodo('3551612', file_name := 'paper #1%.pdf', endpoint := getvariable('fixture_endpoint'));
+----
+23
+
+# Each prepared execution obtains an independent reader of the selected attachment.
+
+statement ok
+PREPARE provider_scan AS SELECT octet_length(data) FROM duckport_scan_zenodo('3551612', file_name := 'paper #1%.pdf', endpoint := getvariable('fixture_endpoint'));
+
+query I
+EXECUTE provider_scan;
+----
+23
+
+query I
+EXECUTE provider_scan;
+----
+23
+
+query IT rowsort
+SELECT id, name FROM duckport_scan_zenodo('3551612', file_name := 'paper #1%.pdf', endpoint := getvariable('fixture_endpoint'), format := 'csv', batch_size := 1);
+----
+1	alpha
+2	beta
+
+statement error
+SELECT * FROM duckport_scan_zenodo('3551612', file_name := 'missing-file', endpoint := getvariable('fixture_endpoint'));
+----
+filename is absent from manifest
+
+statement ok
+DEALLOCATE provider_scan;
+
+# Malformed metadata must fail without reading any attachment bytes.
+
+statement ok
+SET VARIABLE fixture_downloads_before = (SELECT count(*) FROM duckport_fixture_requests('zenodo') WHERE is_download);
+
+statement ok
+SET VARIABLE fixture_requests_before = (SELECT count(*) FROM duckport_fixture_requests('zenodo') WHERE origin = 'api');
+
+query T
+SELECT duckport_fixture('zenodo', 'reject_metadata');
+----
+ok
+
+# Invalid provider metadata must fail before downloading content.
+
+statement error
+SELECT octet_length(data) FROM duckport_scan_zenodo('3551612', file_name := 'paper #1%.pdf', endpoint := getvariable('fixture_endpoint'));
+----
+DuckPort
+
+query T
+SELECT count(*) = getvariable('fixture_downloads_before') FROM duckport_fixture_requests('zenodo') WHERE is_download;
+----
+true
+
+query T
+SELECT count(*) > getvariable('fixture_requests_before') FROM duckport_fixture_requests('zenodo') WHERE origin = 'api';
+----
+true
+
+# Successful reads must include requests to both origins, without credentials.
+
+query TT rowsort
+SELECT origin, bool_and(NOT has_authorization)
+FROM duckport_fixture_requests('zenodo')
+GROUP BY origin;
+----
+api	true
+download	true
+
+query T
+SELECT duckport_fixture('zenodo', 'stop');
+----
+stopped
+
+# A scoped bearer token reaches the API but never the cross-origin download.
+
+statement ok
+SET VARIABLE fixture_endpoint = duckport_fixture('zenodo', 'start_authenticated');
+
+statement ok
+SET VARIABLE fixture_scope = duckport_fixture('zenodo', 'scope');
+
+statement ok
+CREATE SECRET provider_http_test (TYPE http, BEARER_TOKEN 'fixture-key', SCOPE getvariable('fixture_scope'));
+
+query I
+SELECT octet_length(data) FROM duckport_scan_zenodo('3551612', file_name := 'paper #1%.pdf', endpoint := getvariable('fixture_endpoint'));
+----
+23
+
+query TT rowsort
+SELECT origin, bool_and(CASE WHEN origin = 'api'
+    THEN has_authorization AND "authorization" = 'Bearer fixture-key'
+    ELSE NOT has_authorization AND NOT contains(headers, 'fixture-key') AND NOT contains(target, 'fixture-key')
+END)
+FROM duckport_fixture_requests('zenodo')
+GROUP BY origin;
+----
+api	true
+download	true
+
+statement ok
+DROP SECRET provider_http_test;
+
+query T
+SELECT duckport_fixture('zenodo', 'stop');
+----
+stopped

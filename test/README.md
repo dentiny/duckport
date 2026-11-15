@@ -1,12 +1,29 @@
 # Tests
 
-Run SQL tests from the repository root after building:
+Run all SQLLogicTests from the repository root after building:
 
 ```sh
 make test
 ```
 
-Reader tests live in `test/sql/readers`; fixtures are grouped by format in `testdata/<format>/`.
+All test definitions and assertions live in `test/sql/readers`; committed input
+fixtures are grouped under `testdata/<provider-or-format>/`.
 
-`test/sql/readers/huggingface.test` reads the public `lhoestq/demo1` repository
-and requires network access to Hugging Face Hub. It needs no token.
+The HTTP tests use the same SQLLogicTest runner and a separate
+`duckport_test_fixture` extension. It is built by default when `BUILD_UNITTESTS`
+is enabled. SQL starts in-process loopback servers on ephemeral ports, configures
+secrets, reads provider data, and inspects captured requests through
+`duckport_fixture_requests`. The fixture server serves committed files and
+supports HEAD, byte ranges and redirects. Authentication, credential isolation,
+prepared scans and malformed-metadata checks are expressed in SQL.
+
+Run one provider's HTTP coverage with:
+
+```sh
+make test T='test/sql/readers/zenodo_http.test'
+```
+
+The fixture extension is excluded from production builds with
+`DUCKPORT_BUILD_TEST_FIXTURES=OFF`. No external accounts are needed for loopback
+tests. The Hugging Face test reads the public `lhoestq/demo1` repository and
+requires network access.

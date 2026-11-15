@@ -7,3 +7,4 @@ mod json;
 mod pmc;
 mod warc;
 mod xml;
+mod zenodo;

@@ -31,6 +31,7 @@ open-arrow-access = { version = "0.3.0", default-features = false, features = [
     "service-huggingface",
     "service-pmc",
     "service-warc",
+    "service-zenodo",
 ] }
 opendal = { version = "0.59.2", default-features = false, features = [
     "auto-register-services",
