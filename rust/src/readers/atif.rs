@@ -1,14 +1,10 @@
 use crate::{
     ffi::{DuckportSource, open_reader},
     options::{DuckportScanOptions, DuckportStorageOptions},
-    source::DuckportSource as AsyncSource,
     storage,
 };
 use open_arrow_access::{
-    AccessorExt, ReadRequest,
-    decompression::AutoDecompressionLayer,
-    file_format::{FileAccessor, atif::AtifFormat},
-    storage::OpenDalAccessor,
+    OuterCompression, ReadRequest, file_format::atif::AtifFormat, open_file_source,
 };
 use std::ffi::c_char;
 
@@ -24,12 +20,14 @@ pub unsafe extern "C" fn duckport_atif_open(
 ) -> *mut c_char {
     let open = |locator: String, storage_options, scan_options| async move {
         let (operator, path) = storage::operator(&locator, &storage_options)?;
-        let storage = OpenDalAccessor::new(operator).layer(AutoDecompressionLayer::new());
-        AsyncSource::new(
-            FileAccessor::from_format(storage, AtifFormat::Auto),
+        Ok(open_file_source(
+            operator,
             ReadRequest::new(path).with_options(scan_options),
+            AtifFormat::Auto,
+            OuterCompression::Auto,
         )
-        .await
+        .await?
+        .into())
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }

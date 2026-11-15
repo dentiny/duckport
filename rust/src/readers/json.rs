@@ -1,14 +1,10 @@
 use crate::{
     ffi::{DuckportSource, open_reader},
     options::{DuckportScanOptions, DuckportStorageOptions},
-    source::DuckportSource as AsyncSource,
     storage,
 };
 use open_arrow_access::{
-    AccessorExt, ReadRequest,
-    decompression::AutoDecompressionLayer,
-    file_format::{FileAccessor, json::JsonFormat},
-    storage::OpenDalAccessor,
+    OuterCompression, ReadRequest, file_format::json::JsonFormat, open_file_source,
 };
 use std::ffi::c_char;
 
@@ -24,13 +20,15 @@ pub unsafe extern "C" fn duckport_json_open(
 ) -> *mut c_char {
     let open = |locator: String, storage_options, scan_options| async move {
         let (operator, path) = storage::operator(&locator, &storage_options)?;
-        let storage = OpenDalAccessor::new(operator).layer(AutoDecompressionLayer::new());
         let format = JsonFormat::infer();
-        AsyncSource::new(
-            FileAccessor::from_format(storage, format),
+        Ok(open_file_source(
+            operator,
             ReadRequest::new(path).with_options(scan_options),
+            format,
+            OuterCompression::Auto,
         )
-        .await
+        .await?
+        .into())
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }

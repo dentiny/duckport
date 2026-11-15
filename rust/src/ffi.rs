@@ -7,8 +7,8 @@ use crate::{
 use arrow_array::{RecordBatch, RecordBatchReader, ffi_stream::FFI_ArrowArrayStream};
 use arrow_schema::{ArrowError, SchemaRef, ffi::FFI_ArrowSchema};
 use open_arrow_access::{
-    ReadOptions, ReadRequest, RecordReader, file_format::parquet::ParquetAccessor,
-    storage::OpenDalAccessor,
+    OuterCompression, ReadOptions, ReadRequest, RecordReader, file_format::parquet::ParquetFormat,
+    open_file_source,
 };
 use std::{
     ffi::{CStr, c_char},
@@ -99,8 +99,14 @@ pub unsafe extern "C" fn duckport_parquet_open(
 ) -> *mut c_char {
     let open = |locator: String, storage_options, scan_options| async move {
         let (operator, path) = storage::operator(&locator, &storage_options)?;
-        let accessor = ParquetAccessor::new(OpenDalAccessor::new(operator));
-        AsyncSource::new(accessor, ReadRequest::new(path).with_options(scan_options)).await
+        Ok(open_file_source(
+            operator,
+            ReadRequest::new(path).with_options(scan_options),
+            ParquetFormat,
+            OuterCompression::None,
+        )
+        .await?
+        .into())
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }
