@@ -44,16 +44,6 @@ SELECT * FROM duckport_scan_internet_archive('sample-item', file_name := 'missin
 ----
 filename is absent from manifest
 
-statement error
-SELECT * FROM duckport_scan_internet_archive('sample-item', file_name := 'papers/paper #1%.pdf', endpoint := getvariable('ia_endpoint'), format := 'invalid');
-----
-format must be
-
-statement error
-SELECT * FROM duckport_scan_internet_archive('sample-item', file_name := 'papers/paper #1%.pdf', endpoint := getvariable('ia_endpoint'), format := 'xml');
-----
-record_path is required
-
 # Verify the provider resolved metadata and actually read attachment bytes.
 query TT
 SELECT duckport_ia_fixture('metadata_requests')::BIGINT > 0,

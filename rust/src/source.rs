@@ -1,6 +1,6 @@
 use crate::error::Result;
 use arrow_schema::SchemaRef;
-use open_arrow_access::{Accessor, BoundSource, RecordReader};
+use open_arrow_access::{Accessor, BoundSource, FileSource, RecordReader};
 
 pub struct DuckportSource(BoundSource);
 
@@ -25,5 +25,11 @@ impl DuckportSource {
 impl From<BoundSource> for DuckportSource {
     fn from(source: BoundSource) -> Self {
         Self(source)
+    }
+}
+
+impl From<FileSource> for DuckportSource {
+    fn from(source: FileSource) -> Self {
+        Self(source.into_bound_source())
     }
 }
