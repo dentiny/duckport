@@ -150,6 +150,16 @@ SELECT count(*) = 0 FROM duckport_fixture_requests('zenodo') WHERE origin = 'dow
 ----
 true
 
+# Successful reads must include requests to both origins, without credentials.
+
+query TT rowsort
+SELECT origin, bool_and(NOT has_authorization)
+FROM duckport_fixture_requests('zenodo')
+GROUP BY origin;
+----
+api	true
+download	true
+
 query T
 SELECT duckport_fixture('zenodo', 'stop');
 ----
@@ -302,6 +312,19 @@ query T
 SELECT count(*) = 0 FROM duckport_fixture_requests('zenodo') WHERE origin = 'download' AND (has_authorization OR contains(headers, 'fixture-key') OR contains(target, 'fixture-key'));
 ----
 true
+
+# A scoped bearer token reaches the API but never the cross-origin download.
+
+query TT rowsort
+SELECT origin, bool_and(CASE WHEN origin = 'api'
+    THEN has_authorization AND "authorization" = 'Bearer fixture-key'
+    ELSE NOT has_authorization AND NOT contains(headers, 'fixture-key') AND NOT contains(target, 'fixture-key')
+END)
+FROM duckport_fixture_requests('zenodo')
+GROUP BY origin;
+----
+api	true
+download	true
 
 statement ok
 DROP SECRET provider_http_test;

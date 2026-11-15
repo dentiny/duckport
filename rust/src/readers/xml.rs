@@ -1,11 +1,10 @@
 use crate::{
     ffi::{DuckportSource, open_reader},
     options::{DuckportScanOptions, DuckportStorageOptions, optional_string},
-    source::DuckportSource as AsyncSource,
     storage,
 };
 use open_arrow_access::{
-    OuterCompression, ReadRequest, file_accessor, file_format::xml::XmlFormat,
+    OuterCompression, ReadRequest, file_format::xml::XmlFormat, open_file_source,
 };
 use std::ffi::c_char;
 
@@ -31,11 +30,14 @@ pub unsafe extern "C" fn duckport_xml_open(
 
         let (operator, path) = storage::operator(&locator, &storage_options)?;
         let format = XmlFormat::new(record_path);
-        AsyncSource::new(
-            file_accessor(operator, format, OuterCompression::Auto),
+        Ok(open_file_source(
+            operator,
             ReadRequest::new(path).with_options(scan_options),
+            format,
+            OuterCompression::Auto,
         )
-        .await
+        .await?
+        .into())
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }
