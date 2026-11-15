@@ -1,0 +1,45 @@
+# name: test/sql/readers/fixture_requests.test
+# description: Prepared request-evidence queries observe each execution
+# group: [sql]
+
+require duckport
+require duckport_test_fixture
+
+statement ok
+SET VARIABLE trace_endpoint = duckport_fixture('zenodo', 'start_anonymous');
+
+statement ok
+PREPARE trace_seen AS SELECT count(*) > 0 FROM duckport_fixture_requests('zenodo');
+
+query T
+EXECUTE trace_seen;
+----
+false
+
+query I
+SELECT octet_length(data) FROM duckport_scan_zenodo('3551612', file_name := 'paper #1%.pdf', endpoint := getvariable('trace_endpoint'));
+----
+23
+
+query T
+EXECUTE trace_seen;
+----
+true
+
+query T
+SELECT duckport_fixture('zenodo', 'reset');
+----
+ok
+
+query T
+EXECUTE trace_seen;
+----
+false
+
+statement ok
+DEALLOCATE trace_seen;
+
+query T
+SELECT duckport_fixture('zenodo', 'stop');
+----
+stopped

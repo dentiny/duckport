@@ -331,10 +331,10 @@ std::string FixtureCommand(const std::string &provider, const std::string &comma
 }
 
 struct RequestsBindData : public FunctionData {
-	std::vector<Trace> traces;
+	std::string provider;
 	unique_ptr<FunctionData> Copy() const override {
 		auto result = make_uniq<RequestsBindData>();
-		result->traces = traces;
+		result->provider = provider;
 		return std::move(result);
 	}
 	bool Equals(const FunctionData &other_p) const override {
@@ -348,10 +348,7 @@ unique_ptr<FunctionData> RequestsBind(ClientContext &, TableFunctionBindInput &i
 	if (input.inputs[0].IsNull()) {
 		throw InvalidInputException("Fixture provider cannot be NULL");
 	}
-	{
-		std::lock_guard<std::mutex> guard(fixture_mutex);
-		result->traces = GetFixture(input.inputs[0].GetValue<std::string>())->Snapshot();
-	}
+	result->provider = input.inputs[0].GetValue<std::string>();
 	for (const auto &name : {"origin", "target", "authorization", "api_key", "headers", "request_payer"}) {
 		names.emplace_back(name);
 		types.emplace_back(LogicalType::VARCHAR);
@@ -364,19 +361,23 @@ unique_ptr<FunctionData> RequestsBind(ClientContext &, TableFunctionBindInput &i
 }
 
 struct RequestsState : public GlobalTableFunctionState {
+	std::vector<Trace> traces;
 	idx_t offset = 0;
 };
 
-unique_ptr<GlobalTableFunctionState> RequestsInit(ClientContext &, TableFunctionInitInput &) {
-	return make_uniq<RequestsState>();
+unique_ptr<GlobalTableFunctionState> RequestsInit(ClientContext &, TableFunctionInitInput &input) {
+	auto &bind = input.bind_data->Cast<RequestsBindData>();
+	auto result = make_uniq<RequestsState>();
+	std::lock_guard<std::mutex> guard(fixture_mutex);
+	result->traces = GetFixture(bind.provider)->Snapshot();
+	return std::move(result);
 }
 
 void RequestsScan(ClientContext &, TableFunctionInput &input, DataChunk &output) {
-	auto &bind = input.bind_data->Cast<RequestsBindData>();
 	auto &state = input.global_state->Cast<RequestsState>();
 	idx_t count = 0;
-	while (state.offset < bind.traces.size() && count < STANDARD_VECTOR_SIZE) {
-		const auto &row = bind.traces[state.offset++];
+	while (state.offset < state.traces.size() && count < STANDARD_VECTOR_SIZE) {
+		const auto &row = state.traces[state.offset++];
 		output.data[0].Append(Value(row.origin));
 		output.data[1].Append(Value(row.target));
 		output.data[2].Append(Value(row.authorization));
