@@ -15,4 +15,5 @@ if(DUCKPORT_BUILD_TEST_FIXTURES)
     duckdb_extension_load(duckport_test_fixture
         SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/test/fixture
     )
+    include("${CMAKE_CURRENT_LIST_DIR}/duckdb/.github/config/extensions/httpfs.cmake")
 endif()

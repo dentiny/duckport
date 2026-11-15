@@ -27,3 +27,6 @@ The fixture extension is excluded from production builds with
 `DUCKPORT_BUILD_TEST_FIXTURES=OFF`. No external accounts are needed for loopback
 tests. The Hugging Face test reads the public `lhoestq/demo1` repository and
 requires network access.
+
+The arXiv S3 SQL tests require `httpfs`. The test-fixture build loads the
+version pinned by the DuckDB checkout alongside the native fixture extension.

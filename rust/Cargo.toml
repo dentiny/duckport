@@ -28,6 +28,7 @@ open-arrow-access = { version = "0.3.0", default-features = false, features = [
     "format-parquet-zstd",
     "format-warc",
     "format-xml",
+    "service-arxiv",
     "service-bhl",
     "service-biorxiv",
     "service-courtlistener",
