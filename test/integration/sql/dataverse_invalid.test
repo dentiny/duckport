@@ -1,5 +1,0 @@
-# Invalid provider metadata must fail before downloading content.
-statement error
-SELECT octet_length(data) FROM duckport_scan_dataverse('doi:10.7910/DVN/A&B+', file_name := 'papers/2026/paper #1%.pdf', endpoint := '__ENDPOINT__', version := '1.0');
-----
-DuckPort

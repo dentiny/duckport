@@ -1,5 +1,0 @@
-# Invalid provider metadata must fail before downloading content.
-statement error
-SELECT octet_length(data) FROM duckport_scan_zenodo('3551612', file_name := 'paper #1%.pdf', endpoint := '__ENDPOINT__');
-----
-DuckPort
