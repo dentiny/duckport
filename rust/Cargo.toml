@@ -43,6 +43,7 @@ open-arrow-access = { version = "0.3.0", default-features = false, features = [
     "service-internet-archive",
     "service-library-of-congress",
     "service-meca",
+    "service-oapen",
     "service-openstax",
     "service-pmc",
     "service-regulations",

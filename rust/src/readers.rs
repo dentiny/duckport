@@ -17,6 +17,7 @@ mod internet_archive;
 mod json;
 mod library_of_congress;
 mod meca;
+mod oapen;
 mod openstax;
 mod pmc;
 mod regulations;
