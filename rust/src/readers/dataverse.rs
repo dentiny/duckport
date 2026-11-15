@@ -36,7 +36,8 @@ pub unsafe extern "C" fn duckport_dataverse_open(
         let version = unsafe { optional_string(reader_options.version) }?
             .filter(|s| !s.is_empty())
             .ok_or("version is required")?;
-        crate::service_files::validate_format(&format, record_path.as_deref())?;
+        let attachment_options =
+            crate::service_files::attachment_options(&format, record_path.as_deref())?;
         let service = DataverseService::new(&endpoint)?;
         let service = if let Some(token) = storage_options.token {
             service.with_bearer_token(&token)?
@@ -44,7 +45,7 @@ pub unsafe extern "C" fn duckport_dataverse_open(
             service
         };
         let files = service.dataset(&locator, &version).await?;
-        crate::service_files::open(files, file_name, &format, record_path, scan_options).await
+        crate::service_files::open(files, file_name, attachment_options, scan_options).await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }

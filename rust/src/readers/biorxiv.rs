@@ -43,7 +43,8 @@ pub unsafe extern "C" fn duckport_biorxiv_open(
             unsafe { optional_string(reader_options.server) }?.unwrap_or_else(|| "biorxiv".into());
         let cursor =
             unsafe { optional_string(reader_options.cursor) }?.unwrap_or_else(|| "0".into());
-        crate::service_files::validate_format(&format, record_path.as_deref())?;
+        let attachment_options =
+            crate::service_files::attachment_options(&format, record_path.as_deref())?;
         let server = match server.as_str() {
             "biorxiv" => Server::Biorxiv,
             "medrxiv" => Server::Medrxiv,
@@ -61,7 +62,7 @@ pub unsafe extern "C" fn duckport_biorxiv_open(
                 .details(server, &locator, &until, cursor.parse()?)
                 .await?,
         )?;
-        crate::service_files::open(files, file_name, &format, record_path, scan_options).await
+        crate::service_files::open(files, file_name, attachment_options, scan_options).await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }

@@ -39,7 +39,8 @@ pub unsafe extern "C" fn duckport_uspto_open(
             unsafe { optional_string(reader_options.offset) }?.unwrap_or_else(|| "0".into());
         let page_size =
             unsafe { optional_string(reader_options.page_size) }?.unwrap_or_else(|| "100".into());
-        crate::service_files::validate_format(&format, record_path.as_deref())?;
+        let attachment_options =
+            crate::service_files::attachment_options(&format, record_path.as_deref())?;
         let connection = Connection::new(&endpoint)?;
         let token = storage_options
             .token
@@ -49,7 +50,7 @@ pub unsafe extern "C" fn duckport_uspto_open(
             .with_key(&token)?
             .product(&locator, offset.parse()?, page_size.parse()?)
             .await?;
-        crate::service_files::open(files, file_name, &format, record_path, scan_options).await
+        crate::service_files::open(files, file_name, attachment_options, scan_options).await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }

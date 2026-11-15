@@ -5,7 +5,7 @@ use open_arrow_access::{
     open_attachment_source,
 };
 
-fn attachment_options(format: &str, record_path: Option<&str>) -> Result<AttachmentOptions> {
+pub fn attachment_options(format: &str, record_path: Option<&str>) -> Result<AttachmentOptions> {
     let selection = match format {
         "binary" => AttachmentFormat::Binary,
         "csv" => AttachmentFormat::Csv,
@@ -34,20 +34,13 @@ fn attachment_options(format: &str, record_path: Option<&str>) -> Result<Attachm
     Ok(options)
 }
 
-/// Validate format options before resolving the provider's attachment namespace.
-pub fn validate_format(format: &str, record_path: Option<&str>) -> Result<()> {
-    attachment_options(format, record_path).map(|_| ())
-}
-
 /// Decode one selected attachment into Arrow records, preserving binary bytes unchanged.
 pub async fn open<A: ByteAccessor + 'static>(
     attachment_accessor: A,
     file: String,
-    format: &str,
-    record_path: Option<String>,
+    attachment_options: AttachmentOptions,
     options: ReadOptions,
 ) -> Result<DuckportSource> {
-    let attachment_options = attachment_options(format, record_path.as_deref())?;
     Ok(open_attachment_source(
         attachment_accessor,
         ReadRequest::new(file).with_options(options),

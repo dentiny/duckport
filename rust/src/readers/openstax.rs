@@ -38,7 +38,8 @@ pub unsafe extern "C" fn duckport_openstax_open(
         let revision = unsafe { optional_string(reader_options.revision) }?
             .filter(|s| !s.is_empty())
             .ok_or("revision is required")?;
-        crate::service_files::validate_format(&format, record_path.as_deref())?;
+        let attachment_options =
+            crate::service_files::attachment_options(&format, record_path.as_deref())?;
         let connection = Connection::new(&endpoint)?;
         let connection = if let Some(token) = storage_options.token {
             connection.with_header("authorization", &format!("Bearer {token}"))?
@@ -51,7 +52,7 @@ pub unsafe extern "C" fn duckport_openstax_open(
             OpenStaxService::with_connections(connection, Connection::new(&archive_endpoint)?)
                 .book(&locator, &revision)
                 .await?;
-        crate::service_files::open(files, file_name, &format, record_path, scan_options).await
+        crate::service_files::open(files, file_name, attachment_options, scan_options).await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }
