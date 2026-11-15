@@ -11,5 +11,6 @@
   ],
   "downloads": [],
   "same_origin_download": true,
-  "reject_route": "/api/v1/datasets/:persistentId/versions/1.0"
+  "reject_route": "/api/v1/datasets/:persistentId/versions/1.0",
+  "auth": "authorization"
 }
