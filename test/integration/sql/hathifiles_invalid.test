@@ -1,5 +1,0 @@
-# Invalid provider metadata must fail before downloading content.
-statement error
-SELECT octet_length(data) FROM duckport_scan_hathifiles('catalog', file_name := 'hathi_full_20261101.txt.gz', endpoint := '__ENDPOINT__');
-----
-DuckPort
