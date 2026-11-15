@@ -4,6 +4,7 @@
 #include "readers/json.h"
 #include "readers/warc.h"
 #include "source/reader.hpp"
+#include "source/readers/openstax.hpp"
 #include "source/readers/semantic_scholar.hpp"
 #include "source/readers/library_of_congress.hpp"
 #include "source/readers/hathifiles.hpp"
@@ -23,6 +24,14 @@
 namespace duckdb {
 namespace {
 void LoadInternal(ExtensionLoader &loader) {
+	RegisterReader(loader, "duckport_scan_openstax", OpenOpenstax, [](TypedKwargs &options) {
+		options.Add("file_name", LogicalType::VARCHAR);
+		options.Add("format", LogicalType::VARCHAR);
+		options.Add("record_path", LogicalType::VARCHAR);
+		options.Add("endpoint", LogicalType::VARCHAR);
+		options.Add("revision", LogicalType::VARCHAR);
+        options.Add("archive_endpoint", LogicalType::VARCHAR);
+	});
 	RegisterReader(loader, "duckport_scan_semantic_scholar", OpenSemanticScholar, [](TypedKwargs &options) {
 		options.Add("file_name", LogicalType::VARCHAR);
 		options.Add("format", LogicalType::VARCHAR);

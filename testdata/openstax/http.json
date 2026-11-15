@@ -1,0 +1,15 @@
+{
+  "routes": [
+    {
+      "path": "/repos/openstax/osbooks-biology-bundle/commits/main",
+      "file": "metadata.json"
+    }
+  ],
+  "downloads": [
+    {
+      "path": "/openstax/osbooks-biology-bundle/zip/0123456789012345678901234567890123456789",
+      "file": "attachment.bin"
+    }
+  ],
+  "reject_route": "/repos/openstax/osbooks-biology-bundle/commits/main"
+}
