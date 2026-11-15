@@ -129,7 +129,17 @@ CSV/TSV expect headers. Text formats support outer compression. Binary mode buff
 the selected attachment into one BLOB; use a record format for large tabular files.
 `endpoint` defaults to `https://archive.org`. No discovery pagination or whole-dataset download
 is implied. Unknown file names fail through the provider accessor.
-Scoped HTTP bearer tokens are used where the upstream service supports connection headers.
+Anonymous reads remain the default. For account-authorized reads, load `httpfs`
+and create an S3-type secret with Internet Archive keys scoped to the HTTP endpoint:
+
+```sql
+CREATE SECRET ia_account (
+    TYPE s3, KEY_ID 'access-key', SECRET 'secret-key', SCOPE 'https://archive.org/'
+);
+```
+
+The upstream service sends `Authorization: LOW <key>:<secret>` only to its origin.
+These credentials do not grant access beyond the account's permissions or borrow books.
 All reader options above are VARCHAR; `batch_size` remains BIGINT.
 
 ### FederalRegister

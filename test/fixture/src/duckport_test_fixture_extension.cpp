@@ -83,6 +83,7 @@ public:
 			download_endpoint = "http://127.0.0.1:" + std::to_string(download_port);
 			LoadRoutes();
 			require_bearer = authenticated && auth == "authorization";
+			require_low = authenticated && provider == "internet_archive";
 			api.Get(".*", [this](const duckdb_httplib::Request &req, duckdb_httplib::Response &res) {
 				Respond(req, res, api_routes, "api");
 			});
@@ -240,6 +241,12 @@ private:
 			res.set_content("authentication required", "text/plain");
 			return;
 		}
+		if (origin == "api" && require_low &&
+		    req.get_header_value("Authorization") != "LOW fixture-key:fixture-secret") {
+			res.status = 401;
+			res.set_content("Internet Archive credentials required", "text/plain");
+			return;
+		}
 		if (!route) {
 			res.status = 404;
 			res.set_content("missing fixture", "text/plain");
@@ -263,6 +270,7 @@ private:
 	std::string auth;
 	std::string reject_route;
 	bool require_bearer = false;
+	bool require_low = false;
 	duckdb_httplib::Server api;
 	duckdb_httplib::Server downloads;
 	std::thread api_worker;
@@ -293,7 +301,9 @@ std::string FixtureCommand(const std::string &provider, const std::string &comma
 	std::lock_guard<std::mutex> guard(fixture_mutex);
 	if (command == "start" || command == "start_anonymous" || command == "start_authenticated") {
 		fixtures.erase(provider);
-		auto fixture = std::make_shared<ProviderFixture>(provider, command != "start_anonymous");
+		bool authenticated = command == "start_authenticated" ||
+		                     (command == "start" && provider != "internet_archive");
+		auto fixture = std::make_shared<ProviderFixture>(provider, authenticated);
 		auto endpoint = fixture->endpoint;
 		fixtures.emplace(provider, std::move(fixture));
 		return endpoint;

@@ -1,0 +1,39 @@
+# name: test/sql/readers/internet_archive_auth.test
+# description: Scoped Internet Archive keys authenticate metadata and attachment reads
+# group: [sql]
+
+require duckport
+require duckport_test_fixture
+require httpfs
+
+set ignore_error_messages
+
+statement ok
+SET VARIABLE ia_auth_endpoint = duckport_fixture('internet_archive', 'start_authenticated');
+
+statement ok
+SET VARIABLE ia_auth_scope = getvariable('ia_auth_endpoint') || '/';
+
+statement ok
+CREATE SECRET ia_account_test (TYPE s3, KEY_ID 'fixture-key', SECRET 'fixture-secret', SCOPE getvariable('ia_auth_scope'));
+
+query IT rowsort
+SELECT id, name FROM duckport_scan_internet_archive('sample-item', file_name := 'papers/paper #1%.pdf', format := 'csv', endpoint := getvariable('ia_auth_endpoint'), batch_size := 1);
+----
+1	alpha
+2	beta
+
+query TTT
+SELECT count(*) > 0, count(*) FILTER (WHERE is_download) > 0,
+       bool_and(has_authorization AND "authorization" = 'LOW fixture-key:fixture-secret')
+FROM duckport_fixture_requests('internet_archive');
+----
+true	true	true
+
+statement ok
+DROP SECRET ia_account_test;
+
+query T
+SELECT duckport_fixture('internet_archive', 'stop');
+----
+stopped
