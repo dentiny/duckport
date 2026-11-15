@@ -249,7 +249,10 @@ private:
 			res.set_content("not valid metadata", "application/octet-stream");
 			return;
 		}
-		res.status = route->status;
+		// Leave successful responses unset so httplib selects 206 for range requests.
+		if (route->status != 200) {
+			res.status = route->status;
+		}
 		if (!route->redirect.empty()) {
 			res.set_header("Location", route->redirect);
 		}

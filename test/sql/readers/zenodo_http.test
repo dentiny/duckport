@@ -294,7 +294,7 @@ SELECT count(*) > 0 FROM duckport_fixture_requests('zenodo') WHERE is_download;
 true
 
 query T
-SELECT count(*) = 0 FROM duckport_fixture_requests('zenodo') WHERE origin = 'api' AND NOT (has_authorization AND authorization = 'Bearer fixture-key');
+SELECT count(*) = 0 FROM duckport_fixture_requests('zenodo') WHERE origin = 'api' AND NOT (has_authorization AND "authorization" = 'Bearer fixture-key');
 ----
 true
 
@@ -310,4 +310,3 @@ query T
 SELECT duckport_fixture('zenodo', 'stop');
 ----
 stopped
-
