@@ -5,13 +5,8 @@ use crate::{
     storage,
 };
 use open_arrow_access::{
-    AccessorExt, ReadRequest,
-    decompression::AutoDecompressionLayer,
-    file_format::{
-        FileAccessor,
-        csv::{CsvDialect, CsvFileFormat, CsvInferenceOptions},
-    },
-    storage::OpenDalAccessor,
+    OuterCompression, ReadRequest, file_accessor,
+    file_format::csv::{CsvDialect, CsvFileFormat, CsvHeader},
 };
 use std::ffi::c_char;
 
@@ -34,25 +29,19 @@ pub unsafe extern "C" fn duckport_csv_open(
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
     let open = |locator: String, storage_options, scan_options| async move {
-        let header = if reader_options.header == -1 {
-            None
-        } else {
-            Some(crate::validation::boolean("header", reader_options.header)?)
+        let header = match reader_options.header {
+            -1 => CsvHeader::Auto,
+            value => CsvHeader::from(crate::validation::boolean("header", value)?),
         };
 
         let (operator, path) = storage::operator(&locator, &storage_options)?;
-        let storage = OpenDalAccessor::new(operator).layer(AutoDecompressionLayer::new());
-        let format = CsvFileFormat::infer()
-            .with_dialect(CsvDialect {
-                delimiter: reader_options.delimiter,
-                ..Default::default()
-            })
-            .with_inference_options(CsvInferenceOptions {
-                has_header: header,
-                ..Default::default()
-            });
+        let format = CsvFileFormat::infer().with_dialect(CsvDialect {
+            header,
+            delimiter: reader_options.delimiter,
+            ..Default::default()
+        });
         AsyncSource::new(
-            FileAccessor::from_format(storage, format),
+            file_accessor(operator, format, OuterCompression::Auto),
             ReadRequest::new(path).with_options(scan_options),
         )
         .await
