@@ -1,0 +1,16 @@
+{
+  "routes": [
+    {
+      "path": "/v4/documents/DOC-1",
+      "file": "metadata.json"
+    }
+  ],
+  "downloads": [
+    {
+      "path": "/attachment.pdf",
+      "file": "attachment.bin"
+    }
+  ],
+  "auth": "X-Api-Key",
+  "reject_route": "/v4/documents/DOC-1"
+}

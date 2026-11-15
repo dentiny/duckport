@@ -244,3 +244,19 @@ the selected attachment into one BLOB; use a record format for large tabular fil
 is implied. Unknown file names fail through the provider accessor.
 A scoped HTTP secret stores the API key in `BEARER_TOKEN`; DuckPort maps it to the provider authentication field.
 All reader options above are VARCHAR; `batch_size` remains BIGINT.
+
+### Regulations
+
+```sql
+SELECT * FROM duckport_scan_regulations('<identifier>', file_name := '<logical attachment name>');
+```
+
+Reads one explicitly named attachment from the provider-resolved file namespace.
+`format` defaults to `binary` (one BLOB `data` column); `csv`, `tsv`, `json`,
+`jsonl`, `parquet`, and `xml` decode records. XML requires `record_path`.
+CSV/TSV expect headers. Text formats support outer compression. Binary mode buffers
+the selected attachment into one BLOB; use a record format for large tabular files.
+`endpoint` defaults to `https://api.regulations.gov`. No discovery pagination or whole-dataset download
+is implied. Unknown file names fail through the provider accessor.
+A scoped HTTP secret stores the API key in `BEARER_TOKEN`; DuckPort maps it to the provider authentication field.
+All reader options above are VARCHAR; `batch_size` remains BIGINT.

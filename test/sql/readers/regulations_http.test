@@ -1,0 +1,125 @@
+# name: test/sql/readers/regulations_http.test
+# description: Native loopback HTTP coverage for regulations
+# group: [sql]
+
+require duckport
+
+require duckport_test_fixture
+
+set ignore_error_messages
+
+# Authenticated provider requests and attachment reads.
+
+statement ok
+SET VARIABLE fixture_endpoint = duckport_fixture('regulations', 'start_authenticated');
+
+statement ok
+SET VARIABLE fixture_download_endpoint = duckport_fixture('regulations', 'download_endpoint');
+
+statement ok
+SET VARIABLE fixture_scope = duckport_fixture('regulations', 'scope');
+
+statement ok
+CREATE SECRET provider_http_test (TYPE http, BEARER_TOKEN 'fixture-key', SCOPE getvariable('fixture_scope'));
+
+# Adapted from open-arrow-access-service 0.1.0 provider fixture tests.
+# Binary preserves original bytes independently of filename extensions.
+
+query I
+SELECT octet_length(data) FROM duckport_scan_regulations('DOC-1', file_name := 'attachment-000/file-000', endpoint := getvariable('fixture_endpoint'));
+----
+23
+
+# Each prepared execution obtains an independent reader of the selected attachment.
+
+statement ok
+PREPARE provider_scan AS SELECT octet_length(data) FROM duckport_scan_regulations('DOC-1', file_name := 'attachment-000/file-000', endpoint := getvariable('fixture_endpoint'));
+
+query I
+EXECUTE provider_scan;
+----
+23
+
+query I
+EXECUTE provider_scan;
+----
+23
+
+query IT rowsort
+SELECT id, name FROM duckport_scan_regulations('DOC-1', file_name := 'attachment-000/file-000', endpoint := getvariable('fixture_endpoint'), format := 'csv', batch_size := 1);
+----
+1	alpha
+2	beta
+
+statement error
+SELECT * FROM duckport_scan_regulations('DOC-1', file_name := 'missing-file', endpoint := getvariable('fixture_endpoint'));
+----
+filename is absent from manifest
+
+statement ok
+DEALLOCATE provider_scan;
+
+# Malformed metadata must fail without reading any attachment bytes.
+
+statement ok
+SET VARIABLE fixture_downloads_before = (SELECT count(*) FROM duckport_fixture_requests('regulations') WHERE is_download);
+
+statement ok
+SET VARIABLE fixture_requests_before = (SELECT count(*) FROM duckport_fixture_requests('regulations') WHERE origin = 'api');
+
+query T
+SELECT duckport_fixture('regulations', 'reject_metadata');
+----
+ok
+
+# Invalid provider metadata must fail before downloading content.
+
+statement error
+SELECT octet_length(data) FROM duckport_scan_regulations('DOC-1', file_name := 'attachment-000/file-000', endpoint := getvariable('fixture_endpoint'));
+----
+DuckPort
+
+query T
+SELECT count(*) = getvariable('fixture_downloads_before') FROM duckport_fixture_requests('regulations') WHERE is_download;
+----
+true
+
+query T
+SELECT count(*) > getvariable('fixture_requests_before') FROM duckport_fixture_requests('regulations') WHERE origin = 'api';
+----
+true
+
+# Inspect the actual captured HTTP requests through native SQL.
+
+query T
+SELECT count(*) > 0 FROM duckport_fixture_requests('regulations') WHERE origin = 'api';
+----
+true
+
+query T
+SELECT count(*) > 0 FROM duckport_fixture_requests('regulations') WHERE origin = 'download';
+----
+true
+
+query T
+SELECT count(*) > 0 FROM duckport_fixture_requests('regulations') WHERE is_download;
+----
+true
+
+query T
+SELECT count(*) = 0 FROM duckport_fixture_requests('regulations') WHERE origin = 'api' AND NOT (api_key IS NOT DISTINCT FROM 'fixture-key');
+----
+true
+
+query T
+SELECT count(*) = 0 FROM duckport_fixture_requests('regulations') WHERE origin = 'download' AND (has_authorization OR contains(headers, 'fixture-key') OR contains(target, 'fixture-key'));
+----
+true
+
+statement ok
+DROP SECRET provider_http_test;
+
+query T
+SELECT duckport_fixture('regulations', 'stop');
+----
+stopped
