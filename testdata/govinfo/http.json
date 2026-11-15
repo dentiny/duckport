@@ -1,0 +1,15 @@
+{
+  "routes": [
+    {
+      "path": "/bulkdata/json/FR/2026",
+      "file": "metadata.json"
+    },
+    {
+      "path": "/bulkdata/FR/2026/issue.xml",
+      "file": "attachment.bin"
+    }
+  ],
+  "downloads": [],
+  "same_origin_download": true,
+  "reject_route": "/bulkdata/json/FR/2026"
+}

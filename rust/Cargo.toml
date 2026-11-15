@@ -30,6 +30,7 @@ open-arrow-access = { version = "0.3.0", default-features = false, features = [
     "service-dataverse",
     "service-federal-register",
     "service-figshare",
+    "service-govinfo",
     "service-gutenberg",
     "service-huggingface",
     "service-internet-archive",
