@@ -1,14 +1,8 @@
 use crate::{
     ffi::{DuckportSource, open_reader},
-    options::{
-        AttachmentFormat, DuckportScanOptions, DuckportStorageOptions, StorageConfig,
-        optional_string,
-    },
-    source::DuckportSource as AsyncSource,
+    options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig, optional_string},
 };
-use open_arrow_access::{
-    BinaryDecoder, DocumentAccessor, ReadRequest, service::zenodo::ZenodoService,
-};
+use open_arrow_access::service::zenodo::ZenodoService;
 use std::ffi::c_char;
 
 #[repr(C)]
@@ -33,45 +27,18 @@ pub unsafe extern "C" fn duckport_zenodo_open(
         let file_name = unsafe { optional_string(reader_options.file_name) }?
             .filter(|s| !s.is_empty())
             .ok_or("file_name is required")?;
-        let format = unsafe { optional_string(reader_options.format) }?;
-        let format = match format.as_deref().unwrap_or("binary") {
-            "binary" => None,
-            "csv" => Some(AttachmentFormat::Csv),
-            "tsv" => Some(AttachmentFormat::Tsv),
-            "json" => Some(AttachmentFormat::Json),
-            "jsonl" => Some(AttachmentFormat::Jsonl),
-            "parquet" => Some(AttachmentFormat::Parquet),
-            "xml" => Some(AttachmentFormat::Xml),
-            _ => {
-                return Err("format must be binary, csv, tsv, json, jsonl, parquet, or xml".into());
-            }
-        };
+        let format =
+            unsafe { optional_string(reader_options.format) }?.unwrap_or_else(|| "binary".into());
         let record_path = unsafe { optional_string(reader_options.record_path) }?;
         let endpoint = unsafe { optional_string(reader_options.endpoint) }?
             .unwrap_or_else(|| "https://zenodo.org".into());
-        if let Some(format) = format {
-            crate::validation::validate_format(format, record_path.as_deref())?;
-        } else if record_path.is_some() {
-            return Err("record_path is only supported for XML attachments".into());
-        }
+        crate::service_files::validate_format(&format, record_path.as_deref())?;
         let mut service = ZenodoService::with_endpoint(&endpoint)?;
         if let Some(token) = storage_options.token.as_deref() {
             service = service.with_token(token)?;
         }
         let files = service.record(locator.parse()?).await?;
-        match format {
-            Some(format) => {
-                crate::service_files::open(files, file_name, format, record_path, scan_options)
-                    .await
-            }
-            None => {
-                AsyncSource::new(
-                    DocumentAccessor::new(files, BinaryDecoder),
-                    ReadRequest::new(file_name).with_options(scan_options),
-                )
-                .await
-            }
-        }
+        crate::service_files::open(files, file_name, &format, record_path, scan_options).await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }

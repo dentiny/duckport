@@ -1,70 +1,58 @@
 //! Decode one explicitly selected provider attachment. File membership stays with the provider.
-use crate::{error::Result, options::AttachmentFormat, source::DuckportSource, validation};
+use crate::{error::Result, source::DuckportSource};
 use open_arrow_access::{
-    AccessorExt, ByteAccessor, ReadOptions, ReadRequest,
-    decompression::AutoDecompressionLayer,
-    file_format::{
-        FileAccessor,
-        csv::{CsvDialect, CsvFileFormat, CsvHeader},
-        json::JsonFormat,
-        parquet::ParquetAccessor,
-        xml::XmlFormat,
-    },
+    AttachmentFormat, AttachmentOptions, ByteAccessor, OuterCompression, ReadOptions, ReadRequest,
+    open_attachment_source,
 };
 
-/// Decode one selected attachment into Arrow records.
-///
-/// `record_path` selects the XML elements that become individual rows, for example
-/// `/records/row`. It must be nonempty for XML and `None` for all other formats.
+fn attachment_options(format: &str, record_path: Option<&str>) -> Result<AttachmentOptions> {
+    let selection = match format {
+        "binary" => AttachmentFormat::Binary,
+        "csv" => AttachmentFormat::Csv,
+        "tsv" => AttachmentFormat::Tsv,
+        "json" => AttachmentFormat::Json,
+        "jsonl" => AttachmentFormat::Jsonl,
+        "parquet" => AttachmentFormat::Parquet,
+        "xml" => AttachmentFormat::Xml {
+            record_path: record_path
+                .filter(|path| !path.is_empty())
+                .ok_or("record_path is required for XML attachments")?
+                .to_owned(),
+        },
+        _ => return Err("format must be binary, csv, tsv, json, jsonl, parquet, or xml".into()),
+    };
+    if format != "xml" && record_path.is_some() {
+        return Err("record_path is only supported for XML attachments".into());
+    }
+    let compression = if format == "binary" {
+        OuterCompression::None
+    } else {
+        OuterCompression::Auto
+    };
+    let options = AttachmentOptions::new(selection).with_outer_compression(compression);
+    options.validate()?;
+    Ok(options)
+}
+
+/// Validate format options before resolving the provider's attachment namespace.
+pub fn validate_format(format: &str, record_path: Option<&str>) -> Result<()> {
+    attachment_options(format, record_path).map(|_| ())
+}
+
+/// Decode one selected attachment into Arrow records, preserving binary bytes unchanged.
 pub async fn open<A: ByteAccessor + 'static>(
     attachment_accessor: A,
     file: String,
-    format: AttachmentFormat,
+    format: &str,
     record_path: Option<String>,
     options: ReadOptions,
 ) -> Result<DuckportSource> {
-    validation::validate_format(format, record_path.as_deref())?;
-    let request = ReadRequest::new(file).with_options(options);
-    match format {
-        AttachmentFormat::Csv | AttachmentFormat::Tsv => {
-            let attachment_accessor = attachment_accessor.layer(AutoDecompressionLayer::new());
-            let format = CsvFileFormat::infer().with_dialect(CsvDialect {
-                header: CsvHeader::Present,
-                delimiter: if format == AttachmentFormat::Tsv {
-                    b'\t'
-                } else {
-                    b','
-                },
-                ..Default::default()
-            });
-            DuckportSource::new(
-                FileAccessor::from_format(attachment_accessor, format),
-                request,
-            )
-            .await
-        }
-        AttachmentFormat::Json | AttachmentFormat::Jsonl => {
-            let attachment_accessor = attachment_accessor.layer(AutoDecompressionLayer::new());
-            DuckportSource::new(
-                FileAccessor::from_format(attachment_accessor, JsonFormat::infer()),
-                request,
-            )
-            .await
-        }
-        AttachmentFormat::Parquet => {
-            let attachment_accessor = attachment_accessor.layer(AutoDecompressionLayer::new());
-            DuckportSource::new(ParquetAccessor::new(attachment_accessor), request).await
-        }
-        AttachmentFormat::Xml => {
-            let attachment_accessor = attachment_accessor.layer(AutoDecompressionLayer::new());
-            DuckportSource::new(
-                FileAccessor::from_format(
-                    attachment_accessor,
-                    XmlFormat::new(record_path.unwrap()),
-                ),
-                request,
-            )
-            .await
-        }
-    }
+    let attachment_options = attachment_options(format, record_path.as_deref())?;
+    Ok(open_attachment_source(
+        attachment_accessor,
+        ReadRequest::new(file).with_options(options),
+        attachment_options,
+    )
+    .await?
+    .into())
 }
