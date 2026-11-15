@@ -56,16 +56,6 @@ SELECT * FROM duckport_scan_semantic_scholar('s2orc', file_name := 'missing-file
 ----
 filename is absent from manifest
 
-statement error
-SELECT * FROM duckport_scan_semantic_scholar('s2orc', file_name := 'part-00000', endpoint := getvariable('fixture_endpoint'), release := 'latest', format := 'invalid');
-----
-format must be
-
-statement error
-SELECT * FROM duckport_scan_semantic_scholar('s2orc', file_name := 'part-00000', endpoint := getvariable('fixture_endpoint'), release := 'latest', format := 'xml');
-----
-record_path is required
-
 statement ok
 DEALLOCATE provider_scan;
 

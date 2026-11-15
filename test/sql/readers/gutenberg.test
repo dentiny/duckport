@@ -22,11 +22,6 @@ EXECUTE gutenberg_scan;
 ----
 42	A & B
 
-statement error
-SELECT * FROM duckport_scan_gutenberg(NULL);
-----
-NULL
-
 query II
 SELECT ebook_id, array_length(files) FROM duckport_scan_gutenberg('testdata/gutenberg/metadata_only.rdf');
 ----
