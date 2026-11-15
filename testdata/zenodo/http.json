@@ -6,7 +6,8 @@
     },
     {
       "path": "/api/records/3551612/files/paper%20%231%25.pdf/content",
-      "file": "attachment.bin"
+      "file": "attachment.bin",
+      "redirect": "ORIGIN/attachment?signature=a%2Bb"
     },
     {
       "path": "/api/records/3551612/files/records.jsonl/content",
@@ -29,7 +30,14 @@
       "file": "records.parquet"
     }
   ],
-  "downloads": [],
+  "downloads": [
+    {
+      "path": "/attachment?signature=a%2Bb",
+      "file": "attachment.bin"
+    }
+  ],
   "same_origin_download": true,
-  "reject_route": "/api/records/3551612"
+  "reject_route": "/api/records/3551612",
+  "auth": "authorization",
+  "auth_scope": "/api/records/"
 }
