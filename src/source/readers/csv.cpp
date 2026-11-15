@@ -10,6 +10,13 @@ char *OpenDelimited(ClientContext &context, const string &locator, const Duckpor
 	CsvOptions reader_options{};
 	reader_options.header = -1;
 	reader_options.delimiter = delimiter;
+	auto delimiter_option = ReadStringOption(input, "delimiter");
+	if (delimiter_option) {
+		if (delimiter_option->size() != 1) {
+			throw BinderException("delimiter must be one ASCII character");
+		}
+		reader_options.delimiter = static_cast<uint8_t>((*delimiter_option)[0]);
+	}
 	ReadBooleanOption(input, "header", reader_options.header);
 	StorageParameters storage(context, locator, /*secret_type=*/{});
 	return duckport_csv_open(locator.c_str(), storage.config, scan, reader_options, output);

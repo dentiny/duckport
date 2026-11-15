@@ -161,7 +161,10 @@ void LoadInternal(ExtensionLoader &loader) {
 	RegisterReader(loader, "duckport_scan_commoncrawl_segment", duckport_commoncrawl_segment_open);
 	RegisterReader(loader, "duckport_scan_atif", duckport_atif_open);
 	auto add_csv_options = [](TypedKwargs &options) { options.Add("header", LogicalType::BOOLEAN); };
-	RegisterReader(loader, "duckport_scan_csv", OpenCsv, add_csv_options);
+	RegisterReader(loader, "duckport_scan_csv", OpenCsv, [](TypedKwargs &options) {
+		options.Add("header", LogicalType::BOOLEAN);
+		options.Add("delimiter", LogicalType::VARCHAR);
+	});
 	RegisterReader(loader, "duckport_scan_tsv", OpenTsv, add_csv_options);
 	RegisterReader(loader, "duckport_scan_json", duckport_json_open);
 	RegisterReader(loader, "duckport_scan_jsonl", duckport_json_open);
