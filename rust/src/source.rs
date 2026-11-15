@@ -21,3 +21,9 @@ impl DuckportSource {
         Ok(self.0.reader().await?)
     }
 }
+
+impl From<BoundSource> for DuckportSource {
+    fn from(source: BoundSource) -> Self {
+        Self(source)
+    }
+}
