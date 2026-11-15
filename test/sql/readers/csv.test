@@ -70,3 +70,10 @@ statement error
 SELECT * FROM duckport_scan_tsv('testdata/csv/bad_extra_column.tsv', header := true);
 ----
 Expected 2 records, found 3 records
+
+# Use the existing upstream CSV dialect for semicolon-delimited exports.
+query IT rowsort
+SELECT id, name FROM duckport_scan_csv('testdata/csv/semicolon.csv', delimiter := ';', header := true, batch_size := 1);
+----
+1	alpha;one
+2	beta
