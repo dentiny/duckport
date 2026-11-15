@@ -1,0 +1,20 @@
+{
+  "routes": [
+    {
+      "path": "/datasets/v1/release/latest",
+      "file": "release.json"
+    },
+    {
+      "path": "/datasets/v1/release/2026-10-27/dataset/s2orc",
+      "file": "metadata.json"
+    }
+  ],
+  "downloads": [
+    {
+      "path": "/part?signature=a%2Bb",
+      "file": "attachment.bin"
+    }
+  ],
+  "auth": "x-api-key",
+  "reject_route": "/datasets/v1/release/2026-10-27/dataset/s2orc"
+}
