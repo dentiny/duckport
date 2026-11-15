@@ -5,13 +5,8 @@ use crate::{
     storage,
 };
 use open_arrow_access::{
-    AccessorExt, ReadRequest,
-    decompression::AutoDecompressionLayer,
-    file_format::{
-        FileAccessor,
-        csv::{CsvDialect, CsvFileFormat, CsvHeader},
-    },
-    storage::OpenDalAccessor,
+    OuterCompression, ReadRequest, file_accessor,
+    file_format::csv::{CsvDialect, CsvFileFormat, CsvHeader},
 };
 use std::ffi::c_char;
 
@@ -40,14 +35,13 @@ pub unsafe extern "C" fn duckport_csv_open(
         };
 
         let (operator, path) = storage::operator(&locator, &storage_options)?;
-        let storage = OpenDalAccessor::new(operator).layer(AutoDecompressionLayer::new());
         let format = CsvFileFormat::infer().with_dialect(CsvDialect {
             header,
             delimiter: reader_options.delimiter,
             ..Default::default()
         });
         AsyncSource::new(
-            FileAccessor::from_format(storage, format),
+            file_accessor(operator, format, OuterCompression::Auto),
             ReadRequest::new(path).with_options(scan_options),
         )
         .await
