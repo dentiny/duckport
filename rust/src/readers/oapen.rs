@@ -35,8 +35,7 @@ pub unsafe extern "C" fn duckport_oapen_open(
         let from_date = unsafe { optional_string(reader_options.from_date) }?;
         let until_date = unsafe { optional_string(reader_options.until_date) }?;
         let set_spec = unsafe { optional_string(reader_options.set_spec) }?;
-        let record_path = unsafe { optional_string(reader_options.record_path) }?
-            .unwrap_or_else(|| "/oai:OAI-PMH/oai:ListRecords/oai:record".into());
+        let record_path = unsafe { optional_string(reader_options.record_path) }?;
         if locator != "records"
             && (from_date.is_some() || until_date.is_some() || set_spec.is_some())
         {
@@ -60,13 +59,14 @@ pub unsafe extern "C" fn duckport_oapen_open(
         } else {
             service.resume(&locator).await?
         };
-        let records =
-            page.records(
-                XmlFormat::new(record_path).with_namespaces(&[NamespaceBinding {
-                    prefix: "oai",
-                    uri: "http://www.openarchives.org/OAI/2.0/",
-                }]),
-            );
+        let format = match record_path {
+            Some(record_path) => XmlFormat::new(record_path).with_namespaces(&[NamespaceBinding {
+                prefix: "oai",
+                uri: "http://www.openarchives.org/OAI/2.0/",
+            }]),
+            None => service.inferred_record_format(),
+        };
+        let records = page.records(format);
         AsyncSource::new(
             records,
             ReadRequest::new(locator).with_options(scan_options),

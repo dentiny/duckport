@@ -39,11 +39,11 @@ pub unsafe extern "C" fn duckport_bhl_open(
             .token
             .filter(|s| !s.is_empty())
             .ok_or("a scoped HTTP bearer_token secret is required for this service")?;
-        let connection = connection.with_query("apikey", &token);
         let files = BhlService::with_services(
             connection,
             open_arrow_access::service::figshare::FigshareService::new()?,
         )
+        .with_key(&token)?
         .item(locator.parse()?)
         .await?;
         crate::service_files::open(files, file_name, &format, record_path, scan_options).await

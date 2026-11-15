@@ -1,11 +1,14 @@
 """Exercise arXiv S3 billing opt-in using the upstream manifest shape and local TAR fixture."""
+import os
+
 from service_fixture import REPO, fixture_server, literal, run_sql_tests
 
 if __name__ == "__main__":
     with fixture_server() as (endpoint, routes, requests):
         for name in ["arXiv_src_manifest.xml", "arXiv_src_2410_001.tar"]:
             routes[f"/arxiv-test/src/{name}"] = (200, (REPO / "testdata/arxiv/src" / name).read_bytes())
-        setup = f"""LOAD httpfs;
+        httpfs = os.environ.get("HTTPFS_EXTENSION", "httpfs")
+        setup = f"""LOAD {literal(httpfs)};
 CREATE SECRET arxiv_test (TYPE s3, KEY_ID 'fixture-key', SECRET 'fixture-secret',
     REGION 'us-east-1', ENDPOINT {literal(endpoint)}, URL_STYLE 'path',
     USE_SSL false, SCOPE 's3://arxiv-test/');"""
