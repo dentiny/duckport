@@ -27,6 +27,7 @@ open-arrow-access = { version = "0.3.0", default-features = false, features = [
     "format-parquet-zstd",
     "format-warc",
     "format-xml",
+    "service-bhl",
     "service-dataverse",
     "service-federal-register",
     "service-figshare",

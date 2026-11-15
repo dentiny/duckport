@@ -1,0 +1,16 @@
+{
+  "routes": [
+    {
+      "path": "/api3",
+      "file": "metadata.json"
+    }
+  ],
+  "downloads": [
+    {
+      "path": "/itemtext/125582",
+      "file": "attachment.bin"
+    }
+  ],
+  "auth": "query:apikey",
+  "reject_route": "/api3"
+}
