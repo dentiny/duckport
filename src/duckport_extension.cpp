@@ -4,6 +4,7 @@
 #include "readers/json.h"
 #include "readers/warc.h"
 #include "source/reader.hpp"
+#include "source/readers/figshare.hpp"
 #include "source/readers/dataverse.hpp"
 #include "source/readers/zenodo.hpp"
 #include "readers/pmc.h"
@@ -16,6 +17,13 @@
 namespace duckdb {
 namespace {
 void LoadInternal(ExtensionLoader &loader) {
+	RegisterReader(loader, "duckport_scan_figshare", OpenFigshare, [](TypedKwargs &options) {
+		options.Add("file_name", LogicalType::VARCHAR);
+		options.Add("format", LogicalType::VARCHAR);
+		options.Add("record_path", LogicalType::VARCHAR);
+		options.Add("endpoint", LogicalType::VARCHAR);
+		options.Add("version", LogicalType::VARCHAR);
+	});
 	RegisterReader(loader, "duckport_scan_dataverse", OpenDataverse, [](TypedKwargs &options) {
 		options.Add("file_name", LogicalType::VARCHAR);
 		options.Add("format", LogicalType::VARCHAR);
