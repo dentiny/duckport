@@ -13,7 +13,7 @@ CLI = os.environ.get("DUCKDB_CLI", "duckdb")
 EXTENSION = Path(os.environ.get("DUCKPORT_EXTENSION", REPO / "build/release/extension/duckport/duckport.duckdb_extension")).resolve()
 
 @contextmanager
-def fixture_server():
+def fixture_server(required_bearer=None):
     routes, requests = {}, []
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args): pass
@@ -22,8 +22,10 @@ def fixture_server():
         def do_GET(self):
             requests.append((self.path, dict(self.headers)))
             result = routes.get(self.path, routes.get(urlsplit(self.path).path))
-            status, body = result if result else (404, b"missing fixture")
-            headers = {}
+            if required_bearer and self.headers.get("Authorization") != f"Bearer {required_bearer}":
+                result = (401, b"authentication required")
+            status, body, *response_headers = result if result else (404, b"missing fixture")
+            headers = dict(response_headers[0]) if response_headers else {}
             span = self.headers.get("Range")
             if span and status == 200:
                 start, end = span.removeprefix("bytes=").split("-", 1)
@@ -94,18 +96,24 @@ def run_sql_tests(path, substitutions, setup=""):
         count += 1
     return count
 
-def run_case(name):
+def run_case(name, authenticated=True):
     case_dir = REPO / "testdata" / name
     spec = json.loads((case_dir / "http.json").read_text())
-    with fixture_server() as (endpoint, routes, requests), fixture_server() as (download, downloads, download_requests):
+    if not authenticated:
+        spec.pop("auth", None)
+    required_bearer = "fixture-key" if spec.get("auth") == "authorization" else None
+    with fixture_server(required_bearer) as (endpoint, routes, requests), fixture_server() as (download, downloads, download_requests):
         def load(entry):
             raw = (case_dir / entry["file"]).read_bytes()
             return raw.replace(b"ORIGIN", download.encode()).replace(b"API_ORIGIN", endpoint.encode())
-        for entry in spec["routes"]: routes[entry["path"]] = (entry.get("status", 200), load(entry))
+        for entry in spec["routes"]:
+            headers = {"Location": entry["redirect"].replace("ORIGIN", download)} if "redirect" in entry else {}
+            routes[entry["path"]] = (entry.get("status", 302 if headers else 200), load(entry), headers)
         for entry in spec.get("downloads", []): downloads[entry["path"]] = (entry.get("status", 200), load(entry))
         setup = ""
         if spec.get("auth"):
-            setup = f"CREATE SECRET provider_test (TYPE http, BEARER_TOKEN 'fixture-key', SCOPE {literal(endpoint + '/')});"
+            scope = literal(endpoint + spec.get("auth_scope", "/"))
+            setup = f"CREATE SECRET provider_test (TYPE http, BEARER_TOKEN 'fixture-key', SCOPE {scope});"
         count = run_sql_tests(REPO / "test/integration/sql" / f"{name}.test", {"__ENDPOINT__": endpoint, "__DOWNLOAD__": download}, setup)
         if "reject_route" in spec:
             before = len(download_requests)
@@ -120,8 +128,14 @@ def run_case(name):
                 lower = {k.lower(): v for k, v in headers.items()}
                 if spec["auth"].startswith("query:"):
                     assert spec["auth"][6:] + "=fixture-key" in path, (path, headers)
-                else: assert lower.get(spec["auth"].lower()) == "fixture-key", (path, headers)
-            for _, headers in download_requests:
-                assert "fixture-key" not in str(headers), headers
+                else:
+                    expected = "Bearer fixture-key" if spec["auth"].lower() == "authorization" else "fixture-key"
+                    assert lower.get(spec["auth"].lower()) == expected, (path, headers)
+        else:
+            for _, headers in requests:
+                assert "authorization" not in {key.lower() for key in headers}, headers
+        for _, headers in download_requests:
+            assert "authorization" not in {key.lower() for key in headers}, headers
+            assert "fixture-key" not in str(headers), headers
         assert download_requests or spec.get("same_origin_download"), "attachment bytes were not read"
-        print(f"{name}: {count} SQL assertions passed")
+        print(f"{name} ({'authenticated' if spec.get('auth') else 'anonymous'}): {count} SQL assertions passed")
