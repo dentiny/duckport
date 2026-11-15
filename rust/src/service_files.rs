@@ -1,15 +1,8 @@
 //! Decode one explicitly selected provider attachment. File membership stays with the provider.
 use crate::{error::Result, options::AttachmentFormat, source::DuckportSource, validation};
 use open_arrow_access::{
-    AccessorExt, ByteAccessor, ReadOptions, ReadRequest,
-    decompression::AutoDecompressionLayer,
-    file_format::{
-        FileAccessor,
-        csv::{CsvDialect, CsvFileFormat, CsvHeader},
-        json::JsonFormat,
-        parquet::ParquetAccessor,
-        xml::XmlFormat,
-    },
+    AttachmentFormat as SourceFormat, AttachmentOptions, ByteAccessor, OuterCompression,
+    ReadOptions, ReadRequest, open_attachment_source,
 };
 
 /// Decode one selected attachment into Arrow records.
@@ -24,47 +17,21 @@ pub async fn open<A: ByteAccessor + 'static>(
     options: ReadOptions,
 ) -> Result<DuckportSource> {
     validation::validate_format(format, record_path.as_deref())?;
-    let request = ReadRequest::new(file).with_options(options);
-    match format {
-        AttachmentFormat::Csv | AttachmentFormat::Tsv => {
-            let attachment_accessor = attachment_accessor.layer(AutoDecompressionLayer::new());
-            let format = CsvFileFormat::infer().with_dialect(CsvDialect {
-                header: CsvHeader::Present,
-                delimiter: if format == AttachmentFormat::Tsv {
-                    b'\t'
-                } else {
-                    b','
-                },
-                ..Default::default()
-            });
-            DuckportSource::new(
-                FileAccessor::from_format(attachment_accessor, format),
-                request,
-            )
-            .await
-        }
-        AttachmentFormat::Json | AttachmentFormat::Jsonl => {
-            let attachment_accessor = attachment_accessor.layer(AutoDecompressionLayer::new());
-            DuckportSource::new(
-                FileAccessor::from_format(attachment_accessor, JsonFormat::infer()),
-                request,
-            )
-            .await
-        }
-        AttachmentFormat::Parquet => {
-            let attachment_accessor = attachment_accessor.layer(AutoDecompressionLayer::new());
-            DuckportSource::new(ParquetAccessor::new(attachment_accessor), request).await
-        }
-        AttachmentFormat::Xml => {
-            let attachment_accessor = attachment_accessor.layer(AutoDecompressionLayer::new());
-            DuckportSource::new(
-                FileAccessor::from_format(
-                    attachment_accessor,
-                    XmlFormat::new(record_path.unwrap()),
-                ),
-                request,
-            )
-            .await
-        }
-    }
+    let format = match format {
+        AttachmentFormat::Csv => SourceFormat::Csv,
+        AttachmentFormat::Tsv => SourceFormat::Tsv,
+        AttachmentFormat::Json => SourceFormat::Json,
+        AttachmentFormat::Jsonl => SourceFormat::Jsonl,
+        AttachmentFormat::Parquet => SourceFormat::Parquet,
+        AttachmentFormat::Xml => SourceFormat::Xml {
+            record_path: record_path.unwrap(),
+        },
+    };
+    Ok(open_attachment_source(
+        attachment_accessor,
+        ReadRequest::new(file).with_options(options),
+        AttachmentOptions::new(format).with_outer_compression(OuterCompression::Auto),
+    )
+    .await?
+    .into())
 }

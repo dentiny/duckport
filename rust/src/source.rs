@@ -22,6 +22,12 @@ impl DuckportSource {
     }
 }
 
+impl From<BoundSource> for DuckportSource {
+    fn from(source: BoundSource) -> Self {
+        Self(source)
+    }
+}
+
 impl From<FileSource> for DuckportSource {
     fn from(source: FileSource) -> Self {
         Self(source.into_bound_source())

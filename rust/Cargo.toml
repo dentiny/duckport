@@ -11,8 +11,8 @@ crate-type = ["staticlib"]
 [dependencies]
 arrow-array = { version = "58", features = ["ffi"] }
 arrow-schema = "58"
-# Pin the FileSource::into_bound_source API until its next crates.io release.
-open-arrow-access = { git = "https://github.com/dentiny/open-arrow-access.git", rev = "2669e43b3dbd6393ee25545799fb82d89bcaa626", default-features = false, features = [
+open-arrow-access = { version = "0.3.0", default-features = false, features = [
+    "blocking",
     "decompression-bz2",
     "decompression-gzip",
     "decompression-lz4",
