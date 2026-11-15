@@ -103,7 +103,7 @@ statement ok
 SET VARIABLE fixture_scope = duckport_fixture('zenodo', 'scope');
 
 statement ok
-CREATE SECRET provider_http_test (TYPE http, BEARER_TOKEN 'fixture-key', SCOPE getvariable('fixture_scope'));
+CREATE SECRET provider_http_test IN connection (TYPE http, BEARER_TOKEN 'fixture-key', SCOPE getvariable('fixture_scope'));
 
 query I
 SELECT octet_length(data) FROM duckport_scan_zenodo('3551612', file_name := 'paper #1%.pdf', endpoint := getvariable('fixture_endpoint'));
@@ -123,6 +123,21 @@ download	true
 
 statement ok
 DROP SECRET provider_http_test;
+
+# Transaction-local credentials are visible to the same reader too.
+statement ok
+BEGIN;
+
+statement ok
+CREATE TRANSACTION SECRET provider_transaction_http (TYPE http, BEARER_TOKEN 'fixture-key', SCOPE getvariable('fixture_scope'));
+
+query I
+SELECT octet_length(data) FROM duckport_scan_zenodo('3551612', file_name := 'paper #1%.pdf', endpoint := getvariable('fixture_endpoint'));
+----
+23
+
+statement ok
+ROLLBACK;
 
 query T
 SELECT duckport_fixture('zenodo', 'stop');
