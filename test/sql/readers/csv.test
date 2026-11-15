@@ -25,6 +25,19 @@ SELECT column_1, column_2 FROM duckport_scan_csv('testdata/csv/good_no_header.cs
 2	two
 3	three
 
+query TT rowsort
+SELECT column_1, column_2 FROM duckport_scan_csv('testdata/csv/strings.csv');
+----
+alice	london
+bob	paris
+name	city
+
+query TT rowsort
+SELECT name, city FROM duckport_scan_csv('testdata/csv/strings.csv', header := true);
+----
+alice	london
+bob	paris
+
 statement error
 SELECT * FROM duckport_scan_csv('testdata/csv/bad_extra_column.csv', header := true);
 ----
