@@ -35,6 +35,7 @@ open-arrow-access = { version = "0.3.0", default-features = false, features = [
     "service-hathifiles",
     "service-huggingface",
     "service-internet-archive",
+    "service-library-of-congress",
     "service-pmc",
     "service-warc",
     "service-zenodo",

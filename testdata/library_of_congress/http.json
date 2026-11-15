@@ -1,0 +1,15 @@
+{
+  "routes": [
+    {
+      "path": "/resource/r1/",
+      "file": "metadata.json"
+    }
+  ],
+  "downloads": [
+    {
+      "path": "/book.pdf",
+      "file": "attachment.bin"
+    }
+  ],
+  "reject_route": "/resource/r1/"
+}
