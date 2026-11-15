@@ -11,12 +11,16 @@ Reader tests live in `test/sql/readers`; fixtures are grouped by format in `test
 `test/sql/readers/huggingface.test` reads the public `lhoestq/demo1` repository
 and requires network access to Hugging Face Hub. It needs no token.
 
+`test/sql/readers/figshare.test` uses `require duckport` and runs with `make test`.
+It checks argument and format validation without network access. Figshare HTTP
+resolution, attachment downloads, and prepared scan execution are not covered by
+these tests.
+
 ## Provider integration fixtures
 
-Service SQL cases mirror the provider tests in open-arrow-access-service 0.2.0.
-Internet Archive fixtures run with `make test`, as described below. The other
-providers use Python wrappers with loopback servers and need no external accounts
-or credentials:
+Service SQL cases mirror the provider tests in open-arrow-access-service 0.3.0.
+Local fixtures run with `make test`. HTTP cases use loopback fixture servers and
+need no external accounts or credentials:
 
 ```sh
 export DUCKDB_CLI=/path/to/matching/duckdb

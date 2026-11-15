@@ -4,25 +4,26 @@ use crate::{
     source::DuckportSource as AsyncSource,
     storage,
 };
-use arrow_array::{RecordBatch, RecordBatchReader, ffi_stream::FFI_ArrowArrayStream};
-use arrow_schema::{ArrowError, SchemaRef, ffi::FFI_ArrowSchema};
+use arrow_array::ffi_stream::FFI_ArrowArrayStream;
+use arrow_schema::ffi::FFI_ArrowSchema;
 use open_arrow_access::{
-    ReadOptions, ReadRequest, RecordReader, file_format::parquet::ParquetAccessor,
+    BlockingRecordBatchReader, ReadOptions, ReadRequest, file_format::parquet::ParquetAccessor,
     storage::OpenDalAccessor,
 };
 use std::{
     ffi::{CStr, c_char},
-    panic::{AssertUnwindSafe, catch_unwind},
     ptr,
-    sync::LazyLock,
+    sync::{Arc, LazyLock},
 };
 use tokio::runtime::Runtime;
 
-static RUNTIME: LazyLock<Runtime> = LazyLock::new(|| {
-    tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .expect("failed to create source runtime")
+static RUNTIME: LazyLock<Arc<Runtime>> = LazyLock::new(|| {
+    Arc::new(
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("failed to create source runtime"),
+    )
 });
 
 pub struct DuckportSource {
@@ -33,50 +34,6 @@ impl Drop for DuckportSource {
     fn drop(&mut self) {
         let _guard = RUNTIME.enter();
         self.source.take();
-    }
-}
-
-struct BatchReader {
-    reader: Option<Box<dyn RecordReader>>,
-    schema: SchemaRef,
-    done: bool,
-}
-
-impl Iterator for BatchReader {
-    type Item = std::result::Result<RecordBatch, ArrowError>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.done {
-            return None;
-        }
-        let batch = catch_unwind(AssertUnwindSafe(|| {
-            RUNTIME.block_on(self.reader.as_mut().unwrap().next())
-        }))
-        .map_err(|_| ArrowError::ComputeError("source reader panicked".into()))
-        .and_then(|result| result.map_err(|error| ArrowError::ExternalError(Box::new(error))));
-        match batch {
-            Ok(batch) => {
-                self.done = batch.is_none();
-                batch.map(Ok)
-            }
-            Err(error) => {
-                self.done = true;
-                Some(Err(error))
-            }
-        }
-    }
-}
-
-impl RecordBatchReader for BatchReader {
-    fn schema(&self) -> SchemaRef {
-        self.schema.clone()
-    }
-}
-
-impl Drop for BatchReader {
-    fn drop(&mut self) {
-        let _guard = RUNTIME.enter();
-        self.reader.take();
     }
 }
 
@@ -136,11 +93,10 @@ pub unsafe extern "C" fn duckport_source_get_stream(
         }
         let handle = &*source;
         let source = handle.source.as_ref().unwrap();
-        let reader = BatchReader {
-            reader: Some(RUNTIME.block_on(source.reader())?),
-            schema: source.schema(),
-            done: false,
-        };
+        let reader = BlockingRecordBatchReader::new(
+            RUNTIME.block_on(source.reader())?,
+            Arc::clone(&RUNTIME),
+        );
         ptr::write(output, FFI_ArrowArrayStream::new(Box::new(reader)));
         Ok(())
     })

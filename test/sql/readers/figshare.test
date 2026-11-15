@@ -18,3 +18,29 @@ statement error
 SELECT * FROM duckport_scan_figshare('test', file_name := NULL);
 ----
 NULL
+
+statement error
+SELECT * FROM duckport_scan_figshare('test', file_name := '');
+----
+file_name is required
+
+# An unreachable endpoint makes validation order observable without network access.
+statement error
+SELECT * FROM duckport_scan_figshare('21422193', file_name := 'ocr.txt.gz', endpoint := 'http://127.0.0.1:1', format := 'invalid');
+----
+format must be binary, csv, tsv, json, jsonl, parquet, or xml
+
+statement error
+SELECT * FROM duckport_scan_figshare('21422193', file_name := 'ocr.txt.gz', endpoint := 'http://127.0.0.1:1', format := 'xml');
+----
+record_path is required for XML attachments
+
+statement error
+SELECT * FROM duckport_scan_figshare('21422193', file_name := 'ocr.txt.gz', endpoint := 'http://127.0.0.1:1', format := 'xml', record_path := '');
+----
+record_path is required for XML attachments
+
+statement error
+SELECT * FROM duckport_scan_figshare('21422193', file_name := 'ocr.txt.gz', endpoint := 'http://127.0.0.1:1', record_path := 'records/record');
+----
+record_path is only supported for XML attachments

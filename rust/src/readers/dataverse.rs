@@ -37,10 +37,13 @@ pub unsafe extern "C" fn duckport_dataverse_open(
             .filter(|s| !s.is_empty())
             .ok_or("version is required")?;
         crate::service_files::validate_format(&format, record_path.as_deref())?;
-        let _ = storage_options; // This upstream service currently exposes public records only.
-        let files = DataverseService::new(&endpoint)?
-            .dataset(&locator, &version)
-            .await?;
+        let service = DataverseService::new(&endpoint)?;
+        let service = if let Some(token) = storage_options.token {
+            service.with_bearer_token(&token)?
+        } else {
+            service
+        };
+        let files = service.dataset(&locator, &version).await?;
         crate::service_files::open(files, file_name, &format, record_path, scan_options).await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
