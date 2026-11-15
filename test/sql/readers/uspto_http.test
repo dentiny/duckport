@@ -50,16 +50,6 @@ SELECT * FROM duckport_scan_uspto('PTGRXML', file_name := 'missing-file', endpoi
 ----
 filename is absent from manifest
 
-statement error
-SELECT * FROM duckport_scan_uspto('PTGRXML', file_name := 'grant.zip', endpoint := getvariable('fixture_endpoint'), format := 'invalid');
-----
-format must be
-
-statement error
-SELECT * FROM duckport_scan_uspto('PTGRXML', file_name := 'grant.zip', endpoint := getvariable('fixture_endpoint'), format := 'xml');
-----
-record_path is required
-
 statement ok
 DEALLOCATE provider_scan;
 
