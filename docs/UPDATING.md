@@ -48,37 +48,3 @@ input strings for the open call; Rust copies them before asynchronous reads.
 C++ binds SQL parameters and uses DuckDB's Arrow scanner. Rust owns the schema and async reader factory; its FFI layer uses a shared Tokio runtime and open-arrow-access's `BlockingRecordBatchReader` to expose synchronous Arrow streams. The FFI exposes `open`, `get_schema`, `get_stream`, and `destroy`; registrations and source lists are explicit.
 
 `rust/src/lib.rs` declares modules only. `source.rs` wraps the library's `BoundSource` for reader binding and schema checks. File readers use `open_file_source` for storage, decompression and binding; selected provider attachments use `open_attachment_source`. Runtime and C exports live in `ffi.rs`, C option structs in `options.rs`, error conversion in `error.rs`, URI validation in `validation.rs`, and storage setup in `storage.rs`. C++ source adapters live under `src/source/`, with headers under `src/include/source/`.
-
-## COPY framework
-
-The COPY structure follows `dentiny/duckdb_lance_conversion`'s `LancePlan`:
-`src/sink/copy.cpp` constructs `LogicalCopyToFile` directly, so DuckDB does not
-rename, partition, rotate, or overwrite a dataset directory. `APPEND`/`OVERWRITE`
-are passed to the backend rather than DuckDB's file helpers. No destination I/O
-occurs while binding. External access is checked at bind and initialization.
-
-`RegisterCopyFunction(loader, name, open)` connects a format to the shared bind,
-global/local initialization, sink, combine and finalize callbacks. Bind data owns
-the schema, mode and opener; execution resolves scoped secrets and exports Arrow
-C Data. One global writer receives batches in regular COPY execution; combine is
-currently a no-op because there is no per-thread buffering. Row order is not
-guaranteed; ordered and parallel writer sessions can be added with sink support.
-
-`src/include/sink/writer.hpp` defines the future backend boundary. Open borrows
-schema, options and credentials only for the call. Write either borrows an Arrow
-array synchronously or moves it and clears its release callback. Commit is
-terminal even on error: its backend owns publication-failure cleanup. Destruction
-of an unfinished COPY state calls noexcept, best-effort Abort; it never commits.
-The Arrow wrappers release arrays/schemas not consumed by a backend.
-
-Parquet, Lance and Iceberg openers currently throw `NotImplementedException`.
-Implement them against open-arrow-sink when ready, without changing the common
-COPY callbacks. Its `Sink::open` / `Writer::write` / `commit` / `abort` lifecycle
-maps to this interface; retain its explicit unordered policy and backend-owned
-publication semantics. No Rust dependency or FFI sink implementation is included.
-
-SQL coverage lives in `test/sql/writers/copy_framework.test`:
-
-```sh
-make test T='test/sql/writers/copy_framework.test'
-```
