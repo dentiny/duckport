@@ -1,0 +1,59 @@
+# name: test/sql/readers/arxiv_http.test
+# description: Signed arXiv S3 reads and requester-pays billing against a native loopback fixture
+# group: [sql]
+
+require duckport
+
+require duckport_test_fixture
+
+require httpfs
+
+# Loopback HTTP failures are test failures, never network skips.
+set ignore_error_messages
+
+statement ok
+SET VARIABLE arxiv_endpoint = duckport_fixture('arxiv', 'start');
+
+statement ok
+CREATE SECRET arxiv_fixture (TYPE s3, KEY_ID 'fixture-key', SECRET 'fixture-secret', REGION 'us-east-1', ENDPOINT getvariable('arxiv_endpoint'), URL_STYLE 'path', USE_SSL false, SCOPE 's3://arxiv-test/');
+
+# Match the upstream manifest/TAR records with S3 billing explicitly enabled.
+query II
+SELECT count(*), sum(octet_length(data)) FROM duckport_scan_arxiv('s3://arxiv-test/', kind := 'source', month := '2410', requester_pays := true, batch_size := 1);
+----
+2	25
+
+# Every metadata, HEAD, range, and download request must be signed and opt in.
+query TTT
+SELECT count(*) > 0, bool_and(has_authorization AND contains("authorization", 'AWS4-HMAC-SHA256')), bool_and(has_request_payer AND request_payer = 'requester') FROM duckport_fixture_requests('arxiv');
+----
+true	true	true
+
+# Start a fresh observation window, expecting no billing header by default.
+query T
+SELECT duckport_fixture('arxiv', 'reset');
+----
+ok
+
+query I
+SELECT count(*) FROM duckport_fixture_requests('arxiv');
+----
+0
+
+query II
+SELECT count(*), sum(octet_length(data)) FROM duckport_scan_arxiv('s3://arxiv-test/', kind := 'source', month := '2410', batch_size := 1);
+----
+2	25
+
+query TTT
+SELECT count(*) > 0, bool_and(has_authorization AND contains("authorization", 'AWS4-HMAC-SHA256')), bool_and(NOT has_request_payer) FROM duckport_fixture_requests('arxiv');
+----
+true	true	true
+
+statement ok
+DROP SECRET arxiv_fixture;
+
+query T
+SELECT duckport_fixture('arxiv', 'stop');
+----
+stopped

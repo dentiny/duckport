@@ -1,0 +1,114 @@
+# name: test/sql/readers/doab_http.test
+# description: Native loopback HTTP coverage for doab
+# group: [sql]
+
+require duckport
+
+require duckport_test_fixture
+
+set ignore_error_messages
+
+# Anonymous provider requests and attachment reads.
+
+statement ok
+SET VARIABLE fixture_endpoint = duckport_fixture('doab', 'start_anonymous');
+
+statement ok
+SET VARIABLE fixture_download_endpoint = duckport_fixture('doab', 'download_endpoint');
+
+# Adapted from open-arrow-access OAI provider tests: deleted records and opaque cursors.
+
+query T rowsort
+SELECT "oai:header"."oai:identifier" FROM duckport_scan_doab('records', endpoint := getvariable('fixture_endpoint'), batch_size := 1);
+----
+id1
+id2
+
+query T rowsort
+SELECT "oai:header"."oai:identifier" FROM duckport_scan_doab('next+token&x', endpoint := getvariable('fixture_endpoint'));
+----
+id1
+id2
+
+query T
+SELECT "oai:resumptionToken" FROM duckport_scan_doab('records', endpoint := getvariable('fixture_endpoint'), record_path := '/oai:OAI-PMH/oai:ListRecords');
+----
+next+token&x
+
+statement ok
+PREPARE oai_scan AS SELECT count(*) FROM duckport_scan_doab('records', endpoint := getvariable('fixture_endpoint'));
+
+query I
+EXECUTE oai_scan;
+----
+2
+
+query I
+EXECUTE oai_scan;
+----
+2
+
+statement ok
+DEALLOCATE oai_scan;
+
+# Malformed metadata must fail without reading any attachment bytes.
+
+statement ok
+SET VARIABLE fixture_downloads_before = (SELECT count(*) FROM duckport_fixture_requests('doab') WHERE is_download);
+
+statement ok
+SET VARIABLE fixture_requests_before = (SELECT count(*) FROM duckport_fixture_requests('doab') WHERE origin = 'api');
+
+query T
+SELECT duckport_fixture('doab', 'reject_metadata');
+----
+ok
+
+# Invalid provider metadata must fail before downloading content.
+
+statement error
+SELECT "oai:header"."oai:identifier" FROM duckport_scan_doab('records', endpoint := getvariable('fixture_endpoint'), batch_size := 1);
+----
+DuckPort
+
+query T
+SELECT count(*) = getvariable('fixture_downloads_before') FROM duckport_fixture_requests('doab') WHERE is_download;
+----
+true
+
+query T
+SELECT count(*) > getvariable('fixture_requests_before') FROM duckport_fixture_requests('doab') WHERE origin = 'api';
+----
+true
+
+# Inspect the actual captured HTTP requests through native SQL.
+
+query T
+SELECT count(*) > 0 FROM duckport_fixture_requests('doab') WHERE origin = 'api';
+----
+true
+
+query T
+SELECT count(*) = 0 FROM duckport_fixture_requests('doab') WHERE origin = 'api' AND has_authorization;
+----
+true
+
+query T
+SELECT count(*) = 0 FROM duckport_fixture_requests('doab') WHERE origin = 'download' AND (has_authorization OR contains(headers, 'fixture-key') OR contains(target, 'fixture-key'));
+----
+true
+
+query T
+SELECT count(*) > 0 FROM duckport_fixture_requests('doab') WHERE origin = 'api' AND target = '/oai/request?verb=ListRecords&metadataPrefix=xoai';
+----
+true
+
+query T
+SELECT count(*) > 0 FROM duckport_fixture_requests('doab') WHERE origin = 'api' AND target = '/oai/request?verb=ListRecords&resumptionToken=next%2Btoken%26x';
+----
+true
+
+query T
+SELECT duckport_fixture('doab', 'stop');
+----
+stopped

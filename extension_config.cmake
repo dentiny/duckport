@@ -9,10 +9,11 @@ duckdb_extension_load(duckport
 # Any extra extensions that should be built
 # e.g.: duckdb_extension_load(json)
 
-# Local HTTP fixtures are isolated from the production extension.
-option(DUCKPORT_BUILD_TEST_FIXTURES "Build the SQLLogicTest HTTP fixture extension" ${BUILD_UNITTESTS})
+# Loopback HTTP fixtures are isolated from the production extension.
+option(DUCKPORT_BUILD_TEST_FIXTURES "Build native SQLLogicTest fixtures" ${BUILD_UNITTESTS})
 if(DUCKPORT_BUILD_TEST_FIXTURES)
     duckdb_extension_load(duckport_test_fixture
         SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/test/fixture
     )
+    include("${CMAKE_CURRENT_LIST_DIR}/duckdb/.github/config/extensions/httpfs.cmake")
 endif()
