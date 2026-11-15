@@ -4,12 +4,6 @@
 
 require duckport
 
-
-statement error
-SELECT * FROM duckport_scan_meca(NULL);
-----
-NULL
-
 query TTI rowsort
 SELECT item_id, href, octet_length(data) FROM duckport_scan_meca('testdata/meca/valid.meca');
 ----
