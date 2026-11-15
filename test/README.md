@@ -1,59 +1,32 @@
 # Tests
 
-Run SQL tests from the repository root after building:
+Run all SQLLogicTests from the repository root after building:
 
 ```sh
 make test
 ```
 
-Reader tests live in `test/sql/readers`; fixtures are grouped by format in `testdata/<format>/`.
+All test definitions and assertions live in `test/sql/readers`; committed input
+fixtures are grouped under `testdata/<provider-or-format>/`.
 
-`test/sql/readers/huggingface.test` reads the public `lhoestq/demo1` repository
-and requires network access to Hugging Face Hub. It needs no token.
+The HTTP tests use the same SQLLogicTest runner and a separate
+`duckport_test_fixture` extension. It is built by default when `BUILD_UNITTESTS`
+is enabled. SQL starts in-process loopback servers on ephemeral ports, configures
+secrets, reads provider data, and inspects captured requests through
+`duckport_fixture_requests`. The fixture server serves committed files and
+supports HEAD, byte ranges and redirects. Authentication, credential isolation,
+prepared scans and malformed-metadata checks are expressed in SQL.
 
-`test/sql/readers/figshare.test` uses `require duckport` and runs with `make test`.
-It checks argument and format validation without network access. Figshare HTTP
-resolution, attachment downloads, and prepared scan execution are not covered by
-these tests.
-
-## Provider integration fixtures
-
-Service SQL cases mirror the provider tests in open-arrow-access-service 0.3.0.
-Local fixtures run with `make test`. HTTP cases use loopback fixture servers and
-need no external accounts or credentials:
+Run one provider's HTTP coverage with:
 
 ```sh
-export DUCKDB_CLI=/path/to/matching/duckdb
-export DUCKPORT_EXTENSION="$PWD/build/release/extension/duckport/duckport.duckdb_extension"
-python3 test/integration/test_zenodo.py
-# Run the test_<provider>.py script for another integrated provider.
+make test T='test/sql/readers/zenodo_http.test'
 ```
 
-Internet Archive uses the native SQLLogicTest runner:
+The fixture extension is excluded from production builds with
+`DUCKPORT_BUILD_TEST_FIXTURES=OFF`. No external accounts are needed for loopback
+tests. The Hugging Face test reads the public `lhoestq/demo1` repository and
+requires network access.
 
-```sh
-make test
-# Or run only these tests after building:
-build/release/test/unittest '*internet_archive*.test'
-```
-
-`internet_archive_http.test` requires `duckport` and the separate
-`duckport_test_fixture` extension. With `BUILD_UNITTESTS=ON`, the fixture extension
-is built by default (`DUCKPORT_BUILD_TEST_FIXTURES=ON`). It starts an in-process
-HTTP server bound to loopback on an ephemeral port; SQL variables pass that
-endpoint to the scans. The server serves the committed Internet Archive fixtures,
-supports HEAD/range requests, and exposes counters to check that malformed
-metadata causes no download. The test explicitly stops the server; process exit
-also cleans it up. No Python wrapper, external service or account is needed.
-Production builds can set `DUCKPORT_BUILD_TEST_FIXTURES=OFF`.
-
-The other providers' HTTP SQL cases live in `test/integration/sql` because their
-endpoint ports are assigned at runtime. They exercise actual extension loading, provider
-resolution, original file bytes, format decoding, errors and prepared scans.
-Fixtures are adapted from the MIT-licensed open-arrow-access service tests;
-`http.json` maps provider routes to local response files. `ORIGIN` placeholders
-refer to a separate download server so tests can assert credential isolation.
-
-The arXiv S3 HTTP fixture requires a matching `httpfs` extension. Set
-`HTTPFS_EXTENSION=/path/to/httpfs.duckdb_extension` to load a local build;
-otherwise it loads the installed `httpfs` extension.
+The arXiv S3 SQL tests require `httpfs`. The test-fixture build loads the
+version pinned by the DuckDB checkout alongside the native fixture extension.

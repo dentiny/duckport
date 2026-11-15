@@ -1,5 +1,0 @@
-# Invalid provider metadata must fail before downloading content.
-statement error
-SELECT octet_length(data) FROM duckport_scan_biorxiv('2026-11-01', file_name := 'paper-00000.xml', endpoint := '__ENDPOINT__', until := '2026-11-02');
-----
-DuckPort

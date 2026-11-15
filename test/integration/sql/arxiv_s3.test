@@ -1,5 +1,0 @@
-# Match the upstream arXiv manifest/TAR records with S3 billing explicitly enabled.
-query II
-SELECT count(*), sum(octet_length(data)) FROM duckport_scan_arxiv('s3://arxiv-test/', kind := 'source', month := '2410', requester_pays := true, batch_size := 1);
-----
-2	25

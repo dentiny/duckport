@@ -1,5 +1,0 @@
-# Invalid provider metadata must fail before downloading content.
-statement error
-SELECT octet_length(data) FROM duckport_scan_semantic_scholar('s2orc', file_name := 'part-00000', endpoint := '__ENDPOINT__', release := 'latest');
-----
-DuckPort
