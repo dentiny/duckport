@@ -1,32 +1,29 @@
 # Tests
 
-Run SQL tests from the repository root after building:
+Run all SQLLogicTests from the repository root after building:
 
 ```sh
 make test
 ```
 
-Reader tests live in `test/sql/readers`; fixtures are grouped by format in `testdata/<format>/`.
+All test definitions and assertions live in `test/sql/readers`; committed input
+fixtures are grouped under `testdata/<provider-or-format>/`.
 
-`test/sql/readers/huggingface.test` reads the public `lhoestq/demo1` repository
-and requires network access to Hugging Face Hub. It needs no token.
+The HTTP tests use the same SQLLogicTest runner and a separate
+`duckport_test_fixture` extension. It is built by default when `BUILD_UNITTESTS`
+is enabled. SQL starts in-process loopback servers on ephemeral ports, configures
+secrets, reads provider data, and inspects captured requests through
+`duckport_fixture_requests`. The fixture server serves committed files and
+supports HEAD, byte ranges and redirects. Authentication, credential isolation,
+prepared scans and malformed-metadata checks are expressed in SQL.
 
-## Provider integration fixtures
-
-Service SQL cases mirror the provider tests in open-arrow-access-service 0.3.0.
-Local fixtures run with `make test`. HTTP cases use loopback fixture servers and
-need no external accounts or credentials:
+Run one provider's HTTP coverage with:
 
 ```sh
-export DUCKDB_CLI=/path/to/matching/duckdb
-export DUCKPORT_EXTENSION="$PWD/build/release/extension/duckport/duckport.duckdb_extension"
-python3 test/integration/test_zenodo.py
-# Run the test_<provider>.py script for another integrated provider.
+make test T='test/sql/readers/zenodo_http.test'
 ```
 
-The HTTP SQL cases live in `test/integration/sql` because their endpoint ports
-are assigned at runtime. They exercise actual extension loading, provider
-resolution, original file bytes, format decoding, errors and prepared scans.
-Fixtures are adapted from the MIT-licensed open-arrow-access service tests;
-`http.json` maps provider routes to local response files. `ORIGIN` placeholders
-refer to a separate download server so tests can assert credential isolation.
+The fixture extension is excluded from production builds with
+`DUCKPORT_BUILD_TEST_FIXTURES=OFF`. No external accounts are needed for loopback
+tests. The Hugging Face test reads the public `lhoestq/demo1` repository and
+requires network access.
