@@ -301,3 +301,11 @@ SELECT * FROM duckport_scan_courtlistener('s3://free.law/', table_name := 'court
 The locator is a local directory or HTTP(S)/S3 root above `bulk-data/`.
 Reads exactly one validated, dated `.csv.bz2` table export with a header; all columns
 are retained as VARCHAR, including columns containing only null values. S3 uses the existing scoped DuckDB secret.
+
+### Meca
+
+```sql
+SELECT item_id, href, data FROM duckport_scan_meca('submission.meca');
+```
+Reads validated MECA manifest entries as Arrow rows, preserving binary payloads,
+manifest order, media types, and ZIP limits. Local, HTTP(S), and S3 use existing secrets.

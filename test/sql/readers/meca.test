@@ -1,0 +1,29 @@
+# name: test/sql/readers/meca.test
+# description: Read meca through its native service accessor
+# group: [sql]
+
+require duckport
+
+query TTI rowsort
+SELECT item_id, href, octet_length(data) FROM duckport_scan_meca('testdata/meca/valid.meca');
+----
+a	content/article.xml	27
+a	content/paper%20one.pdf	9
+
+statement ok
+PREPARE meca_scan AS SELECT count(*) FROM duckport_scan_meca('testdata/meca/valid.meca');
+
+query I
+EXECUTE meca_scan;
+----
+2
+
+query I
+EXECUTE meca_scan;
+----
+2
+
+statement error
+SELECT * FROM duckport_scan_meca('testdata/meca/unsafe.meca');
+----
+meca_manifest
