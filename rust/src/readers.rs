@@ -1,6 +1,7 @@
 mod atif;
 mod commoncrawl;
 mod csv;
+mod dataverse;
 mod gutenberg;
 mod huggingface;
 mod json;
