@@ -7,7 +7,7 @@ use open_arrow_access::{
     Accessor, ByteReadRequest, ReadRequest,
     file_format::{
         FileAccessor,
-        csv::{CsvFileFormat, CsvFormat},
+        csv::{CsvDialect, CsvFileFormat, CsvHeader},
     },
     service::courtlistener::{CourtListenerBulkAccessor, CourtListenerSnapshot},
     storage::OpenDalAccessor,
@@ -62,7 +62,10 @@ pub unsafe extern "C" fn duckport_courtlistener_open(
             ));
         }
         let format = CsvFileFormat::new(std::sync::Arc::new(arrow_schema::Schema::new(fields)))
-            .with_format(CsvFormat::default().with_header(true));
+            .with_dialect(CsvDialect {
+                header: CsvHeader::Present,
+                ..Default::default()
+            });
         AsyncSource::new(
             FileAccessor::from_format(storage, format),
             ReadRequest::new(snapshot.object()).with_options(scan_options),
