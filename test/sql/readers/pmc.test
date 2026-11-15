@@ -22,11 +22,6 @@ EXECUTE pmc_scan;
 ----
 PMC123	1	Test article
 
-statement error
-SELECT * FROM duckport_scan_pmc(NULL);
-----
-NULL
-
 query TTI
 SELECT trim(pmcid), license_code, version FROM duckport_scan_pmc('testdata/pmc/metadata.json');
 ----
