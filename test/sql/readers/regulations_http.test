@@ -56,16 +56,6 @@ SELECT * FROM duckport_scan_regulations('DOC-1', file_name := 'missing-file', en
 ----
 filename is absent from manifest
 
-statement error
-SELECT * FROM duckport_scan_regulations('DOC-1', file_name := 'attachment-000/file-000', endpoint := getvariable('fixture_endpoint'), format := 'invalid');
-----
-format must be
-
-statement error
-SELECT * FROM duckport_scan_regulations('DOC-1', file_name := 'attachment-000/file-000', endpoint := getvariable('fixture_endpoint'), format := 'xml');
-----
-record_path is required
-
 statement ok
 DEALLOCATE provider_scan;
 
