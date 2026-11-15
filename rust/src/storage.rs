@@ -15,6 +15,14 @@ fn create_remote_operator(
     locator: &str,
     config: &StorageConfig,
 ) -> Result<(opendal::Operator, String)> {
+    remote_operator(locator, config, None)
+}
+
+fn remote_operator(
+    locator: &str,
+    config: &StorageConfig,
+    root: Option<&str>,
+) -> Result<(opendal::Operator, String)> {
     let mut url = Url::parse(locator)?;
     crate::validation::validate_uri(&url)?;
     let scheme = url.scheme().to_owned();
@@ -25,14 +33,16 @@ fn create_remote_operator(
     url.set_path("/");
     let operator = if scheme == "http" || scheme == "https" {
         crate::validation::validate_http_config(config)?;
-        let mut builder =
-            opendal::services::Http::default().endpoint(url.as_str().trim_end_matches('/'));
+        let mut builder = opendal::services::Http::default()
+            .endpoint(url.as_str().trim_end_matches('/'))
+            .root(root.unwrap_or("/"));
         if let Some(token) = &config.token {
             builder = builder.token(token);
         }
         opendal::Operator::new(builder)?
     } else {
         let mut builder = opendal::services::S3::default()
+            .root(root.unwrap_or("/"))
             .bucket(url.host_str().ok_or("S3 URI must name a bucket")?)
             .region(config.region.as_deref().unwrap_or("us-east-1"))
             .disable_config_load()
@@ -91,4 +101,21 @@ fn create_local_operator(locator: &str) -> Result<(opendal::Operator, String)> {
         .ok_or("source must name a UTF-8 file")?
         .into();
     Ok((create_local_directory_operator(root)?, name))
+}
+
+/// Build storage rooted above a provider-owned namespace such as bulk-data/ or pdf/.
+pub(crate) fn directory_operator(
+    locator: &str,
+    config: &StorageConfig,
+) -> Result<opendal::Operator> {
+    opendal::install_default();
+    if is_local(locator) {
+        return create_local_directory_operator(&local_path(locator)?);
+    }
+    let url = Url::parse(locator)?;
+    crate::validation::validate_uri(&url)?;
+    let root = percent_encoding::percent_decode_str(url.path())
+        .decode_utf8()?
+        .into_owned();
+    Ok(remote_operator(locator, config, Some(&root))?.0)
 }

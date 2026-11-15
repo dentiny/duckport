@@ -1,0 +1,12 @@
+# name: test/sql/readers/courtlistener.test
+# description: Read courtlistener through its native service accessor
+# group: [sql]
+
+require duckport
+
+query TT rowsort
+SELECT id, short_name FROM duckport_scan_courtlistener('testdata/courtlistener', table_name := 'courts', date := '2026-09-30', batch_size := 1);
+----
+arizsuper	Arizona Superior Court
+minnag	Minnesota Attorney General Reports
+nc	Supreme Court of North Carolina

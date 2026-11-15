@@ -4,6 +4,7 @@
 #include "readers/json.h"
 #include "readers/warc.h"
 #include "source/reader.hpp"
+#include "source/readers/courtlistener.hpp"
 #include "source/readers/biorxiv.hpp"
 #include "source/readers/uspto.hpp"
 #include "source/readers/regulations.hpp"
@@ -28,6 +29,10 @@
 namespace duckdb {
 namespace {
 void LoadInternal(ExtensionLoader &loader) {
+	RegisterReader(loader, "duckport_scan_courtlistener", OpenCourtlistener, [](TypedKwargs &options) {
+		options.Add("table_name", LogicalType::VARCHAR);
+		options.Add("date", LogicalType::VARCHAR);
+	});
 	RegisterReader(loader, "duckport_scan_biorxiv", OpenBiorxiv, [](TypedKwargs &options) {
 		options.Add("file_name", LogicalType::VARCHAR);
 		options.Add("format", LogicalType::VARCHAR);
