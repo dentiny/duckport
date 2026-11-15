@@ -2,7 +2,7 @@ PROJ_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 # Configuration of extension
 EXT_NAME=duckport
-# HTTP fixtures require runtime endpoint substitution by test/integration scripts.
+# All DuckPort SQLLogicTests live under test/sql/.
 TESTS_BASE_DIRECTORY=test/sql/
 EXT_CONFIG=${PROJ_DIR}extension_config.cmake
 
