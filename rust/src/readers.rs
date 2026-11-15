@@ -2,6 +2,7 @@ mod atif;
 mod commoncrawl;
 mod csv;
 mod dataverse;
+mod federal_register;
 mod figshare;
 mod gutenberg;
 mod huggingface;
