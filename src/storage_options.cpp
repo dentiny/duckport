@@ -1,5 +1,7 @@
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/main/client_context.hpp"
+#include "duckdb/main/client_data.hpp"
+#include "duckdb/common/file_opener.hpp"
 #include "duckdb/main/secret/secret.hpp"
 #include "storage_options.hpp"
 
@@ -9,16 +11,19 @@ const char *OptionalString(const string &value) { return value.empty() ? nullptr
 } // namespace
 
 StorageParameters::StorageParameters(ClientContext &context, const string &locator, const string &secret_type) {
+	auto &opener = *ClientData::Get(context).file_opener;
+	FileOpenerInfo info {locator};
 	if (secret_type == "huggingface") {
 		const auto scope = StringUtil::StartsWith(locator, "hf://") ? locator : StringUtil::Format("hf://datasets/%s", locator);
-		KeyValueSecretReader reader(*context.db, "huggingface", scope);
+		info.file_path = scope;
+		KeyValueSecretReader reader(opener, &info, "huggingface");
 		reader.TryGetSecretKey("token", token);
 	} else if (secret_type == "internet_archive") {
 		KeyValueSecretReader reader(*context.db, "s3", locator);
 		reader.TryGetSecretKey("key_id", access_key_id);
 		reader.TryGetSecretKey("secret", secret_access_key);
 	} else if (StringUtil::StartsWith(locator, "s3://")) {
-		KeyValueSecretReader reader(*context.db, "s3", locator);
+		KeyValueSecretReader reader(opener, &info, "s3");
 		reader.TryGetSecretKey("key_id", access_key_id);
 		reader.TryGetSecretKey("secret", secret_access_key);
 		reader.TryGetSecretKey("session_token", session_token);
@@ -37,7 +42,7 @@ StorageParameters::StorageParameters(ClientContext &context, const string &locat
 		config.virtual_host_style = url_style == "vhost" ? 1 : 0;
 		config.allow_anonymous = access_key_id.empty() && secret_access_key.empty() && session_token.empty() ? 1 : 0;
 	} else if (StringUtil::StartsWith(locator, "http://") || StringUtil::StartsWith(locator, "https://")) {
-		KeyValueSecretReader reader(*context.db, "http", locator);
+		KeyValueSecretReader reader(opener, &info, "http");
 		reader.TryGetSecretKey("bearer_token", token);
 	}
 	config.endpoint = OptionalString(endpoint);

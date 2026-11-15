@@ -1,0 +1,20 @@
+{
+  "auth": "authorization",
+  "auth_scope": "/v2/articles/21422193",
+  "routes": [
+    {
+      "path": "/v2/articles/21422193",
+      "file": "metadata.json"
+    },
+    {
+      "path": "/v2/articles/21422193/versions/1",
+      "file": "metadata.json"
+    }
+  ],
+  "downloads": [
+    {
+      "path": "/records.csv",
+      "file": "attachment.bin"
+    }
+  ]
+}

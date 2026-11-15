@@ -32,7 +32,8 @@ pub unsafe extern "C" fn duckport_internet_archive_open(
         let record_path = unsafe { optional_string(reader_options.record_path) }?;
         let endpoint = unsafe { optional_string(reader_options.endpoint) }?
             .unwrap_or_else(|| "https://archive.org".into());
-        crate::service_files::validate_format(&format, record_path.as_deref())?;
+        let attachment_options =
+            crate::service_files::attachment_options(&format, record_path.as_deref())?;
         let service = InternetArchiveService::with_endpoint(&endpoint)?;
         let service = match (
             storage_options.access_key_id.as_deref(),
@@ -45,7 +46,7 @@ pub unsafe extern "C" fn duckport_internet_archive_open(
             }
         };
         let files = service.item(&locator).await?;
-        crate::service_files::open(files, file_name, &format, record_path, scan_options).await
+        crate::service_files::open(files, file_name, attachment_options, scan_options).await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }

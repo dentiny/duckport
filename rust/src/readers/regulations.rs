@@ -36,7 +36,8 @@ pub unsafe extern "C" fn duckport_regulations_open(
             .unwrap_or_else(|| "https://api.regulations.gov".into());
         let resource = unsafe { optional_string(reader_options.resource) }?
             .unwrap_or_else(|| "documents".into());
-        crate::service_files::validate_format(&format, record_path.as_deref())?;
+        let attachment_options =
+            crate::service_files::attachment_options(&format, record_path.as_deref())?;
         let resource = match resource.as_str() {
             "documents" => RegulationsResource::Documents,
             "comments" => RegulationsResource::Comments,
@@ -52,7 +53,7 @@ pub unsafe extern "C" fn duckport_regulations_open(
             .with_key(&token)?
             .record(resource, &locator)
             .await?;
-        crate::service_files::open(files, file_name, &format, record_path, scan_options).await
+        crate::service_files::open(files, file_name, attachment_options, scan_options).await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }
