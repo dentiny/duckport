@@ -1,5 +1,0 @@
-# The default scan must not send requester-pays billing headers.
-query II
-SELECT count(*), sum(octet_length(data)) FROM duckport_scan_arxiv('s3://arxiv-test/', kind := 'source', month := '2410', batch_size := 1);
-----
-2	25

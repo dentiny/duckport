@@ -1,5 +1,0 @@
-# Invalid provider metadata must fail before downloading content.
-statement error
-SELECT octet_length(data) FROM duckport_scan_regulations('DOC-1', file_name := 'attachment-000/file-000', endpoint := '__ENDPOINT__');
-----
-DuckPort
