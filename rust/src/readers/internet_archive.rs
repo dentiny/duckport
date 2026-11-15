@@ -34,10 +34,18 @@ pub unsafe extern "C" fn duckport_internet_archive_open(
             .unwrap_or_else(|| "https://archive.org".into());
         let attachment_options =
             crate::service_files::attachment_options(&format, record_path.as_deref())?;
-        let _ = storage_options; // This upstream service currently exposes public records only.
-        let files = InternetArchiveService::with_endpoint(&endpoint)?
-            .item(&locator)
-            .await?;
+        let service = InternetArchiveService::with_endpoint(&endpoint)?;
+        let service = match (
+            storage_options.access_key_id.as_deref(),
+            storage_options.secret_access_key.as_deref(),
+        ) {
+            (Some(key), Some(secret)) => service.with_credentials(key, secret)?,
+            (None, None) => service,
+            _ => {
+                return Err("Internet Archive requires both an access key and a secret key".into());
+            }
+        };
+        let files = service.item(&locator).await?;
         crate::service_files::open(files, file_name, attachment_options, scan_options).await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
