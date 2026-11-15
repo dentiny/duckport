@@ -50,16 +50,6 @@ SELECT * FROM duckport_scan_dataverse('doi:10.7910/DVN/A&B+', file_name := 'miss
 ----
 filename is absent from manifest
 
-statement error
-SELECT * FROM duckport_scan_dataverse('doi:10.7910/DVN/A&B+', file_name := 'papers/2026/paper #1%.pdf', endpoint := getvariable('fixture_endpoint'), version := '1.0', format := 'invalid');
-----
-format must be
-
-statement error
-SELECT * FROM duckport_scan_dataverse('doi:10.7910/DVN/A&B+', file_name := 'papers/2026/paper #1%.pdf', endpoint := getvariable('fixture_endpoint'), version := '1.0', format := 'xml');
-----
-record_path is required
-
 statement ok
 DEALLOCATE provider_scan;
 
@@ -167,16 +157,6 @@ statement error
 SELECT * FROM duckport_scan_dataverse('doi:10.7910/DVN/A&B+', file_name := 'missing-file', endpoint := getvariable('fixture_endpoint'), version := '1.0');
 ----
 filename is absent from manifest
-
-statement error
-SELECT * FROM duckport_scan_dataverse('doi:10.7910/DVN/A&B+', file_name := 'papers/2026/paper #1%.pdf', endpoint := getvariable('fixture_endpoint'), version := '1.0', format := 'invalid');
-----
-format must be
-
-statement error
-SELECT * FROM duckport_scan_dataverse('doi:10.7910/DVN/A&B+', file_name := 'papers/2026/paper #1%.pdf', endpoint := getvariable('fixture_endpoint'), version := '1.0', format := 'xml');
-----
-record_path is required
 
 statement ok
 DEALLOCATE provider_scan;

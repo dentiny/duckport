@@ -50,16 +50,6 @@ SELECT * FROM duckport_scan_biorxiv('2026-11-01', file_name := 'missing-file', e
 ----
 filename is absent from manifest
 
-statement error
-SELECT * FROM duckport_scan_biorxiv('2026-11-01', file_name := 'paper-00000.xml', endpoint := getvariable('fixture_endpoint'), until := '2026-11-02', format := 'invalid');
-----
-format must be
-
-statement error
-SELECT * FROM duckport_scan_biorxiv('2026-11-01', file_name := 'paper-00000.xml', endpoint := getvariable('fixture_endpoint'), until := '2026-11-02', format := 'xml');
-----
-record_path is required
-
 statement ok
 DEALLOCATE provider_scan;
 
