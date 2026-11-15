@@ -4,6 +4,7 @@
 #include "readers/json.h"
 #include "readers/warc.h"
 #include "source/reader.hpp"
+#include "source/readers/uspto.hpp"
 #include "source/readers/regulations.hpp"
 #include "source/readers/bhl.hpp"
 #include "source/readers/openstax.hpp"
@@ -26,6 +27,14 @@
 namespace duckdb {
 namespace {
 void LoadInternal(ExtensionLoader &loader) {
+	RegisterReader(loader, "duckport_scan_uspto", OpenUspto, [](TypedKwargs &options) {
+		options.Add("file_name", LogicalType::VARCHAR);
+		options.Add("format", LogicalType::VARCHAR);
+		options.Add("record_path", LogicalType::VARCHAR);
+		options.Add("endpoint", LogicalType::VARCHAR);
+		options.Add("offset", LogicalType::VARCHAR);
+		options.Add("page_size", LogicalType::VARCHAR);
+	});
 	RegisterReader(loader, "duckport_scan_regulations", OpenRegulations, [](TypedKwargs &options) {
 		options.Add("file_name", LogicalType::VARCHAR);
 		options.Add("format", LogicalType::VARCHAR);

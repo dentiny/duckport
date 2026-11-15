@@ -41,6 +41,7 @@ open-arrow-access = { version = "0.3.0", default-features = false, features = [
     "service-pmc",
     "service-regulations",
     "service-semantic-scholar",
+    "service-uspto",
     "service-warc",
     "service-zenodo",
 ] }
