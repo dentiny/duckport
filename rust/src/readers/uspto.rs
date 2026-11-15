@@ -45,8 +45,8 @@ pub unsafe extern "C" fn duckport_uspto_open(
             .token
             .filter(|s| !s.is_empty())
             .ok_or("a scoped HTTP bearer_token secret is required for this service")?;
-        let connection = connection.with_header("X-API-KEY", &token)?;
         let files = UsptoService::with_connection(connection)
+            .with_key(&token)?
             .product(&locator, offset.parse()?, page_size.parse()?)
             .await?;
         crate::service_files::open(files, file_name, &format, record_path, scan_options).await
