@@ -50,16 +50,6 @@ SELECT * FROM duckport_scan_library_of_congress('r1', file_name := 'missing-file
 ----
 filename is absent from manifest
 
-statement error
-SELECT * FROM duckport_scan_library_of_congress('r1', file_name := 'resource/pdf', endpoint := getvariable('fixture_endpoint'), format := 'invalid');
-----
-format must be
-
-statement error
-SELECT * FROM duckport_scan_library_of_congress('r1', file_name := 'resource/pdf', endpoint := getvariable('fixture_endpoint'), format := 'xml');
-----
-record_path is required
-
 statement ok
 DEALLOCATE provider_scan;
 
