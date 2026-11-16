@@ -1,4 +1,4 @@
-use crate::{error::Result, ffi::common::optional_string, validation};
+use crate::{error::Result, validation, validation::optional_string};
 use open_arrow_access::ReadOptions;
 use std::ffi::c_char;
 

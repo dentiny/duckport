@@ -1,51 +1,11 @@
 use crate::{
-    error::Result,
-    ffi::common::optional_string,
     ffi::source::{DuckportSource, open_reader},
     options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
     source::DuckportSource as AsyncSource,
+    validation::optional_string,
 };
 use open_arrow_access::service::huggingface::*;
 use std::ffi::c_char;
-
-// The service takes a typed request; adapt a fully qualified split URI at the SQL boundary.
-fn dataset_request(locator: &str) -> Result<HuggingFaceDatasetRequest> {
-    let url = url::Url::parse(locator)?;
-    crate::validation::validate_uri(&url)?;
-    if url.scheme() != "hf" || url.host_str() != Some("datasets") || url.port().is_some() {
-        return Err("expected hf://datasets/<owner>/<repo>@<revision>/<config>/<split>/".into());
-    }
-    let path = locator
-        .strip_prefix("hf://datasets/")
-        .ok_or("expected a fully qualified hf://datasets/ URL")?;
-    let path = path.strip_suffix('/').unwrap_or(path);
-    let parts = path.trim_start_matches('/').split('/').collect::<Vec<_>>();
-    let [owner, repository, config, split] = parts.as_slice() else {
-        return Err("Hugging Face URL must select a config/split directory".into());
-    };
-    let (repository, revision) = repository
-        .split_once('@')
-        .ok_or("Hugging Face URL must include @<revision>")?;
-    let decode = |value: &str| -> Result<String> {
-        Ok(percent_encoding::percent_decode_str(value)
-            .decode_utf8()?
-            .into_owned())
-    };
-    let owner = decode(owner)?;
-    let repository = decode(repository)?;
-    let revision = decode(revision)?;
-    let config = decode(config)?;
-    let split = decode(split)?;
-    crate::validation::validate_huggingface_path(&owner, &repository, &revision, &config, &split)?;
-    Ok(
-        HuggingFaceDatasetRequest::new(format!("{owner}/{repository}"), config, split)
-            .with_revision(if revision == "~parquet" {
-                "refs/convert/parquet".into()
-            } else {
-                revision
-            }),
-    )
-}
 
 #[repr(C)]
 pub struct HuggingFaceDatasetOptions {
@@ -79,7 +39,7 @@ pub unsafe extern "C" fn duckport_huggingface_open(
                 config.as_deref(),
                 split.as_deref(),
             )?;
-            dataset_request(&locator)?
+            crate::validation::huggingface_request(&locator)?
         } else {
             let mut request = HuggingFaceDatasetRequest::new(
                 &locator,

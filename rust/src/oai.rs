@@ -1,7 +1,7 @@
 //! Shared single-page OAI-PMH adapter for the upstream provider trait.
 use crate::{
-    error::Result, ffi::common::optional_string, options::StorageConfig,
-    source::DuckportSource as AsyncSource,
+    error::Result, options::StorageConfig, source::DuckportSource as AsyncSource,
+    validation::optional_string,
 };
 use open_arrow_access::{
     ReadOptions, ReadRequest,
@@ -58,10 +58,13 @@ pub async fn open<P: OaiProvider>(
         record_path,
     } = selection;
     let endpoint = endpoint.as_deref().unwrap_or(P::ORIGIN);
-    if locator != "records" && (from_date.is_some() || until_date.is_some() || set_spec.is_some()) {
-        return Err("resumption tokens cannot be combined with date/set selectors".into());
-    }
-    let connection = Connection::new(&endpoint)?;
+    crate::validation::validate_oai_selectors(
+        &locator,
+        from_date.as_deref(),
+        until_date.as_deref(),
+        set_spec.as_deref(),
+    )?;
+    let connection = Connection::new(endpoint)?;
     let connection = if let Some(token) = storage_options.token {
         connection.with_header("authorization", &format!("Bearer {token}"))?
     } else {

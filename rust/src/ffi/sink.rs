@@ -1,5 +1,9 @@
-use super::common::{call, cleanup, string};
-use crate::sink::DuckportSink;
+use super::common::RUNTIME;
+use crate::{
+    error::{call, cleanup},
+    sink::DuckportSink,
+    validation::{self, string},
+};
 use arrow_array::{
     RecordBatch, StructArray,
     ffi::{FFI_ArrowArray, from_ffi},
@@ -22,29 +26,22 @@ pub unsafe extern "C" fn duckport_lance_open(
     output: *mut *mut DuckportSink,
 ) -> *mut c_char {
     call(|| unsafe {
-        let output = output.as_mut().ok_or("null sink output")?;
+        validation::non_null(output, "null sink output")?;
         *output = ptr::null_mut();
-        let schema = schema.as_ref().ok_or("null sink schema")?;
-        let storage = storage.as_ref().ok_or("null Lance options")?;
-        if column_count > 0 && columns.is_null() {
-            return Err("null Lance columns".into());
-        }
-        let columns = if column_count == 0 {
-            &[][..]
-        } else {
-            std::slice::from_raw_parts(columns, column_count)
-        };
+        let schema = validation::required(schema.as_ref(), "null sink schema")?;
+        let storage = validation::required(storage.as_ref(), "null Lance options")?;
+        let columns = validation::ffi_slice(columns, column_count, "null Lance columns")?;
         let columns = columns
             .iter()
             .map(|column| string(*column))
             .collect::<crate::error::Result<std::collections::HashSet<_>>>()?;
-        let sink = DuckportSink::new(
+        let sink = RUNTIME.block_on(DuckportSink::new(
             &string(path)?,
             Arc::new(Schema::try_from(schema)?),
             &string(mode)?,
             columns,
             &storage.read()?,
-        )?;
+        ))?;
         *output = Box::into_raw(Box::new(sink));
         Ok(())
     })
@@ -57,22 +54,20 @@ pub unsafe extern "C" fn duckport_sink_write(
     array: *mut FFI_ArrowArray,
 ) -> *mut c_char {
     call(|| unsafe {
-        if array.is_null() {
-            return Err("null sink array".into());
-        }
+        validation::non_null(array, "null sink array")?;
         let array = FFI_ArrowArray::from_raw(array);
-        let sink = sink.as_mut().ok_or("null sink")?;
+        let sink = validation::required(sink.as_mut(), "null sink")?;
         let schema = FFI_ArrowSchema::try_from(sink.schema.as_ref())?;
         let data = from_ffi(array, &schema)?;
         let batch = RecordBatch::from(StructArray::from(data)).with_schema(sink.schema.clone())?;
-        sink.write(batch)
+        RUNTIME.block_on(sink.write(batch))
     })
 }
 /// # Safety
 /// Sink is a live pointer returned by duckport_lance_open.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_sink_commit(sink: *mut DuckportSink) -> *mut c_char {
-    call(|| unsafe { sink.as_mut().ok_or("null sink")?.commit() })
+    call(|| unsafe { RUNTIME.block_on(validation::required(sink.as_mut(), "null sink")?.commit()) })
 }
 /// # Safety
 /// Sink is null or a live pointer returned by duckport_lance_open, freed once.
@@ -80,6 +75,7 @@ pub unsafe extern "C" fn duckport_sink_commit(sink: *mut DuckportSink) -> *mut c
 pub unsafe extern "C" fn duckport_sink_destroy(sink: *mut DuckportSink) {
     cleanup(|| {
         if !sink.is_null() {
+            let _guard = RUNTIME.enter();
             unsafe {
                 drop(Box::from_raw(sink));
             }
