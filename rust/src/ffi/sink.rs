@@ -1,8 +1,5 @@
-use crate::{
-    error::{call, cleanup},
-    ffi::string,
-    sink::DuckportSink,
-};
+use super::common::{call, cleanup, string};
+use crate::sink::DuckportSink;
 use arrow_array::{
     RecordBatch, StructArray,
     ffi::{FFI_ArrowArray, from_ffi},

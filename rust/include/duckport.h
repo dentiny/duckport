@@ -24,11 +24,13 @@ struct DuckportScanOptions {
 	size_t batch_size;
 };
 extern "C" {
-// Common functions
+// Common FFI support
+void duckport_source_error_free(char *);
+
+// Source functions
 char *duckport_source_get_schema(const DuckportSource *, ArrowSchema *);
 char *duckport_source_get_stream(const DuckportSource *, ArrowArrayStream *);
 void duckport_source_destroy(DuckportSource *);
-void duckport_source_error_free(char *);
 
 // Format-related functions
 char *duckport_parquet_open(const char *locator, const DuckportStorageOptions &storage_options,

@@ -1,7 +1,6 @@
 //! Shared single-page OAI-PMH adapter for the upstream provider trait.
 use crate::{
-    error::Result,
-    options::{StorageConfig, optional_string},
+    error::Result, ffi::common::optional_string, options::StorageConfig,
     source::DuckportSource as AsyncSource,
 };
 use open_arrow_access::{

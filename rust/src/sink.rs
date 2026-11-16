@@ -1,4 +1,4 @@
-use crate::{error::Result, ffi::RUNTIME, options::StorageConfig, storage};
+use crate::{error::Result, ffi::common::RUNTIME, options::StorageConfig, storage};
 use arrow_array::RecordBatch;
 use arrow_schema::SchemaRef;
 use open_arrow_sink_core::{Sink, SinkExt, WriteMode, WriteOptions, Writer};
