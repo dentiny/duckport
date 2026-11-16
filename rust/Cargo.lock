@@ -439,9 +439,9 @@ checksum = "5d2050892d4691cf110586070786712b504985a4d37ed64a9cd8a402718e1706"
 
 [[package]]
 name = "atif-arrow"
-version = "0.5.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c568936dd63943e81df044579fa679af571d843feef22b586d8ca6ca2b1b6932"
+checksum = "765aec015af335f6b8bcc936a27eada7bb5743591ea28c3afa8e62f7e45c9883"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -3993,9 +3993,9 @@ dependencies = [
 
 [[package]]
 name = "object_store_opendal"
-version = "0.60.2"
+version = "0.60.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c479bcc317f0ed98972b7184e0f9cc1bea83a07f60cdade96d7207a48ebfb779"
+checksum = "0bd9da6291f93eb19b7987dac17617de0131760a6ba97a4cd8d6b1a07fa89783"
 dependencies = [
  "async-trait",
  "asyncband",
@@ -4022,9 +4022,9 @@ checksum = "269bca4c2591a28585d6bf10d9ed0332b7d76900a1b02bec41bdc3a2cdcda107"
 
 [[package]]
 name = "open-arrow-access"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e1116c34f0f6ef6e6a7973f25c7552d7b54214528725e784844c4abb48e1ae8"
+checksum = "e92f6be52636edf9e07fe8934af69eaaab9f05397afc6b9841070b70e5a0a12d"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -4039,9 +4039,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-core"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7d9256ce9fce509a395da217e04577843c98ba3756b44ef56ef1c98e97706de"
+checksum = "3fa02a3cdca6455e3b439d8a3afdeb525bb5fed70d82f816bb0ba12cb9fd7fc0"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -4054,9 +4054,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-dataset"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93aef3da790d3562b0459f713f8c860df9f6889d3f064f49a0ceeba62e7a8a35"
+checksum = "33626a986d69f70e9d105438523148971c9801427bb4f3475cb569ebe0da4886"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -4067,9 +4067,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-decompression"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2b35980ffa0333e29450f8840d7c5d77df018826a71285f19959266225d4bf9"
+checksum = "288b8e4b3e800d72a15f382614248f85e7c76726eae905810b75e5017e233145"
 dependencies = [
  "async-compression",
  "async_zip",
@@ -4080,9 +4080,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-file-format"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d3e2764f52fd221eacffc4bac042ae006f379260bda6b23b396ac588894c7d10"
+checksum = "4d7e5cb90faf73e53a6445ef94980bd3d1597e2b5106b7c0830b3fa8a2cd1541"
 dependencies = [
  "arrow-array",
  "arrow-csv",
@@ -4104,9 +4104,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-layers"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b48b9521f405a6ba1ac7a091f5ee17f235933c631936e1af5e2f38fba1f6921f"
+checksum = "521b02d7905aab198ce1ff14496accadcbd1f64d4c673741b5d09285ade22667"
 dependencies = [
  "arrow-array",
  "arrow-cast",
@@ -4121,9 +4121,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-service"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3520a0fd7de927c9e349ac64f4c9d130b33dcedc875ad838c126187bf868fa63"
+checksum = "1a685238e1e969d9f93379560e6162798b61526e43b4fe2c161b4c2da165932b"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -4151,23 +4151,24 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-storage"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca2c25be28333872eabd694b7b02644195f6dbf1c77b2500b22a165aff3e4466"
+checksum = "30beb87572aff24034f6f948366115534db39e10c9bda02c99ff3ea357d089f4"
 dependencies = [
  "futures",
  "http",
  "indexmap 2.14.2",
  "open-arrow-access-core",
  "opendal",
+ "opendal-layer-observe-metrics-common",
  "tokio",
 ]
 
 [[package]]
 name = "open-arrow-sink-core"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "671b7e4bd4ba933607ba52347ed2a36b70f909a6febddd109077f2cb79000d4e"
+checksum = "d0ae98c1b402443e4bf7b419cf8e5e0cf295185795c480b4715ded0c4f4ca014"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -4178,9 +4179,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-sink-lance"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c76689c25bfda2dfc61527930fb2dd7a446193cbdcf428a5f6aeedbd516ad9e"
+checksum = "54f684a6d2d37c0533ece9e36f84e0fe37d8fefed88759be3b9db2c331e92a9e"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -4205,9 +4206,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-sink-layer"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef6925b0f1d5ec7d2fcdef56dd8b0f57c5d084dd0379ad7811c769d2944a3f89"
+checksum = "6d27df01171305cde39ec62d9169152d2895a568b34e2c2069e40c7ff3c5c9e0"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -4218,9 +4219,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-sink-storage"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca496b43ff609f3b9bfee1fd6fa48f50c48922bb58323bceeb62cafd4f073d0e"
+checksum = "617e0810f6f0f6b03a7fd0bbce397fa5773071f730db8481b9ffdb21175531b6"
 dependencies = [
  "async-stream",
  "bytes",
@@ -4237,9 +4238,9 @@ dependencies = [
 
 [[package]]
 name = "opendal"
-version = "0.59.2"
+version = "0.59.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9fe43e16d96bed57937eb7c4a28559bf4c5fc4a3951656505d1fdd4f856349b4"
+checksum = "46081824c74bac9f68f0bc4408077f77b0e315c006514719c97af1c2227ac2d2"
 dependencies = [
  "ctor",
  "opendal-core",
@@ -4280,9 +4281,9 @@ dependencies = [
 
 [[package]]
 name = "opendal-http-transport-reqwest"
-version = "0.59.2"
+version = "0.59.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f772ce6c137ab43647726116d505a649a88d41928fcd813438eb30b02312bcbb"
+checksum = "fc025e163c43993e30cf1829a30b791934e5b0f7cd4d7e03acc902a9efb7e8f5"
 dependencies = [
  "bytes",
  "futures",
@@ -4290,6 +4291,17 @@ dependencies = [
  "http-body",
  "opendal-core",
  "reqwest 0.13.5",
+]
+
+[[package]]
+name = "opendal-layer-observe-metrics-common"
+version = "0.59.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b816318891a6a4492c4c9c5a0304c56d511eeee313bff45148ccafc7a16ec349"
+dependencies = [
+ "futures",
+ "http",
+ "opendal-core",
 ]
 
 [[package]]
@@ -4346,9 +4358,9 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-http"
-version = "0.59.2"
+version = "0.59.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ac1553d6b57ca79e200e5c7ded9ab708f2016dadb28ede0f2da71e02fd0b960"
+checksum = "86fcb1bc533926c94a0b59fef011127736db19812fa0630280a4bde1a3cfaf6a"
 dependencies = [
  "http",
  "log",
@@ -4664,7 +4676,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6e4d69d0fa3e7f6f9cf6b53a0e83e4fc99ba3586f65ce166cff30bd13bb4ad2"
 dependencies = [
  "heck",
- "itertools 0.14.0",
+ "itertools 0.15.0",
  "log",
  "multimap",
  "petgraph",
@@ -4683,7 +4695,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ad9c5423459fa2f729b8d9235fab810aa29628b171467744fc86d21460ad70d"
 dependencies = [
  "anyhow",
- "itertools 0.14.0",
+ "itertools 0.15.0",
  "proc-macro2",
  "quote",
  "syn 2.0.119",
@@ -6359,9 +6371,9 @@ dependencies = [
 
 [[package]]
 name = "warc-rs"
-version = "0.3.3"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99174793d99ca20c6511793f3feff565925d73a85f840bc7f4888a13edf3d217"
+checksum = "9e8a57afd189fa090e65f1b42117aa04a4597b381341e3a9187230ac3bc83412"
 dependencies = [
  "chrono",
  "futures-util",
@@ -7007,9 +7019,9 @@ dependencies = [
 
 [[package]]
 name = "xml-arrow"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f2044b4edab4af2aff0ed6d59267e4680c8f847043ee4642db98519a15dfac4"
+checksum = "81bf7d5c3debcb7e57ed0b59b874b279e437edc5aea9d1f2392e06d33e684f84"
 dependencies = [
  "arrow-array",
  "arrow-schema",
