@@ -55,7 +55,7 @@ open-arrow-access = { version = "0.3.0", default-features = false, features = [
 open-arrow-sink-core = "0.1.0"
 open-arrow-sink-lance = { version = "0.1.0", features = ["aws"] }
 open-arrow-sink-layer = "0.1.0"
-opendal = { version = "0.59.2", default-features = false, features = [
+opendal = { version = "0.59", default-features = false, features = [
     "auto-register-services",
     "http-transport-reqwest",
     "services-fs",
