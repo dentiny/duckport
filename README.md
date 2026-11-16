@@ -35,24 +35,13 @@ Parquet page codecs: Snappy, Zstd, LZ4, gzip, Brotli. For standalone Parquet sca
 ## Write
 
 ```sql
-COPY my_table TO 'output.lance' (FORMAT duckport_lance);
-COPY my_table TO 'output.lance' (FORMAT duckport_lance, APPEND);
 COPY (SELECT id, image_url AS image FROM my_table)
-TO 'images.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('image'), OVERWRITE);
+TO 'images.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('image'));
 ```
 
-The Lance sink uses the released open-arrow-sink 0.1.1 crates. URL columns selected
-by `BLOB_COLUMNS` are downloaded and ingested as Lance blobs; NULL values remain
-NULL and other strings remain strings. Destinations support local paths, `file://`,
-and S3 with scoped DuckDB secrets. See [Lance sink](docs/writers/lance.md).
-Builds require `protoc`.
-
-The default mode is create. `APPEND` and `OVERWRITE` select the backend mode;
-only one may be specified. Generic file splitting, partitioning, temporary-file
-publication, and ordering options are rejected. COPY streams Arrow batches through
-one writer, commits on success, and aborts on failure. `duckport_parquet` and
-`duckport_iceberg` remain stubs that fail on open; DuckDB's native `FORMAT PARQUET`
-remains available.
+The [Lance sink](docs/writers/lance.md) supports create, APPEND and OVERWRITE,
+including URL blob ingestion. Builds require `protoc`. The `duckport_parquet` and
+`duckport_iceberg` backends remain stubs; native `FORMAT PARQUET` is available.
 
 [Tests](test/README.md) · [Development](docs/UPDATING.md)
 

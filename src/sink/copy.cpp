@@ -71,22 +71,16 @@ unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput 
 	bool has_mode = false;
 	for (auto &entry : input.info.options) {
 		if (entry.first == "blob_columns") {
-			auto columns = entry.second;
-			if (columns.size() == 1 && columns[0].type().id() == LogicalTypeId::LIST) {
-				columns = ListValue::GetChildren(columns[0]);
-			}
+			const auto &values = entry.second;
+			const auto &columns = values.size() == 1 && values[0].type().id() == LogicalTypeId::LIST
+			                          ? ListValue::GetChildren(values[0])
+			                          : values;
 			for (const auto &column : columns) {
-				if (column.IsNull()) {
-					throw BinderException("BLOB_COLUMNS cannot contain NULL");
+				if (column.IsNull() || column.type().id() != LogicalTypeId::VARCHAR ||
+				    StringValue::Get(column).find('\0') != string::npos) {
+					throw BinderException("BLOB_COLUMNS requires non-NULL text column names without NUL bytes");
 				}
-				if (column.type().id() != LogicalTypeId::VARCHAR) {
-					throw BinderException("BLOB_COLUMNS requires text column names");
-				}
-				auto name = StringValue::Get(column);
-				if (name.find('\0') != string::npos) {
-					throw BinderException("Column names cannot contain NUL bytes");
-				}
-				result->options.blob_columns.push_back(name);
+				result->options.blob_columns.push_back(StringValue::Get(column));
 			}
 			continue;
 		}

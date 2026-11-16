@@ -52,12 +52,3 @@ C++ binds SQL parameters and uses DuckDB's Arrow scanner. Rust owns the schema a
 Rust tests use `#[tokio::test]`, await async writer operations, and use `tokio::fs`
 for file I/O. Synchronous C ABI calls run in `tokio::task::spawn_blocking`, keeping
 the shared runtime's block_on outside the test executor.
-
-## Lance sink
-
-The shared COPY framework opens `src/sink/lance.cpp` through SinkWriter. Rust
-`sink.rs` exposes the async session; the synchronous C boundary uses the runtime from `ffi/common.rs`;
-`ffi/sink.rs` transfers Arrow arrays through
-the C Data Interface. DownloadBlobLayer selects explicit URL columns for native
-blob ingestion. Keep Arrow aligned with the open-arrow-sink release when upgrading;
-regenerate Cargo.lock and run Rust sink tests plus the SQL writer tests.

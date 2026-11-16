@@ -6,7 +6,18 @@ namespace duckdb {
 namespace {
 class LanceWriter final : public SinkWriter {
 public:
-	explicit LanceWriter(DuckportSink *writer) : writer(writer, duckport_sink_destroy) {
+	LanceWriter(const string &path, const DuckportStorageOptions &storage, const SinkWriteOptions &options,
+	            ArrowSchema &schema) : writer(nullptr, duckport_sink_destroy) {
+		const char *mode = options.mode == SinkWriteMode::APPEND      ? "append"
+		                   : options.mode == SinkWriteMode::OVERWRITE ? "overwrite"
+		                                                              : "create";
+		vector<const char *> columns;
+		for (const auto &column : options.blob_columns) {
+			columns.push_back(column.c_str());
+		}
+		DuckportSink *raw = nullptr;
+		CheckError(duckport_lance_open(path.c_str(), &schema, mode, columns.data(), columns.size(), &storage, &raw));
+		writer.reset(raw);
 	}
 	void Write(ArrowArray &array) override {
 		CheckError(duckport_sink_write(writer.get(), &array));
@@ -23,16 +34,7 @@ private:
 };
 } // namespace
 unique_ptr<SinkWriter> OpenLanceWriter(const string &path, const DuckportStorageOptions &storage,
-                                       const SinkWriteOptions &options, ArrowSchema &schema) {
-	const char *mode = options.mode == SinkWriteMode::APPEND      ? "append"
-	                   : options.mode == SinkWriteMode::OVERWRITE ? "overwrite"
-	                                                              : "create";
-	vector<const char *> columns;
-	for (const auto &column : options.blob_columns) {
-		columns.push_back(column.c_str());
-	}
-	DuckportSink *raw = nullptr;
-	CheckError(duckport_lance_open(path.c_str(), &schema, mode, columns.data(), columns.size(), &storage, &raw));
-	return make_uniq<LanceWriter>(raw);
+                                     const SinkWriteOptions &options, ArrowSchema &schema) {
+	return make_uniq<LanceWriter>(path, storage, options, schema);
 }
 } // namespace duckdb

@@ -49,7 +49,7 @@ add_custom_command(
           --target-dir "${RUST_TARGET_DIR}" ${RUST_TARGET_ARGS}
   DEPENDS ${RUST_SOURCES} rust/Cargo.toml rust/Cargo.lock
   WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-  COMMENT "Building DuckPort Arrow source and sink bridges"
+  COMMENT "Building open-arrow-access source bridge"
   VERBATIM)
 add_custom_target(duckport_rust_build DEPENDS "${RUST_LIBRARY}")
 add_library(duckport_source_rust STATIC IMPORTED GLOBAL)

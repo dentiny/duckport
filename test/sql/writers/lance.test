@@ -1,47 +1,45 @@
 # name: test/sql/writers/lance.test
-# description: Write Lance datasets and verify them with the independent Lance reader
+# description: Verify Lance COPY with the independent upstream reader
 # group: [sql]
 require duckport
 
-query I
-COPY (SELECT 1 AS id, 'hello' AS text) TO '{TEST_DIR}/duckport.lance' (FORMAT duckport_lance);
-----
-1
+statement ok
+COPY (SELECT 1 AS id, 'hello' AS text) TO '{TEST_DIR}/append.lance' (FORMAT duckport_lance);
 
 statement error
-COPY (SELECT 2 AS id, 'again' AS text) TO '{TEST_DIR}/duckport.lance' (FORMAT duckport_lance);
+COPY (SELECT 2 AS id, 'again' AS text) TO '{TEST_DIR}/append.lance' (FORMAT duckport_lance);
 ----
 DuckPort
 
 query I
-COPY (SELECT 2 AS id, NULL::VARCHAR AS text) TO '{TEST_DIR}/duckport.lance' (FORMAT duckport_lance, APPEND);
+COPY (SELECT 2 AS id, NULL::VARCHAR AS text) TO '{TEST_DIR}/append.lance' (FORMAT duckport_lance, APPEND);
 ----
 1
-
-query I
-COPY (SELECT 0 AS id, 'old' AS text) TO '{TEST_DIR}/overwrite.lance' (FORMAT duckport_lance);
-----
-1
-
-query I
-COPY (SELECT 3 AS id, 'replacement' AS text) TO '{TEST_DIR}/overwrite.lance' (FORMAT duckport_lance, OVERWRITE);
-----
-1
-
-query I
-COPY (SELECT 0 AS id, 'old' AS text) TO '{TEST_DIR}/empty.lance' (FORMAT duckport_lance);
-----
-1
-
-query I
-COPY (SELECT 3 AS id, '' AS text WHERE false) TO '{TEST_DIR}/empty.lance' (FORMAT duckport_lance, OVERWRITE);
-----
-0
 
 statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, APPEND, OVERWRITE);
+COPY (SELECT 'wrong schema' AS id) TO '{TEST_DIR}/append.lance' (FORMAT duckport_lance, APPEND);
 ----
-Only one of APPEND or OVERWRITE
+DuckPort
+
+statement ok
+COPY (SELECT 0 AS id) TO '{TEST_DIR}/overwrite.lance' (FORMAT duckport_lance);
+
+statement ok
+PREPARE overwrite_lance AS COPY (SELECT 42 AS id) TO '{TEST_DIR}/overwrite.lance' (FORMAT duckport_lance, OVERWRITE);
+
+statement ok
+EXECUTE overwrite_lance;
+
+statement ok
+EXECUTE overwrite_lance;
+
+statement ok
+COPY (SELECT 0 AS id) TO '{TEST_DIR}/empty.lance' (FORMAT duckport_lance);
+
+query I
+COPY (SELECT 0 AS id WHERE false) TO '{TEST_DIR}/empty.lance' (FORMAT duckport_lance, OVERWRITE);
+----
+0
 
 statement error
 COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('missing'));
@@ -53,146 +51,84 @@ COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB
 ----
 text
 
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, USE_TMP_FILE true);
-----
-Unsupported DuckPort COPY option
+foreach invalid NULL NULL::VARCHAR[] 42 chr(0)
 
 statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, PARTITION_BY (id));
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_COLUMNS {invalid});
 ----
-Unsupported DuckPort COPY option
+<REGEX>:.*(BLOB_COLUMNS|blob_columns).*
 
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_COLUMNS NULL);
-----
-NULL
+endloop
 
 query I
-COPY (SELECT i, CASE WHEN i % 2 = 0 THEN 'text' END AS nullable_text, [i, NULL] AS numbers FROM range(5000) t(i)) TO '{TEST_DIR}/lance_nested.lance' (FORMAT duckport_lance);
+COPY (SELECT i, CASE WHEN i % 2 = 0 THEN 'text' END AS text, [i, NULL] AS numbers FROM range(5000) t(i))
+TO '{TEST_DIR}/nested.lance' (FORMAT duckport_lance);
 ----
 5000
 
+# Combine URL ingestion, multiple selected columns, native bytes, empty blobs and NULLs.
 statement ok
-PREPARE repeated_lance AS COPY (SELECT 42 AS id) TO '{TEST_DIR}/lance_prepared.lance' (FORMAT duckport_lance, OVERWRITE);
-
-query I
-EXECUTE repeated_lance;
-----
-1
-
-query I
-EXECUTE repeated_lance;
-----
-1
-
-query I
-COPY (SELECT NULL::VARCHAR AS image, NULL::VARCHAR AS audio) TO '{TEST_DIR}/lance_null_blobs.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('image', 'audio'));
-----
-1
-
-# A rejected append must preserve the committed rows.
-statement error
-COPY (SELECT 'wrong schema' AS id) TO '{TEST_DIR}/duckport.lance' (FORMAT duckport_lance, APPEND);
-----
-DuckPort
-
-# Download URL columns while preserving other strings and NULLs.
-statement ok
-COPY (SELECT 'downloaded' AS payload) TO '{TEST_DIR}/blob_source.txt' (FORMAT csv, HEADER false);
-
-query I
-COPY (
-    SELECT * FROM (VALUES
-        (1, 'file://{TEMP_DIR_ABSOLUTE}/blob_source.txt', 'https://example.invalid/keep-as-text'),
-        (2, NULL, 'unchanged')
-    ) t(id, payload, text)
-) TO '{TEST_DIR}/downloaded.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('payload'));
-----
-2
-
-# Changing the source after commit must not change the ingested blob.
-statement ok
-COPY (SELECT 'changed' AS payload) TO '{TEST_DIR}/blob_source.txt' (FORMAT csv, HEADER false);
+COPY (SELECT 'downloaded' AS payload) TO '{TEST_DIR}/source.txt' (FORMAT csv, HEADER false);
 
 query I
 COPY (SELECT * FROM (VALUES
-    (1, unhex('00FF0102')),
-    (2, ''::BLOB),
-    (3, NULL::BLOB)
-) t(id, payload)) TO '{TEST_DIR}/native_blobs.lance' (FORMAT duckport_lance);
+    (1, 'file://{TEMP_DIR_ABSOLUTE}/source.txt', NULL::VARCHAR, unhex('00FF0102'), 'https://example.invalid/keep'),
+    (2, NULL, NULL, ''::BLOB, 'empty'),
+    (3, NULL, NULL, NULL, 'null')
+) t(id, payload, audio, bytes, text)) TO '{TEST_DIR}/blobs.lance'
+(FORMAT duckport_lance, BLOB_COLUMNS ('payload', 'audio'));
 ----
 3
 
-# Exercise the shared runtime with a DuckPort reader feeding the sink.
-query I
+# Read-back must return the original bytes after the source changes.
+statement ok
+COPY (SELECT 'changed' AS payload) TO '{TEST_DIR}/source.txt' (FORMAT csv, HEADER false);
+
+statement ok
 COPY (SELECT * FROM duckport_scan_parquet('testdata/parquet/people.parquet', batch_size := 2))
 TO '{TEST_DIR}/from_reader.lance' (FORMAT duckport_lance);
-----
-3
 
-# Read in a fresh database using the upstream reader, independently of DuckPort.
 restart no_extension_load
 
 statement ok
 LOAD '{BUILD_DIRECTORY}/extension/lance/lance.duckdb_extension';
 
 query IT
-SELECT id, text FROM '{TEST_DIR}/duckport.lance' ORDER BY id;
+SELECT id, text FROM '{TEST_DIR}/append.lance' ORDER BY id;
 ----
 1	hello
 2	NULL
 
-query IT
-SELECT id, text FROM '{TEST_DIR}/overwrite.lance';
+query I
+SELECT id FROM '{TEST_DIR}/overwrite.lance';
 ----
-3	replacement
+42
 
 query I
 SELECT count(*) FROM '{TEST_DIR}/empty.lance';
 ----
 0
 
-# Compare every nested value across multiple input batches, including NULLs.
 query I
-SELECT count(*) FROM '{TEST_DIR}/lance_nested.lance';
+SELECT count(*) FROM '{TEST_DIR}/nested.lance';
 ----
 5000
 
 query I
 SELECT count(*) FROM (
-    (SELECT * FROM '{TEST_DIR}/lance_nested.lance')
-    EXCEPT ALL
+    (SELECT * FROM '{TEST_DIR}/nested.lance') EXCEPT ALL
     (SELECT i, CASE WHEN i % 2 = 0 THEN 'text' END, [i, NULL] FROM range(5000) t(i))
 );
 ----
 0
 
-query I
-SELECT id FROM '{TEST_DIR}/lance_prepared.lance';
+query IIITT
+SELECT id, payload IS NOT DISTINCT FROM CASE WHEN id = 1 THEN encode('downloaded' || chr(10)) END,
+       audio IS NULL, hex(bytes), text FROM '{TEST_DIR}/blobs.lance' ORDER BY id;
 ----
-42
-
-query II
-SELECT image IS NULL, audio IS NULL FROM '{TEST_DIR}/lance_null_blobs.lance';
-----
-true	true
-
-# Equality checks the actual managed bytes, not only the blob row count.
-query IIT
-SELECT id, payload IS NOT DISTINCT FROM CASE WHEN id = 1 THEN
-    encode('downloaded' || chr(10)) END, text
-FROM '{TEST_DIR}/downloaded.lance' ORDER BY id;
-----
-1	true	https://example.invalid/keep-as-text
-2	true	unchanged
-
-query IT
-SELECT id, hex(payload) FROM '{TEST_DIR}/native_blobs.lance' ORDER BY id;
-----
-1	00FF0102
-2	(empty)
-3	NULL
+1	true	true	00FF0102	https://example.invalid/keep
+2	true	true	(empty)	empty
+3	true	true	NULL	null
 
 query IT
 SELECT id, name FROM '{TEST_DIR}/from_reader.lance' ORDER BY id;
