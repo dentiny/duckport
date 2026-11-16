@@ -12,6 +12,7 @@ public:
 		                   : options.mode == SinkWriteMode::OVERWRITE ? "overwrite"
 		                                                              : "create";
 		vector<const char *> columns;
+		columns.reserve(options.blob_columns.size());
 		for (const auto &column : options.blob_columns) {
 			columns.push_back(column.c_str());
 		}
