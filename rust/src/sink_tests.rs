@@ -83,7 +83,7 @@ fn ids(batch: &RecordBatch) -> Vec<i64> {
     ids.sort_unstable();
     ids
 }
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test]
 async fn create_append_overwrite_and_empty_commit() {
     let temp = tempdir().await;
     let path = temp.path().join("dataset");
@@ -114,7 +114,7 @@ async fn create_append_overwrite_and_empty_commit() {
     assert_eq!(read(&path).await.unwrap().num_rows(), 0);
     remove_tempdir(temp).await;
 }
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test]
 async fn invalid_inputs_and_abandoned_create_do_not_publish() {
     let temp = tempdir().await;
     let path = temp.path().join("dataset");
@@ -136,7 +136,7 @@ async fn invalid_inputs_and_abandoned_create_do_not_publish() {
     assert!(read(&failed).await.is_err());
     remove_tempdir(temp).await;
 }
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test]
 async fn aborted_writes_preserve_committed_rows() {
     let temp = tempdir().await;
     let path = temp.path().join("dataset");
@@ -165,7 +165,7 @@ async fn aborted_writes_preserve_committed_rows() {
     }
     remove_tempdir(temp).await;
 }
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test]
 async fn ffi_ingests_urls_and_preserves_ownership_and_metadata() {
     let temp = tempdir().await;
     let path = temp.path().join("nested data/dataset with spaces");
@@ -227,7 +227,7 @@ async fn ffi_ingests_urls_and_preserves_ownership_and_metadata() {
     );
     remove_tempdir(temp).await;
 }
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test]
 async fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
     tokio::task::spawn_blocking(|| {
         let batch = input();
