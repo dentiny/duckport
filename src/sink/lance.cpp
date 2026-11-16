@@ -1,6 +1,6 @@
 #include "sink/copy.hpp"
 #include "error.hpp"
-#include <memory>
+#include "duckdb/common/unique_ptr.hpp"
 
 namespace duckdb {
 namespace {
@@ -31,7 +31,7 @@ public:
 	}
 
 private:
-	std::unique_ptr<DuckportSink, decltype(&duckport_sink_destroy)> writer;
+	duckdb::unique_ptr<DuckportSink, decltype(&duckport_sink_destroy)> writer;
 };
 } // namespace
 unique_ptr<SinkWriter> OpenLanceWriter(const string &path, const DuckportStorageOptions &storage,
