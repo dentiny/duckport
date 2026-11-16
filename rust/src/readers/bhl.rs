@@ -1,7 +1,7 @@
 use crate::{
     ffi::source::{DuckportSource, open_reader},
     options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
-    validation::optional_string,
+    utils::optional_string,
 };
 use open_arrow_access::service::bhl::BhlService;
 use open_arrow_access::service::common::Connection;
@@ -35,8 +35,7 @@ pub unsafe extern "C" fn duckport_bhl_open(
         let record_path = unsafe { optional_string(reader_options.record_path) }?;
         let endpoint = unsafe { optional_string(reader_options.endpoint) }?
             .unwrap_or_else(|| "https://www.biodiversitylibrary.org".into());
-        let attachment_options =
-            crate::validation::attachment_options(&format, record_path.as_deref())?;
+        let attachment_options = crate::utils::attachment_options(&format, record_path.as_deref())?;
         let connection = Connection::new(&endpoint)?;
         let token = crate::validation::nonempty(
             storage_options.token,

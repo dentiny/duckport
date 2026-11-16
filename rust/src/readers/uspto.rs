@@ -1,7 +1,7 @@
 use crate::{
     ffi::source::{DuckportSource, open_reader},
     options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
-    validation::optional_string,
+    utils::optional_string,
 };
 use open_arrow_access::service::common::Connection;
 use open_arrow_access::service::uspto::UsptoService;
@@ -41,8 +41,7 @@ pub unsafe extern "C" fn duckport_uspto_open(
             unsafe { optional_string(reader_options.offset) }?.unwrap_or_else(|| "0".into());
         let page_size =
             unsafe { optional_string(reader_options.page_size) }?.unwrap_or_else(|| "100".into());
-        let attachment_options =
-            crate::validation::attachment_options(&format, record_path.as_deref())?;
+        let attachment_options = crate::utils::attachment_options(&format, record_path.as_deref())?;
         let connection = Connection::new(&endpoint)?;
         let token = crate::validation::nonempty(
             storage_options.token,

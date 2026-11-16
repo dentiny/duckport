@@ -1,7 +1,7 @@
 use crate::{
     ffi::source::{DuckportSource, open_reader},
     options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
-    validation::optional_string,
+    utils::optional_string,
 };
 use open_arrow_access::service::dataverse::DataverseService;
 use std::ffi::c_char;
@@ -39,8 +39,7 @@ pub unsafe extern "C" fn duckport_dataverse_open(
             unsafe { optional_string(reader_options.version) }?,
             "version is required",
         )?;
-        let attachment_options =
-            crate::validation::attachment_options(&format, record_path.as_deref())?;
+        let attachment_options = crate::utils::attachment_options(&format, record_path.as_deref())?;
         let service = DataverseService::new(&endpoint)?;
         let service = if let Some(token) = storage_options.token {
             service.with_bearer_token(&token)?
