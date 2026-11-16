@@ -26,7 +26,7 @@ fn create_location(locator: &str, options: &StorageConfig) -> Result<(opendal::O
     if !storage::is_local(locator) {
         return storage::operator(locator, options);
     }
-    let (root, key) = crate::validation::commoncrawl_location(locator)?;
+    let (root, key) = crate::utils::commoncrawl_location(locator)?;
     Ok((storage::create_local_directory_operator(&root)?, key))
 }
 

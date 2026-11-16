@@ -1,7 +1,7 @@
 use crate::{
     ffi::source::{DuckportSource, open_reader},
     options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
-    validation::optional_string,
+    utils::optional_string,
 };
 use open_arrow_access::service::common::Connection;
 use open_arrow_access::service::regulations::RegulationsService;
@@ -38,9 +38,8 @@ pub unsafe extern "C" fn duckport_regulations_open(
             .unwrap_or_else(|| "https://api.regulations.gov".into());
         let resource = unsafe { optional_string(reader_options.resource) }?
             .unwrap_or_else(|| "documents".into());
-        let attachment_options =
-            crate::validation::attachment_options(&format, record_path.as_deref())?;
-        let resource = crate::validation::regulations_resource(&resource)?;
+        let attachment_options = crate::utils::attachment_options(&format, record_path.as_deref())?;
+        let resource = crate::utils::regulations_resource(&resource)?;
         let connection = Connection::new(&endpoint)?;
         let token = crate::validation::nonempty(
             storage_options.token,

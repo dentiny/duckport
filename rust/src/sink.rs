@@ -1,4 +1,4 @@
-use crate::{error::Result, options::StorageConfig, storage, validation};
+use crate::{error::Result, options::StorageConfig, storage, utils, validation};
 use arrow_array::RecordBatch;
 use arrow_schema::SchemaRef;
 use open_arrow_sink_core::{Sink, SinkExt, WriteOptions, Writer};
@@ -18,8 +18,8 @@ impl DuckportSink {
         columns: HashSet<String>,
         config: &StorageConfig,
     ) -> Result<Self> {
-        let mode = validation::lance_mode(mode)?;
-        let url = validation::lance_url(path)?;
+        let mode = utils::lance_mode(mode)?;
+        let url = utils::lance_url(path)?;
         let (operator, _) = storage::operator(url.as_str(), config)?;
         // Match the resolver's local parent or S3 bucket-root namespace.
         let mut root = url.join("..")?;

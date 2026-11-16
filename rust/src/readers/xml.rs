@@ -2,7 +2,7 @@ use crate::{
     ffi::source::{DuckportSource, open_reader},
     options::{DuckportScanOptions, DuckportStorageOptions},
     storage,
-    validation::optional_string,
+    utils::optional_string,
 };
 use open_arrow_access::{
     OuterCompression, ReadRequest, file_format::xml::XmlFormat, open_file_source,

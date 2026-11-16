@@ -2,7 +2,9 @@ use super::common::RUNTIME;
 use crate::{
     error::{call, cleanup},
     sink::DuckportSink,
-    validation::{self, string},
+    utils,
+    utils::string,
+    validation,
 };
 use arrow_array::{
     RecordBatch, StructArray,
@@ -30,7 +32,7 @@ pub unsafe extern "C" fn duckport_lance_open(
         *output = ptr::null_mut();
         let schema = validation::required(schema.as_ref(), "null sink schema")?;
         let storage = validation::required(storage.as_ref(), "null Lance options")?;
-        let columns = validation::ffi_slice(columns, column_count, "null Lance columns")?;
+        let columns = utils::ffi_slice(columns, column_count, "null Lance columns")?;
         let columns = columns
             .iter()
             .map(|column| string(*column))

@@ -1,4 +1,4 @@
-use crate::{error::Result, validation, validation::optional_string};
+use crate::{error::Result, utils, utils::optional_string};
 use open_arrow_access::ReadOptions;
 use std::ffi::c_char;
 
@@ -42,8 +42,8 @@ impl DuckportStorageOptions {
             secret_access_key: unsafe { optional_string(self.secret_access_key) }?,
             session_token: unsafe { optional_string(self.session_token) }?,
             token: unsafe { optional_string(self.token) }?,
-            virtual_host_style: validation::boolean("virtual_host_style", self.virtual_host_style)?,
-            allow_anonymous: validation::boolean("allow_anonymous", self.allow_anonymous)?,
+            virtual_host_style: utils::boolean("virtual_host_style", self.virtual_host_style)?,
+            allow_anonymous: utils::boolean("allow_anonymous", self.allow_anonymous)?,
         })
     }
 }
@@ -51,7 +51,7 @@ impl DuckportStorageOptions {
 impl DuckportScanOptions {
     pub(crate) fn read(&self) -> Result<ReadOptions> {
         Ok(ReadOptions {
-            batch_size: validation::batch_size(self.batch_size)?,
+            batch_size: utils::batch_size(self.batch_size)?,
             ..Default::default()
         })
     }

@@ -4,7 +4,8 @@ use crate::{
     options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
     source::DuckportSource as AsyncSource,
     storage,
-    validation::{self, string},
+    utils::string,
+    validation,
 };
 use arrow_array::ffi_stream::FFI_ArrowArrayStream;
 use arrow_schema::ffi::FFI_ArrowSchema;

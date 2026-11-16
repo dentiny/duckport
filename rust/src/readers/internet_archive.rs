@@ -1,7 +1,7 @@
 use crate::{
     ffi::source::{DuckportSource, open_reader},
     options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
-    validation::optional_string,
+    utils::optional_string,
 };
 use open_arrow_access::service::internet_archive::InternetArchiveService;
 use std::ffi::c_char;
@@ -34,11 +34,10 @@ pub unsafe extern "C" fn duckport_internet_archive_open(
         let record_path = unsafe { optional_string(reader_options.record_path) }?;
         let endpoint = unsafe { optional_string(reader_options.endpoint) }?
             .unwrap_or_else(|| "https://archive.org".into());
-        let attachment_options =
-            crate::validation::attachment_options(&format, record_path.as_deref())?;
+        let attachment_options = crate::utils::attachment_options(&format, record_path.as_deref())?;
         let service = InternetArchiveService::with_endpoint(&endpoint)?;
         let service = if let Some((key, secret)) =
-            crate::validation::internet_archive_credentials(&storage_options)?
+            crate::utils::internet_archive_credentials(&storage_options)?
         {
             service.with_credentials(key, secret)?
         } else {

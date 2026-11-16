@@ -2,7 +2,7 @@ use crate::{
     ffi::source::{DuckportSource, open_reader},
     options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
     source::DuckportSource as AsyncSource,
-    validation::optional_string,
+    utils::optional_string,
 };
 use open_arrow_access::{
     Accessor, ByteReadRequest, ReadRequest,
@@ -52,7 +52,7 @@ pub unsafe extern "C" fn duckport_courtlistener_open(
             open_arrow_access::into_async_read(input, "read_courtlistener_header"),
         );
         let header = header_reader.headers().await?.clone();
-        let schema = crate::validation::courtlistener_header(&header)?;
+        let schema = crate::utils::courtlistener_header(&header)?;
         let format = CsvFileFormat::new(std::sync::Arc::new(schema)).with_dialect(CsvDialect {
             header: CsvHeader::Present,
             ..Default::default()

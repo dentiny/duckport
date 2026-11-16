@@ -1,7 +1,7 @@
 use crate::{
     ffi::source::{DuckportSource, open_reader},
     options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
-    validation::optional_string,
+    utils::optional_string,
 };
 use open_arrow_access::service::common::Connection;
 use open_arrow_access::service::openstax::OpenStaxService;
@@ -41,8 +41,7 @@ pub unsafe extern "C" fn duckport_openstax_open(
             unsafe { optional_string(reader_options.revision) }?,
             "revision is required",
         )?;
-        let attachment_options =
-            crate::validation::attachment_options(&format, record_path.as_deref())?;
+        let attachment_options = crate::utils::attachment_options(&format, record_path.as_deref())?;
         let connection = Connection::new(&endpoint)?;
         let connection = if let Some(token) = storage_options.token {
             connection.with_header("authorization", &format!("Bearer {token}"))?

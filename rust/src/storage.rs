@@ -89,7 +89,7 @@ pub(crate) fn create_local_directory_operator(root: &Path) -> Result<opendal::Op
 }
 
 fn create_local_operator(locator: &str) -> Result<(opendal::Operator, String)> {
-    let path = crate::validation::local_path(locator)?;
+    let path = crate::utils::local_path(locator)?;
     let root = crate::validation::required(path.parent(), "source must name a file")?;
     let name = crate::validation::required(
         path.file_name().and_then(|s| s.to_str()),
@@ -115,7 +115,7 @@ pub(crate) fn directory_operator_with_requester_pays(
     crate::validation::validate_requester_pays(locator, config, requester_pays)?;
     opendal::install_default();
     if is_local(locator) {
-        return create_local_directory_operator(&crate::validation::local_path(locator)?);
+        return create_local_directory_operator(&crate::utils::local_path(locator)?);
     }
     let url = Url::parse(locator)?;
     crate::validation::validate_uri(&url)?;

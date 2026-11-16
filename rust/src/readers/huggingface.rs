@@ -2,7 +2,7 @@ use crate::{
     ffi::source::{DuckportSource, open_reader},
     options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
     source::DuckportSource as AsyncSource,
-    validation::optional_string,
+    utils::optional_string,
 };
 use open_arrow_access::service::huggingface::*;
 use std::ffi::c_char;
@@ -30,8 +30,7 @@ pub unsafe extern "C" fn duckport_huggingface_open(
         let revision = unsafe { optional_string(reader_options.revision) }?;
         let config = unsafe { optional_string(reader_options.config) }?;
         let split = unsafe { optional_string(reader_options.split) }?;
-        let allow_partial =
-            crate::validation::boolean("allow_partial", reader_options.allow_partial)?;
+        let allow_partial = crate::utils::boolean("allow_partial", reader_options.allow_partial)?;
 
         let mut request = if locator.contains("://") {
             crate::validation::validate_huggingface_url_options(
@@ -39,7 +38,7 @@ pub unsafe extern "C" fn duckport_huggingface_open(
                 config.as_deref(),
                 split.as_deref(),
             )?;
-            crate::validation::huggingface_request(&locator)?
+            crate::utils::huggingface_request(&locator)?
         } else {
             let mut request = HuggingFaceDatasetRequest::new(
                 &locator,
