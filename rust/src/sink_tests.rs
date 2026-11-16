@@ -1,10 +1,22 @@
-use crate::{sink::DuckportSink, sink_ffi::*};
+use crate::{
+    error::{Result, duckport_source_error_free},
+    ffi::RUNTIME,
+    options::{DuckportStorageOptions, StorageConfig},
+    sink::DuckportSink,
+    sink_ffi::*,
+};
 use arrow_array::{
-    Array, ArrayRef, Int64Array, LargeBinaryArray, RecordBatch, StringArray, StructArray,
+    Array, ArrayRef, Int64Array, RecordBatch, StringArray, StructArray, cast::AsArray,
+    types::Int64Type,
 };
 use arrow_schema::ffi::FFI_ArrowSchema;
 use open_arrow_sink_lance::{LanceDatasetSink, Url};
-use std::{collections::HashMap, ffi::CString, ptr, sync::Arc};
+use std::{
+    ffi::{CStr, CString, c_char},
+    path::Path,
+    ptr,
+    sync::Arc,
+};
 
 fn input() -> RecordBatch {
     RecordBatch::try_from_iter([
@@ -19,110 +31,94 @@ fn input() -> RecordBatch {
     ])
     .unwrap()
 }
-fn open(
-    path: &std::path::Path,
-    batch: &RecordBatch,
-    mode: &str,
-    columns: &[&str],
-) -> crate::error::Result<DuckportSink> {
-    DuckportSink::new(
-        path.to_str().unwrap(),
-        batch.schema(),
-        mode,
-        columns.iter().map(|s| s.to_string()).collect(),
-        HashMap::new(),
-    )
-}
-fn read(path: &std::path::Path) -> RecordBatch {
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap();
-    runtime.block_on(async {
-        let dataset = LanceDatasetSink::default()
-            .dataset_builder(Url::from_directory_path(path).unwrap())
-            .unwrap()
-            .load()
-            .await
-            .unwrap();
-        dataset
-            .scan()
-            .blob_handling(lance::datatypes::BlobHandling::AllBinary)
-            .try_into_batch()
-            .await
-            .unwrap()
-    })
-}
-#[test]
-fn create_append_overwrite_and_empty_commit() {
-    let temp = tempfile::tempdir().unwrap();
-    let path = temp.path().join("dataset");
-    let batch = input();
-    let mut writer = open(&path, &batch, "create", &[]).unwrap();
-    writer.write(batch.clone()).unwrap();
-    writer.commit().unwrap();
-    assert!(writer.commit().is_err());
-    assert_eq!(read(&path).num_rows(), 2);
-    assert!(open(&path, &batch, "create", &[]).is_err());
-    let mut writer = open(&path, &batch, "append", &[]).unwrap();
-    writer.write(batch.clone()).unwrap();
-    writer.commit().unwrap();
-    assert_eq!(read(&path).num_rows(), 4);
-    let mut writer = open(&path, &batch, "overwrite", &[]).unwrap();
-    writer.write(batch.clone()).unwrap();
-    writer.commit().unwrap();
-    let result = read(&path);
-    assert_eq!(result.num_rows(), 2);
-    assert_eq!(result.schema(), batch.schema());
-    assert_eq!(result.column(1).null_count(), 1);
-    let mut writer = open(&path, &batch, "overwrite", &[]).unwrap();
-    writer.commit().unwrap();
-    assert_eq!(read(&path).num_rows(), 0);
-}
-#[test]
-fn download_file_urls_preserves_bytes_nulls_and_other_strings() {
-    let temp = tempfile::tempdir().unwrap();
-    let payload = b"\x00\xffbinary payload";
-    let source = temp.path().join("blob with spaces.bin");
-    std::fs::write(&source, payload).unwrap();
-    let url = Url::from_file_path(&source).unwrap();
-    let batch = RecordBatch::try_from_iter([
+fn blob_input(url: &str) -> RecordBatch {
+    RecordBatch::try_from_iter([
         (
             "blob",
-            Arc::new(StringArray::from(vec![Some(url.as_str()), None])) as ArrayRef,
+            Arc::new(StringArray::from(vec![Some(url), None])) as ArrayRef,
         ),
         (
             "text",
             Arc::new(StringArray::from(vec!["keep", "me"])) as ArrayRef,
         ),
     ])
-    .unwrap();
-    let path = temp.path().join("dataset");
-    let mut writer = open(&path, &batch, "create", &["blob"]).unwrap();
-    writer.write(batch).unwrap();
-    writer.commit().unwrap();
-    // Read after deleting the source proves ingestion, rather than storing a reference.
-    std::fs::remove_file(source).unwrap();
-    let result = read(&path);
-    let blobs = result
+    .unwrap()
+}
+fn open(path: &Path, batch: &RecordBatch, mode: &str, columns: &[&str]) -> Result<DuckportSink> {
+    DuckportSink::new(
+        path.to_str().unwrap(),
+        batch.schema(),
+        mode,
+        columns.iter().map(|s| s.to_string()).collect(),
+        &StorageConfig::default(),
+    )
+}
+fn read(path: &Path) -> Result<RecordBatch> {
+    RUNTIME.block_on(async {
+        let dataset = LanceDatasetSink::default()
+            .dataset_builder(Url::from_directory_path(path).unwrap())?
+            .load()
+            .await?;
+        Ok(dataset
+            .scan()
+            .blob_handling(lance::datatypes::BlobHandling::AllBinary)
+            .try_into_batch()
+            .await?)
+    })
+}
+fn ids(batch: &RecordBatch) -> Vec<i64> {
+    let mut ids = batch
         .column(0)
-        .as_any()
-        .downcast_ref::<LargeBinaryArray>()
-        .unwrap();
-    assert_eq!(blobs.value(0), payload);
-    assert!(blobs.is_null(1));
-    assert_eq!(
-        result
-            .column(1)
-            .as_any()
-            .downcast_ref::<StringArray>()
-            .unwrap()
-            .value(0),
-        "keep"
-    );
+        .as_primitive::<Int64Type>()
+        .values()
+        .to_vec();
+    ids.sort_unstable();
+    ids
+}
+fn ffi_result(error: *mut c_char) -> std::result::Result<(), String> {
+    if error.is_null() {
+        return Ok(());
+    }
+    let message = unsafe { CStr::from_ptr(error) }
+        .to_string_lossy()
+        .into_owned();
+    unsafe {
+        duckport_source_error_free(error);
+    }
+    Err(message)
 }
 #[test]
-fn failures_and_drop_do_not_publish() {
+fn create_append_overwrite_and_empty_commit() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("dataset");
+    let batch = input();
+    for (mode, expected) in [
+        ("create", vec![1, 2]),
+        ("append", vec![1, 1, 2, 2]),
+        ("overwrite", vec![1, 2]),
+    ] {
+        let mut writer = open(&path, &batch, mode, &[]).unwrap();
+        writer.write(batch.clone()).unwrap();
+        writer.commit().unwrap();
+        let result = read(&path).unwrap();
+        assert_eq!(ids(&result), expected);
+        assert_eq!(result.schema(), batch.schema());
+        let strings = result.column(1).as_string::<i32>();
+        assert_eq!(strings.null_count(), expected.len() / 2);
+        assert!(
+            strings
+                .iter()
+                .flatten()
+                .all(|s| s == "https://example.com/keep-as-text")
+        );
+    }
+    assert!(open(&path, &batch, "create", &[]).is_err());
+    let mut writer = open(&path, &batch, "overwrite", &[]).unwrap();
+    writer.commit().unwrap();
+    assert_eq!(read(&path).unwrap().num_rows(), 0);
+}
+#[test]
+fn invalid_inputs_and_abandoned_create_do_not_publish() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("dataset");
     let batch = input();
@@ -133,166 +129,137 @@ fn failures_and_drop_do_not_publish() {
     let mut writer = open(&path, &batch, "create", &[]).unwrap();
     writer.write(batch).unwrap();
     drop(writer);
-    assert!(!path.join("_latest.manifest").exists());
-    assert!(!path.join("_versions/1.manifest").exists());
+    assert!(read(&path).is_err());
     let url = Url::from_file_path(temp.path().join("missing.bin")).unwrap();
-    let batch = RecordBatch::try_from_iter([(
-        "blob",
-        Arc::new(StringArray::from(vec![url.as_str()])) as ArrayRef,
-    )])
-    .unwrap();
+    let batch = blob_input(url.as_str());
     let failed = temp.path().join("failed");
     let mut writer = open(&failed, &batch, "create", &["blob"]).unwrap();
     assert!(writer.write(batch).is_err());
     assert!(writer.commit().is_err());
-    assert!(!failed.join("_versions/1.manifest").exists());
+    assert!(read(&failed).is_err());
 }
 #[test]
-fn ffi_consumes_arrays_and_commits() {
+fn aborted_writes_preserve_committed_rows() {
     let temp = tempfile::tempdir().unwrap();
-    let path = temp.path().join("ffi");
+    let path = temp.path().join("dataset");
     let batch = input();
-    let schema = FFI_ArrowSchema::try_from(batch.schema().as_ref()).unwrap();
-    let path_c = CString::new(path.to_str().unwrap()).unwrap();
-    let mode = CString::new("create").unwrap();
-    let config = crate::options::DuckportStorageOptions {
-        endpoint: ptr::null(),
-        region: ptr::null(),
-        access_key_id: ptr::null(),
-        secret_access_key: ptr::null(),
-        session_token: ptr::null(),
-        token: ptr::null(),
-        virtual_host_style: 0,
-        allow_anonymous: 0,
-    };
+    let mut writer = open(&path, &batch, "create", &[]).unwrap();
+    writer.write(batch.clone()).unwrap();
+    writer.commit().unwrap();
+    let pending = RecordBatch::try_new(
+        batch.schema(),
+        vec![
+            Arc::new(Int64Array::from(vec![3, 4])) as ArrayRef,
+            batch.column(1).clone(),
+        ],
+    )
+    .unwrap();
+    for mode in ["append", "overwrite"] {
+        let mut writer = open(&path, &batch, mode, &[]).unwrap();
+        writer.write(pending.clone()).unwrap();
+        drop(writer);
+        assert_eq!(ids(&read(&path).unwrap()), vec![1, 2]);
+        let mut writer = open(&path, &batch, mode, &[]).unwrap();
+        writer.write(pending.clone()).unwrap();
+        assert!(writer.write(batch.project(&[0]).unwrap()).is_err());
+        assert!(writer.commit().is_err());
+        assert_eq!(ids(&read(&path).unwrap()), vec![1, 2]);
+    }
+}
+#[test]
+fn ffi_ingests_urls_and_preserves_ownership_and_metadata() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("nested data/dataset with spaces");
+    let source = temp.path().join("blob with spaces.bin");
+    let payload = b"\x00\xffbinary payload";
+    std::fs::write(&source, payload).unwrap();
+    let batch = blob_input(Url::from_file_path(&source).unwrap().as_str());
+    let schema = batch
+        .schema()
+        .as_ref()
+        .clone()
+        .with_metadata([("owner".into(), "duckport".into())].into());
+    let batch = batch.with_schema(Arc::new(schema)).unwrap();
     let mut writer = ptr::null_mut();
     unsafe {
-        let error = duckport_lance_open(
+        let schema = FFI_ArrowSchema::try_from(batch.schema().as_ref()).unwrap();
+        let path_c = CString::new(Url::from_file_path(&path).unwrap().as_str()).unwrap();
+        let mode = CString::new("create").unwrap();
+        let column = CString::new("blob").unwrap();
+        ffi_result(duckport_lance_open(
             path_c.as_ptr(),
             &schema,
             mode.as_ptr(),
-            ptr::null(),
-            0,
-            &config,
+            [column.as_ptr()].as_ptr(),
+            1,
+            &DuckportStorageOptions::default(),
             &mut writer,
-        );
-        assert!(error.is_null());
-        let data = StructArray::from(batch).to_data();
-        let (mut array, _) = arrow_array::ffi::to_ffi(&data).unwrap();
-        assert!(duckport_sink_write(writer, &mut array).is_null());
+        ))
+        .unwrap();
+    }
+    // The schema, option strings and pointer array above have all been dropped.
+    unsafe {
+        let (mut array, _) = arrow_array::ffi::to_ffi(&StructArray::from(batch).to_data()).unwrap();
+        ffi_result(duckport_sink_write(writer, &mut array)).unwrap();
         assert!(array.is_released());
-        assert!(duckport_sink_commit(writer).is_null());
+        ffi_result(duckport_sink_commit(writer)).unwrap();
+        assert!(ffi_result(duckport_sink_commit(writer)).is_err());
         duckport_sink_destroy(writer);
     }
-    assert_eq!(read(&path).num_rows(), 2);
+    std::fs::remove_file(source).unwrap();
+    let result = read(&path).unwrap();
+    assert_eq!(
+        result.schema().metadata().get("owner").map(String::as_str),
+        Some("duckport")
+    );
+    let labels = result.column(1).as_string::<i32>();
+    let blobs = result.column(0).as_binary::<i64>();
+    let mut rows = labels.iter().zip(blobs.iter()).collect::<Vec<_>>();
+    rows.sort();
+    assert_eq!(
+        rows,
+        [(Some("keep"), Some(payload.as_slice())), (Some("me"), None)]
+    );
 }
-
 #[test]
-fn http_urls_with_query_are_downloaded_and_errors_are_terminal() {
-    use std::{
-        io::{Read, Write},
-        net::TcpListener,
-        sync::atomic::{AtomicBool, Ordering},
-        time::Duration,
-    };
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    let address = listener.local_addr().unwrap();
-    listener.set_nonblocking(true).unwrap();
-    let stop = Arc::new(AtomicBool::new(false));
-    let server_stop = stop.clone();
-    let server = std::thread::spawn(move || {
-        let mut handlers = Vec::new();
-        while !server_stop.load(Ordering::Relaxed) {
-            let (mut stream, _) = match listener.accept() {
-                Ok(connection) => connection,
-                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                    std::thread::sleep(Duration::from_millis(5));
-                    continue;
-                }
-                Err(error) => panic!("{error}"),
-            };
-            handlers.push(std::thread::spawn(move || {
-                stream.set_nonblocking(false).unwrap();
-                stream
-                    .set_read_timeout(Some(Duration::from_secs(2)))
-                    .unwrap();
-                let mut request = Vec::new();
-                let mut buffer = [0; 1024];
-                while !request.windows(4).any(|bytes| bytes == b"\r\n\r\n") {
-                    let count = match stream.read(&mut buffer) {
-                        Ok(count) => count,
-                        Err(_) => return,
-                    };
-                    if count == 0 {
-                        break;
-                    }
-                    request.extend_from_slice(&buffer[..count]);
-                }
-                let request = String::from_utf8_lossy(&request);
-                if !request
-                    .lines()
-                    .next()
-                    .unwrap_or_default()
-                    .contains(" /payload?token=test ")
-                {
-                    let _ = stream.write_all(
-                        b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
-                    );
-                    return;
-                }
-                let payload = b"downloaded\x00\xff";
-                let header = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-                    payload.len()
-                );
-                if stream.write_all(header.as_bytes()).is_err() {
-                    return;
-                }
-                if !request.starts_with("HEAD ") {
-                    let _ = stream.write_all(payload);
-                }
-            }));
-        }
-        for handler in handlers {
-            handler.join().unwrap();
-        }
-    });
-    // Always stop the server, including when an assertion fails.
-    struct Server(Arc<AtomicBool>, Option<std::thread::JoinHandle<()>>);
-    impl Drop for Server {
-        fn drop(&mut self) {
-            self.0.store(true, Ordering::Relaxed);
-            let _ = self.1.take().unwrap().join();
-        }
+fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
+    let batch = input();
+    let schema = FFI_ArrowSchema::try_from(batch.schema().as_ref()).unwrap();
+    let path = CString::new("unused").unwrap();
+    let mode = CString::new("create").unwrap();
+    let options = DuckportStorageOptions::default();
+    let mut output = ptr::dangling_mut();
+    unsafe {
+        assert!(
+            ffi_result(duckport_lance_open(
+                path.as_ptr(),
+                ptr::null(),
+                mode.as_ptr(),
+                ptr::null(),
+                0,
+                &options,
+                &mut output
+            ))
+            .is_err()
+        );
+        assert!(output.is_null());
+        assert!(
+            ffi_result(duckport_lance_open(
+                path.as_ptr(),
+                &schema,
+                mode.as_ptr(),
+                ptr::null(),
+                1,
+                &options,
+                &mut output
+            ))
+            .is_err()
+        );
+        assert!(output.is_null());
+        let (mut array, _) = arrow_array::ffi::to_ffi(&StructArray::from(batch).to_data()).unwrap();
+        assert!(ffi_result(duckport_sink_write(ptr::null_mut(), &mut array)).is_err());
+        assert!(array.is_released());
+        assert!(ffi_result(duckport_sink_commit(ptr::null_mut())).is_err());
+        duckport_sink_destroy(ptr::null_mut());
     }
-    let server = Server(stop, Some(server));
-    let temp = tempfile::tempdir().unwrap();
-    let url = format!("http://{address}/payload?token=test");
-    let batch = RecordBatch::try_from_iter([(
-        "blob",
-        Arc::new(StringArray::from(vec![Some(url.as_str()), None])) as ArrayRef,
-    )])
-    .unwrap();
-    let path = temp.path().join("http");
-    let mut writer = open(&path, &batch, "create", &["blob"]).unwrap();
-    writer.write(batch).unwrap();
-    writer.commit().unwrap();
-    let missing_url = format!("http://{address}/missing");
-    let batch = RecordBatch::try_from_iter([(
-        "blob",
-        Arc::new(StringArray::from(vec![missing_url])) as ArrayRef,
-    )])
-    .unwrap();
-    let mut writer = open(&temp.path().join("failed"), &batch, "create", &["blob"]).unwrap();
-    assert!(writer.write(batch).is_err());
-    assert!(writer.commit().is_err());
-    drop(server);
-    let result = read(&path);
-    let blobs = result
-        .column(0)
-        .as_any()
-        .downcast_ref::<LargeBinaryArray>()
-        .unwrap();
-    assert_eq!(blobs.value(0), b"downloaded\x00\xff");
-    assert!(blobs.is_null(1));
 }

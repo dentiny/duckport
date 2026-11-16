@@ -17,12 +17,12 @@ use std::{
 };
 use tokio::runtime::Runtime;
 
-static RUNTIME: LazyLock<Arc<Runtime>> = LazyLock::new(|| {
+pub(crate) static RUNTIME: LazyLock<Arc<Runtime>> = LazyLock::new(|| {
     Arc::new(
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
-            .expect("failed to create source runtime"),
+            .expect("failed to create Arrow runtime"),
     )
 });
 
