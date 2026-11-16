@@ -3,6 +3,7 @@ use open_arrow_access::ReadOptions;
 use std::ffi::{CStr, c_char};
 
 #[repr(C)]
+#[derive(Default)]
 pub struct DuckportStorageOptions {
     pub endpoint: *const c_char,
     pub region: *const c_char,
@@ -20,6 +21,7 @@ pub struct DuckportScanOptions {
     pub batch_size: usize,
 }
 
+#[derive(Default)]
 pub struct StorageConfig {
     pub endpoint: Option<String>,
     pub region: Option<String>,

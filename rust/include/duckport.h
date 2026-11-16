@@ -34,10 +34,7 @@ void duckport_source_error_free(char *);
 char *duckport_parquet_open(const char *locator, const DuckportStorageOptions &storage_options,
                             const DuckportScanOptions &scan_options, DuckportSource **output);
 
-// Storage service-related functions (future)
-}
-
-extern "C" {
+// Lance writer functions
 char *duckport_lance_open(const char *path, const ArrowSchema *, const char *mode, const char *const *blob_columns,
                           size_t column_count, const DuckportStorageOptions *, DuckportSink **output);
 char *duckport_sink_write(DuckportSink *, ArrowArray *);
