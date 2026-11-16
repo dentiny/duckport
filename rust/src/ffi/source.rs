@@ -1,9 +1,10 @@
-use super::common::{RUNTIME, call, cleanup, string};
+use super::common::RUNTIME;
 use crate::{
-    error::Result,
+    error::{Result, call, cleanup},
     options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
     source::DuckportSource as AsyncSource,
     storage,
+    validation::{self, string},
 };
 use arrow_array::ffi_stream::FFI_ArrowArrayStream;
 use arrow_schema::ffi::FFI_ArrowSchema;
@@ -56,12 +57,11 @@ pub unsafe extern "C" fn duckport_source_get_schema(
     output: *mut FFI_ArrowSchema,
 ) -> *mut c_char {
     call(|| unsafe {
-        if source.is_null() || output.is_null() {
-            return Err("null schema argument".into());
-        }
+        let source = validation::required(source.as_ref(), "null schema argument")?;
+        validation::non_null(output, "null schema argument")?;
         ptr::write(
             output,
-            FFI_ArrowSchema::try_from((*source).source.as_ref().unwrap().schema().as_ref())?,
+            FFI_ArrowSchema::try_from(source.source.as_ref().unwrap().schema().as_ref())?,
         );
         Ok(())
     })
@@ -74,10 +74,8 @@ pub unsafe extern "C" fn duckport_source_get_stream(
     output: *mut FFI_ArrowArrayStream,
 ) -> *mut c_char {
     call(|| unsafe {
-        if source.is_null() || output.is_null() {
-            return Err("null stream argument".into());
-        }
-        let handle = &*source;
+        let handle = validation::required(source.as_ref(), "null stream argument")?;
+        validation::non_null(output, "null stream argument")?;
         let source = handle.source.as_ref().unwrap();
         let reader = BlockingRecordBatchReader::new(
             RUNTIME.block_on(source.reader())?,
@@ -112,9 +110,7 @@ where
     Fut: std::future::Future<Output = Result<AsyncSource>>,
 {
     call(|| unsafe {
-        if output.is_null() {
-            return Err("null source output".into());
-        }
+        validation::non_null(output, "null source output")?;
         *output = ptr::null_mut();
         let locator = string(locator)?;
         let storage = storage_options.read()?;

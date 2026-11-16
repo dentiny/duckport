@@ -1,6 +1,6 @@
 use crate::{error::Result, options::StorageConfig};
 use open_arrow_access::storage::opendal;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use url::Url;
 
 pub fn operator(locator: &str, config: &StorageConfig) -> Result<(opendal::Operator, String)> {
@@ -44,7 +44,10 @@ fn remote_operator(
     } else {
         let mut builder = opendal::services::S3::default()
             .root(root.unwrap_or("/"))
-            .bucket(url.host_str().ok_or("S3 URI must name a bucket")?)
+            .bucket(crate::validation::required(
+                url.host_str(),
+                "S3 URI must name a bucket",
+            )?)
             .region(config.region.as_deref().unwrap_or("us-east-1"))
             .disable_config_load()
             .disable_ec2_metadata();
@@ -78,32 +81,21 @@ pub(crate) fn is_local(locator: &str) -> bool {
     !locator.contains("://") || locator.starts_with("file://")
 }
 
-pub(crate) fn local_path(locator: &str) -> Result<PathBuf> {
-    let path = if locator.starts_with("file://") {
-        Url::parse(locator)?
-            .to_file_path()
-            .map_err(|_| "invalid local file URI")?
-    } else {
-        Path::new(locator).to_path_buf()
-    };
-    Ok(std::path::absolute(path)?)
-}
-
 pub(crate) fn create_local_directory_operator(root: &Path) -> Result<opendal::Operator> {
-    let root = root.to_str().ok_or("path must be UTF-8")?;
+    let root = crate::validation::required(root.to_str(), "path must be UTF-8")?;
     Ok(opendal::Operator::new(
         opendal::services::Fs::default().root(root),
     )?)
 }
 
 fn create_local_operator(locator: &str) -> Result<(opendal::Operator, String)> {
-    let path = local_path(locator)?;
-    let root = path.parent().ok_or("source must name a file")?;
-    let name = path
-        .file_name()
-        .and_then(|s| s.to_str())
-        .ok_or("source must name a UTF-8 file")?
-        .into();
+    let path = crate::validation::local_path(locator)?;
+    let root = crate::validation::required(path.parent(), "source must name a file")?;
+    let name = crate::validation::required(
+        path.file_name().and_then(|s| s.to_str()),
+        "source must name a UTF-8 file",
+    )?
+    .into();
     Ok((create_local_directory_operator(root)?, name))
 }
 
@@ -120,15 +112,10 @@ pub(crate) fn directory_operator_with_requester_pays(
     config: &StorageConfig,
     requester_pays: bool,
 ) -> Result<opendal::Operator> {
-    if requester_pays && !locator.starts_with("s3://") {
-        return Err("requester_pays requires an S3 root".into());
-    }
-    if requester_pays && (config.access_key_id.is_none() || config.secret_access_key.is_none()) {
-        return Err("requester_pays requires a scoped S3 secret with credentials".into());
-    }
+    crate::validation::validate_requester_pays(locator, config, requester_pays)?;
     opendal::install_default();
     if is_local(locator) {
-        return create_local_directory_operator(&local_path(locator)?);
+        return create_local_directory_operator(&crate::validation::local_path(locator)?);
     }
     let url = Url::parse(locator)?;
     crate::validation::validate_uri(&url)?;

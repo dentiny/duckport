@@ -1,8 +1,8 @@
 use crate::{
-    ffi::common::optional_string,
     ffi::source::{DuckportSource, open_reader},
     options::{DuckportScanOptions, DuckportStorageOptions},
     storage,
+    validation::optional_string,
 };
 use open_arrow_access::{
     OuterCompression, ReadRequest, file_format::xml::XmlFormat, open_file_source,
@@ -26,8 +26,10 @@ pub unsafe extern "C" fn duckport_xml_open(
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
     let open = |locator: String, storage_options, scan_options| async move {
-        let record_path = unsafe { optional_string(reader_options.record_path) }?
-            .ok_or("record_path is required")?;
+        let record_path = crate::validation::required(
+            unsafe { optional_string(reader_options.record_path) }?,
+            "record_path is required",
+        )?;
 
         let (operator, path) = storage::operator(&locator, &storage_options)?;
         let format = XmlFormat::new(record_path);

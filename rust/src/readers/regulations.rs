@@ -1,10 +1,10 @@
 use crate::{
-    ffi::common::optional_string,
     ffi::source::{DuckportSource, open_reader},
     options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
+    validation::optional_string,
 };
 use open_arrow_access::service::common::Connection;
-use open_arrow_access::service::regulations::{RegulationsResource, RegulationsService};
+use open_arrow_access::service::regulations::RegulationsService;
 use std::ffi::c_char;
 
 #[repr(C)]
@@ -27,9 +27,10 @@ pub unsafe extern "C" fn duckport_regulations_open(
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
     let open = |locator: String, storage_options: StorageConfig, scan_options| async move {
-        let file_name = unsafe { optional_string(reader_options.file_name) }?
-            .filter(|s| !s.is_empty())
-            .ok_or("file_name is required")?;
+        let file_name = crate::validation::nonempty(
+            unsafe { optional_string(reader_options.file_name) }?,
+            "file_name is required",
+        )?;
         let format =
             unsafe { optional_string(reader_options.format) }?.unwrap_or_else(|| "binary".into());
         let record_path = unsafe { optional_string(reader_options.record_path) }?;
@@ -38,18 +39,13 @@ pub unsafe extern "C" fn duckport_regulations_open(
         let resource = unsafe { optional_string(reader_options.resource) }?
             .unwrap_or_else(|| "documents".into());
         let attachment_options =
-            crate::service_files::attachment_options(&format, record_path.as_deref())?;
-        let resource = match resource.as_str() {
-            "documents" => RegulationsResource::Documents,
-            "comments" => RegulationsResource::Comments,
-            "dockets" => RegulationsResource::Dockets,
-            _ => return Err("resource must be documents, comments, or dockets".into()),
-        };
+            crate::validation::attachment_options(&format, record_path.as_deref())?;
+        let resource = crate::validation::regulations_resource(&resource)?;
         let connection = Connection::new(&endpoint)?;
-        let token = storage_options
-            .token
-            .filter(|s| !s.is_empty())
-            .ok_or("a scoped HTTP bearer_token secret is required for this service")?;
+        let token = crate::validation::nonempty(
+            storage_options.token,
+            "a scoped HTTP bearer_token secret is required for this service",
+        )?;
         let files = RegulationsService::with_connection(connection)
             .with_key(&token)?
             .record(resource, &locator)

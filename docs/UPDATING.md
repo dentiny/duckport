@@ -47,12 +47,16 @@ input strings for the open call; Rust copies them before asynchronous reads.
 
 C++ binds SQL parameters and uses DuckDB's Arrow scanner. Rust owns the schema and async reader factory; its FFI layer uses a shared Tokio runtime and open-arrow-access's `BlockingRecordBatchReader` to expose synchronous Arrow streams. The FFI exposes `open`, `get_schema`, `get_stream`, and `destroy`; registrations and source lists are explicit.
 
-`rust/src/lib.rs` declares modules only. `source.rs` wraps the library's `BoundSource` for reader binding and schema checks. File readers use `open_file_source` for storage, decompression and binding; selected provider attachments use `open_attachment_source`. `ffi/common.rs` owns the shared runtime, C string conversion, error/panic conversion, and error freeing. `ffi/source.rs` owns source handles, openers, and Arrow stream exports; `ffi/sink.rs` owns writer exports. C option structs live in `options.rs`, the internal Result alias in `error.rs`, URI validation in `validation.rs`, and storage setup in `storage.rs`. C++ source adapters live under `src/source/`, with headers under `src/include/source/`.
+`rust/src/lib.rs` declares modules only. `source.rs` wraps the library's `BoundSource` for reader binding and schema checks. File readers use `open_file_source` for storage, decompression and binding; selected provider attachments use `open_attachment_source`. `ffi/common.rs` owns the shared runtime. `ffi/source.rs` owns source handles, openers, and Arrow stream exports; `ffi/sink.rs` adapts synchronous C callers to the async writer. `error.rs` owns error/panic conversion and error freeing. `validation.rs` owns input validation, including C strings, pointers, required options, selectors, and URIs. C option structs live in `options.rs` and storage setup in `storage.rs`. C++ source adapters live under `src/source/`, with headers under `src/include/source/`.
+
+Rust tests use `#[tokio::test]`, await async writer operations, and use `tokio::fs`
+for file I/O. Synchronous C ABI calls run in `tokio::task::spawn_blocking`, keeping
+the shared runtime's block_on outside the test executor.
 
 ## Lance sink
 
 The shared COPY framework opens `src/sink/lance.cpp` through SinkWriter. Rust
-`sink.rs` owns the session and shares the runtime from `ffi/common.rs`;
+`sink.rs` exposes the async session; the synchronous C boundary uses the runtime from `ffi/common.rs`;
 `ffi/sink.rs` transfers Arrow arrays through
 the C Data Interface. DownloadBlobLayer selects explicit URL columns for native
 blob ingestion. Keep Arrow aligned with the open-arrow-sink release when upgrading;
