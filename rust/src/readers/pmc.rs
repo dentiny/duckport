@@ -1,5 +1,5 @@
 use crate::{
-    ffi::{DuckportSource, open_reader},
+    ffi::source::{DuckportSource, open_reader},
     options::{DuckportScanOptions, DuckportStorageOptions},
     source::DuckportSource as AsyncSource,
     storage,

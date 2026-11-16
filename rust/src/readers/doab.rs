@@ -1,5 +1,5 @@
 use crate::{
-    ffi::{DuckportSource, open_reader},
+    ffi::source::{DuckportSource, open_reader},
     options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
 };
 use open_arrow_access::service::doab::Doab;

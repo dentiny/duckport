@@ -1,6 +1,6 @@
 use crate::{
     error::Result,
-    ffi::{DuckportSource, open_reader},
+    ffi::source::{DuckportSource, open_reader},
     options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
     source::DuckportSource as AsyncSource,
     storage,

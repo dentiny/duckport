@@ -1,6 +1,7 @@
 use crate::{
-    ffi::{DuckportSource, open_reader},
-    options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig, optional_string},
+    ffi::common::optional_string,
+    ffi::source::{DuckportSource, open_reader},
+    options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
 };
 use open_arrow_access::service::common::Connection;
 use open_arrow_access::service::uspto::UsptoService;

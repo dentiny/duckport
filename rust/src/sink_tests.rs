@@ -1,9 +1,11 @@
 use crate::{
-    error::{Result, duckport_source_error_free},
-    ffi::RUNTIME,
+    error::Result,
+    ffi::{
+        common::{RUNTIME, duckport_source_error_free},
+        sink::*,
+    },
     options::{DuckportStorageOptions, StorageConfig},
     sink::DuckportSink,
-    sink_ffi::*,
 };
 use arrow_array::{
     Array, ArrayRef, Int64Array, RecordBatch, StringArray, StructArray, cast::AsArray,

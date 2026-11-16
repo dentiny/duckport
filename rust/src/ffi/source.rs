@@ -1,5 +1,6 @@
+use super::common::{RUNTIME, call, cleanup, string};
 use crate::{
-    error::{Result, call, cleanup},
+    error::Result,
     options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
     source::DuckportSource as AsyncSource,
     storage,
@@ -10,21 +11,7 @@ use open_arrow_access::{
     BlockingRecordBatchReader, OuterCompression, ReadOptions, ReadRequest,
     file_format::parquet::ParquetFormat, open_file_source,
 };
-use std::{
-    ffi::{CStr, c_char},
-    ptr,
-    sync::{Arc, LazyLock},
-};
-use tokio::runtime::Runtime;
-
-pub(crate) static RUNTIME: LazyLock<Arc<Runtime>> = LazyLock::new(|| {
-    Arc::new(
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .expect("failed to create Arrow runtime"),
-    )
-});
+use std::{ffi::c_char, ptr, sync::Arc};
 
 pub struct DuckportSource {
     source: Option<AsyncSource>,
@@ -35,13 +22,6 @@ impl Drop for DuckportSource {
         let _guard = RUNTIME.enter();
         self.source.take();
     }
-}
-
-pub(crate) unsafe fn string(value: *const c_char) -> Result<String> {
-    if value.is_null() {
-        return Err("null string argument".into());
-    }
-    Ok(unsafe { CStr::from_ptr(value) }.to_str()?.to_owned())
 }
 
 /// # Safety

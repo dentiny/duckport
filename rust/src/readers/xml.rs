@@ -1,6 +1,7 @@
 use crate::{
-    ffi::{DuckportSource, open_reader},
-    options::{DuckportScanOptions, DuckportStorageOptions, optional_string},
+    ffi::common::optional_string,
+    ffi::source::{DuckportSource, open_reader},
+    options::{DuckportScanOptions, DuckportStorageOptions},
     storage,
 };
 use open_arrow_access::{

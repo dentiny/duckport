@@ -1,6 +1,6 @@
-use crate::{error::Result, validation};
+use crate::{error::Result, ffi::common::optional_string, validation};
 use open_arrow_access::ReadOptions;
-use std::ffi::{CStr, c_char};
+use std::ffi::c_char;
 
 #[repr(C)]
 #[derive(Default)]
@@ -55,11 +55,4 @@ impl DuckportScanOptions {
             ..Default::default()
         })
     }
-}
-
-pub(crate) unsafe fn optional_string(value: *const c_char) -> Result<Option<String>> {
-    if value.is_null() {
-        return Ok(None);
-    }
-    Ok(Some(unsafe { CStr::from_ptr(value) }.to_str()?.to_owned()))
 }
