@@ -61,6 +61,38 @@ struct CopyGlobalState : GlobalFunctionData {
 };
 struct CopyLocalState : LocalFunctionData {};
 
+vector<string> ParseBlobColumns(const vector<Value> &values, const vector<Identifier> &names,
+                                const vector<LogicalType> &types) {
+	const auto &columns = values.size() == 1 && values[0].type().id() == LogicalTypeId::LIST
+	                          ? ListValue::GetChildren(values[0])
+	                          : values;
+	if (columns.empty()) {
+		throw BinderException("BLOB_COLUMNS requires at least one column");
+	}
+	vector<string> selected;
+	selected.reserve(columns.size());
+	for (const auto &column : columns) {
+		if (column.IsNull() || column.type().id() != LogicalTypeId::VARCHAR ||
+		    StringValue::Get(column).find('\0') != string::npos) {
+			throw BinderException("BLOB_COLUMNS requires non-NULL text column names without NUL bytes");
+		}
+		auto match = std::find(names.begin(), names.end(), Identifier(StringValue::Get(column)));
+		if (match == names.end()) {
+			throw BinderException("BLOB_COLUMNS column not found: %s", StringValue::Get(column));
+		}
+		auto index = idx_t(match - names.begin());
+		if (types[index].id() != LogicalTypeId::VARCHAR) {
+			throw BinderException("BLOB_COLUMNS column must be text: %s", *match);
+		}
+		const auto &name = match->GetIdentifierName();
+		if (std::find(selected.begin(), selected.end(), name) != selected.end()) {
+			throw BinderException("Duplicate BLOB_COLUMNS column: %s", name);
+		}
+		selected.push_back(name);
+	}
+	return selected;
+}
+
 unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput &input, const vector<Identifier> &names,
                                   const vector<LogicalType> &types) {
 	CheckWriteAccess(context);
@@ -72,33 +104,7 @@ unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput 
 	bool has_mode = false;
 	for (auto &entry : input.info.options) {
 		if (entry.first == "blob_columns") {
-			const auto &values = entry.second;
-			const auto &columns = values.size() == 1 && values[0].type().id() == LogicalTypeId::LIST
-			                          ? ListValue::GetChildren(values[0])
-			                          : values;
-			if (columns.empty()) {
-				throw BinderException("BLOB_COLUMNS requires at least one column");
-			}
-			for (const auto &column : columns) {
-				if (column.IsNull() || column.type().id() != LogicalTypeId::VARCHAR ||
-				    StringValue::Get(column).find('\0') != string::npos) {
-					throw BinderException("BLOB_COLUMNS requires non-NULL text column names without NUL bytes");
-				}
-				auto match = std::find(names.begin(), names.end(), Identifier(StringValue::Get(column)));
-				if (match == names.end()) {
-					throw BinderException("BLOB_COLUMNS column not found: %s", StringValue::Get(column));
-				}
-				auto index = idx_t(match - names.begin());
-				if (types[index].id() != LogicalTypeId::VARCHAR) {
-					throw BinderException("BLOB_COLUMNS column must be text: %s", *match);
-				}
-				auto &selected = result->options.blob_columns;
-				const auto &name = result->names[index];
-				if (std::find(selected.begin(), selected.end(), name) != selected.end()) {
-					throw BinderException("Duplicate BLOB_COLUMNS column: %s", name);
-				}
-				selected.push_back(name);
-			}
+			result->options.blob_columns = ParseBlobColumns(entry.second, names, types);
 			continue;
 		}
 		if (entry.first != "append" && entry.first != "overwrite") {
