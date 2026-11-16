@@ -1,6 +1,6 @@
 # DuckPort
 
-Read file formats and dataset service providers into DuckDB through [open-arrow-access 0.3.0](https://crates.io/crates/open-arrow-access/0.3.0).
+Read file formats and dataset service providers into DuckDB through [open-arrow-access 0.3.1](https://crates.io/crates/open-arrow-access/0.3.1).
 
 ## Build
 
@@ -32,24 +32,16 @@ Local paths, `file://`, HTTP(S), and S3 use OpenDAL. S3 connection settings and 
 
 Parquet page codecs: Snappy, Zstd, LZ4, gzip, Brotli. For standalone Parquet scans, archive members, directory/glob scans, HTTP query/signed URLs, and outer compression such as `.parquet.gz` are unsupported. Source projection/filter pushdown is not enabled.
 
-## Write framework (backend implementation pending)
+## Write
 
 ```sql
-EXPLAIN COPY (SELECT 1 AS id) TO 'output_dataset' (FORMAT duckport_lance);
-COPY my_table TO 'output_dataset' (FORMAT duckport_lance, APPEND);
+COPY (SELECT id, image_url AS image FROM my_table)
+TO 'images.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('image'));
 ```
 
-The COPY framework registers `duckport_parquet`, `duckport_lance`, and
-`duckport_iceberg`. Bind and EXPLAIN validate the schema and write mode; actual
-execution currently throws `NotImplementedException` when opening the sink,
-including for empty input. No open-arrow-sink dependency is required yet.
-
-The default mode is create. `APPEND` and `OVERWRITE` select the backend mode;
-only one may be specified. Generic file splitting, partitioning, temporary-file
-publication, and ordering options are rejected. The framework streams Arrow
-batches through one writer, commits on success, and aborts on failure. Backend
-support for modes and destinations will be validated when the sinks are added.
-DuckDB's native `FORMAT PARQUET` remains available for writing files today.
+The [Lance sink](docs/writers/lance.md) supports create, APPEND and OVERWRITE,
+including URL blob ingestion. Builds require `protoc`. The `duckport_parquet` and
+`duckport_iceberg` backends remain stubs; native `FORMAT PARQUET` is available.
 
 [Tests](test/README.md) · [Development](docs/UPDATING.md)
 

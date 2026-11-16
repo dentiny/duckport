@@ -1,5 +1,6 @@
 #define DUCKDB_EXTENSION_MAIN
 #include "duckport_test_fixture_extension.hpp"
+#include "duckdb/common/unique_ptr.hpp"
 #include "duckdb/common/vector_operations/binary_executor.hpp"
 #include "duckdb/common/vector_operations/unary_executor.hpp"
 #include "duckdb/function/scalar_function.hpp"
@@ -189,7 +190,7 @@ private:
 			return;
 		}
 		auto json = ReadFile(provider, "http.json");
-		std::unique_ptr<yyjson_doc, decltype(&yyjson_doc_free)> document(yyjson_read(json.data(), json.size(), 0),
+		duckdb::unique_ptr<yyjson_doc, decltype(&yyjson_doc_free)> document(yyjson_read(json.data(), json.size(), 0),
 		                                                                 yyjson_doc_free);
 		if (!document) {
 			throw InvalidInputException("Cannot parse provider fixture http.json: %s", provider);

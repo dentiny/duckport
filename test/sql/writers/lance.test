@@ -1,0 +1,29 @@
+# name: test/sql/writers/lance.test
+# description: COPY to Lance and validate with the independent reader
+# group: [sql]
+require duckport
+
+statement ok
+COPY (
+    SELECT id, name, [id, NULL] AS numbers,
+           CASE WHEN id = 1 THEN 'file://{WORKING_DIRECTORY}/testdata/zenodo/attachment.bin' END AS payload,
+           CASE id WHEN 1 THEN unhex('00FF0102') WHEN 2 THEN ''::BLOB END AS bytes,
+           'https://example.invalid/keep' AS text
+    FROM duckport_scan_parquet('testdata/parquet/people.parquet', batch_size := 1)
+) TO '{TEST_DIR}/output.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('PAYLOAD'));
+
+restart no_extension_load
+
+statement ok
+LOAD '{BUILD_DIRECTORY}/extension/lance/lance.duckdb_extension';
+
+query ITIITT
+SELECT id, name, numbers IS NOT DISTINCT FROM [id, NULL],
+       payload IS NOT DISTINCT FROM CASE WHEN id = 1 THEN
+           (SELECT content FROM read_blob('testdata/zenodo/attachment.bin')) END,
+       hex(bytes), text
+FROM '{TEST_DIR}/output.lance' ORDER BY id;
+----
+1	Alice	true	true	00FF0102	https://example.invalid/keep
+2	NULL	true	true	(empty)	https://example.invalid/keep
+3	Charlie	true	true	NULL	https://example.invalid/keep

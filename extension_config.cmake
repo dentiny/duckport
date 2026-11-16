@@ -17,3 +17,11 @@ if(DUCKPORT_BUILD_TEST_FIXTURES)
     )
     include("${CMAKE_CURRENT_LIST_DIR}/duckdb/.github/config/extensions/httpfs.cmake")
 endif()
+
+# Independent reader for Lance COPY round-trip tests; excluded from production builds.
+if(BUILD_UNITTESTS)
+    duckdb_extension_load(lance
+        GIT_URL https://github.com/lance-format/lance-duckdb.git
+        GIT_TAG 778bf0d63896f6ee2746939fc7df9c92f10085ce
+    )
+endif()
