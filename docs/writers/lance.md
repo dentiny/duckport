@@ -1,6 +1,6 @@
 # Lance sink
 
-Builds require `protoc`. The sink uses the released open-arrow-sink 0.1.0 crates.
+Builds require `protoc`. The sink uses the released open-arrow-sink 0.1.1 crates.
 
 ```sql
 COPY input_table TO 'output.lance' (FORMAT duckport_lance);

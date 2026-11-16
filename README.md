@@ -1,6 +1,6 @@
 # DuckPort
 
-Read file formats and dataset service providers into DuckDB through [open-arrow-access 0.3.0](https://crates.io/crates/open-arrow-access/0.3.0).
+Read file formats and dataset service providers into DuckDB through [open-arrow-access 0.3.1](https://crates.io/crates/open-arrow-access/0.3.1).
 
 ## Build
 
@@ -41,7 +41,7 @@ COPY (SELECT id, image_url AS image FROM my_table)
 TO 'images.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('image'), OVERWRITE);
 ```
 
-The Lance sink uses the released open-arrow-sink 0.1.0 crates. URL columns selected
+The Lance sink uses the released open-arrow-sink 0.1.1 crates. URL columns selected
 by `BLOB_COLUMNS` are downloaded and ingested as Lance blobs; NULL values remain
 NULL and other strings remain strings. Destinations support local paths, `file://`,
 and S3 with scoped DuckDB secrets. See [Lance sink](docs/writers/lance.md).
