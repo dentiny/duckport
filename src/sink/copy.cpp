@@ -80,7 +80,7 @@ vector<string> ParseBlobColumns(const vector<Value> &values, const vector<Identi
 		if (match == names.end()) {
 			throw BinderException("BLOB_COLUMNS column not found: %s", StringValue::Get(column));
 		}
-		auto index = idx_t(match - names.begin());
+		auto index = static_cast<idx_t>(match - names.begin());
 		if (types[index].id() != LogicalTypeId::VARCHAR) {
 			throw BinderException("BLOB_COLUMNS column must be text: %s", *match);
 		}
