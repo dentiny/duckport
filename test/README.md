@@ -30,3 +30,15 @@ requires network access.
 
 The arXiv S3 SQL tests require `httpfs`. The test-fixture build loads the
 version pinned by the DuckDB checkout alongside the native fixture extension.
+
+The Lance writer SQL tests build the upstream
+[`lance` extension](https://github.com/lance-format/lance-duckdb) at the revision
+pinned in `extension_config.cmake`.
+They write with DuckPort, restart without automatically loading extensions, and
+load the independent reader to verify committed rows, write modes, nested/NULL
+values, native BLOBs, and downloaded URL bytes. The reader is included only when
+`BUILD_UNITTESTS` is enabled; it is not a production dependency.
+
+```sh
+make test T='test/sql/writers/lance.test'
+```
