@@ -31,7 +31,7 @@ public:
 	}
 
 private:
-	duckdb::unique_ptr<DuckportSink, decltype(&duckport_sink_destroy)> writer;
+	unique_ptr<DuckportSink, decltype(&duckport_sink_destroy)> writer;
 };
 } // namespace
 unique_ptr<SinkWriter> OpenLanceWriter(const string &path, const DuckportStorageOptions &storage,
