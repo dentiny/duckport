@@ -10,6 +10,7 @@ enum class SinkWriteMode : uint8_t { CREATE, APPEND, OVERWRITE };
 
 struct SinkWriteOptions {
 	SinkWriteMode mode = SinkWriteMode::CREATE;
+	vector<string> blob_columns;
 };
 
 // Backend boundary for a single fixed-schema session. Implementations must not

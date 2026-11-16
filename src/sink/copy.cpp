@@ -44,7 +44,7 @@ struct CopyBindData : FunctionData {
 	bool Equals(const FunctionData &other) const override {
 		auto &bind = other.Cast<CopyBindData>();
 		return types == bind.types && names == bind.names && path == bind.path && options.mode == bind.options.mode &&
-		       info == bind.info;
+		       options.blob_columns == bind.options.blob_columns && info == bind.info;
 	}
 };
 struct CopyGlobalState : GlobalFunctionData {
@@ -70,6 +70,26 @@ unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput 
 	result->info = input.function_info;
 	bool has_mode = false;
 	for (auto &entry : input.info.options) {
+		if (entry.first == "blob_columns") {
+			auto columns = entry.second;
+			if (columns.size() == 1 && columns[0].type().id() == LogicalTypeId::LIST) {
+				columns = ListValue::GetChildren(columns[0]);
+			}
+			for (const auto &column : columns) {
+				if (column.IsNull()) {
+					throw BinderException("BLOB_COLUMNS cannot contain NULL");
+				}
+				if (column.type().id() != LogicalTypeId::VARCHAR) {
+					throw BinderException("BLOB_COLUMNS requires text column names");
+				}
+				auto name = StringValue::Get(column);
+				if (name.find('\0') != string::npos) {
+					throw BinderException("Column names cannot contain NUL bytes");
+				}
+				result->options.blob_columns.push_back(name);
+			}
+			continue;
+		}
 		if (entry.first != "append" && entry.first != "overwrite") {
 			throw BinderException("Unsupported DuckPort COPY option: %s", entry.first);
 		}
@@ -165,6 +185,7 @@ void RegisterCopyFunction(ExtensionLoader &loader, const string &name, WriterOpe
 	CopyFunction function {Identifier(name)};
 	function.function_info = make_shared_ptr<WriterInfo>(std::move(open));
 	function.copy_options = [](ClientContext &, CopyOptionsInput &input) {
+		input.options["blob_columns"] = CopyOption(LogicalType::LIST(LogicalType::VARCHAR), CopyOptionMode::WRITE_ONLY);
 		input.options["append"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
 		input.options["overwrite"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
 	};
@@ -184,7 +205,8 @@ void RegisterCopyFunction(ExtensionLoader &loader, const string &name, WriterOpe
 }
 
 void RegisterCopyFunctions(ExtensionLoader &loader) {
-	for (const auto &format : {"parquet", "lance", "iceberg"}) {
+	RegisterCopyFunction(loader, "duckport_lance", OpenLanceWriter);
+	for (const auto &format : {"parquet", "iceberg"}) {
 		RegisterCopyFunction(loader, string("duckport_") + format,
 		                     [format](const string &, const DuckportStorageOptions &, const SinkWriteOptions &,
 		                              ArrowSchema &) -> unique_ptr<SinkWriter> {

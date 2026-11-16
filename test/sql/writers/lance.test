@@ -1,0 +1,82 @@
+# name: test/sql/writers/lance.test
+# description: Write Lance datasets through open-arrow-sink
+# group: [sql]
+require duckport
+
+query I
+COPY (SELECT 1 AS id, 'hello' AS text) TO '__TEST_DIR__/duckport.lance' (FORMAT duckport_lance);
+----
+1
+
+statement error
+COPY (SELECT 2 AS id, 'again' AS text) TO '__TEST_DIR__/duckport.lance' (FORMAT duckport_lance);
+----
+DuckPort
+
+query I
+COPY (SELECT 2 AS id, NULL::VARCHAR AS text) TO '__TEST_DIR__/duckport.lance' (FORMAT duckport_lance, APPEND);
+----
+1
+
+query I
+COPY (SELECT 3 AS id, 'replacement' AS text) TO '__TEST_DIR__/duckport.lance' (FORMAT duckport_lance, OVERWRITE);
+----
+1
+
+query I
+COPY (SELECT 3 AS id, '' AS text WHERE false) TO '__TEST_DIR__/duckport.lance' (FORMAT duckport_lance, OVERWRITE);
+----
+0
+
+statement error
+COPY (SELECT 1 AS id) TO '__TEST_DIR__/invalid.lance' (FORMAT duckport_lance, APPEND, OVERWRITE);
+----
+Only one of APPEND or OVERWRITE
+
+statement error
+COPY (SELECT 1 AS id) TO '__TEST_DIR__/invalid.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('missing'));
+----
+column
+
+statement error
+COPY (SELECT 1 AS id) TO '__TEST_DIR__/invalid.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('id'));
+----
+text
+
+statement error
+COPY (SELECT 1 AS id) TO '__TEST_DIR__/invalid.lance' (FORMAT duckport_lance, USE_TMP_FILE true);
+----
+Unsupported DuckPort COPY option
+
+statement error
+COPY (SELECT 1 AS id) TO '__TEST_DIR__/invalid.lance' (FORMAT duckport_lance, PARTITION_BY (id));
+----
+Unsupported DuckPort COPY option
+
+statement error
+COPY (SELECT 1 AS id) TO '__TEST_DIR__/invalid.lance' (FORMAT duckport_lance, BLOB_COLUMNS NULL);
+----
+NULL
+
+query I
+COPY (SELECT i, CASE WHEN i % 2 = 0 THEN 'text' END AS nullable_text, [i, NULL] AS numbers FROM range(5000) t(i)) TO '__TEST_DIR__/lance_nested' (FORMAT duckport_lance);
+----
+5000
+
+statement ok
+PREPARE repeated_lance AS COPY (SELECT 42 AS id) TO '__TEST_DIR__/lance_prepared' (FORMAT duckport_lance, OVERWRITE);
+
+query I
+EXECUTE repeated_lance;
+----
+1
+
+query I
+EXECUTE repeated_lance;
+----
+1
+
+query I
+COPY (SELECT NULL::VARCHAR AS image, NULL::VARCHAR AS audio) TO '__TEST_DIR__/lance_null_blobs' (FORMAT duckport_lance, BLOB_COLUMNS ('image', 'audio'));
+----
+1

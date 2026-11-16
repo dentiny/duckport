@@ -49,7 +49,7 @@ add_custom_command(
           --target-dir "${RUST_TARGET_DIR}" ${RUST_TARGET_ARGS}
   DEPENDS ${RUST_SOURCES} rust/Cargo.toml rust/Cargo.lock
   WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-  COMMENT "Building open-arrow-access source bridge"
+  COMMENT "Building DuckPort Arrow source and sink bridges"
   VERBATIM)
 add_custom_target(duckport_rust_build DEPENDS "${RUST_LIBRARY}")
 add_library(duckport_source_rust STATIC IMPORTED GLOBAL)
@@ -58,7 +58,7 @@ add_dependencies(duckport_source_rust duckport_rust_build)
 
 include_directories(src/include rust/include)
 set(EXTENSION_SOURCES src/duckport_extension.cpp src/error.cpp src/storage_options.cpp src/source/options.cpp src/source/reader.cpp src/source/source_factory.cpp)
-list(APPEND EXTENSION_SOURCES src/sink/copy.cpp)
+list(APPEND EXTENSION_SOURCES src/sink/copy.cpp src/sink/lance.cpp)
 list(APPEND EXTENSION_SOURCES src/source/readers/csv.cpp)
 list(APPEND EXTENSION_SOURCES src/source/readers/huggingface.cpp)
 list(APPEND EXTENSION_SOURCES src/source/readers/xml.cpp)

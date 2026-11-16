@@ -1,5 +1,5 @@
 # name: test/sql/writers/copy_framework.test
-# description: COPY binds/plans successfully while backend open remains unimplemented
+# description: COPY framework modes, stubs, and access checks
 # group: [sql]
 
 require duckport
@@ -14,10 +14,10 @@ EXPLAIN COPY (SELECT 1 AS id) TO '__TEST_DIR__/copy_stub' (FORMAT duckport_parqu
 statement ok
 EXPLAIN COPY (SELECT 1 AS id) TO '__TEST_DIR__/copy_stub' (FORMAT duckport_iceberg, OVERWRITE);
 
-statement error
+query I
 COPY (SELECT 1 AS id) TO '__TEST_DIR__/copy_stub' (FORMAT duckport_lance);
 ----
-DuckPort lance sink is not implemented yet
+1
 
 # An empty query must still open a sink and fail rather than report false success.
 statement error
@@ -61,12 +61,12 @@ EXPLAIN COPY (SELECT 1 AS id) TO '__TEST_DIR__/copy_stub' (FORMAT duckport_lance
 Unsupported DuckPort COPY option
 
 statement ok
-PREPARE copy_stub AS COPY (SELECT 1 AS id) TO '__TEST_DIR__/copy_stub' (FORMAT duckport_lance);
+PREPARE copy_stub AS COPY (SELECT 1 AS id) TO '__TEST_DIR__/copy_stub' (FORMAT duckport_lance, OVERWRITE);
 
-statement error
+query I
 EXECUTE copy_stub;
 ----
-DuckPort lance sink is not implemented yet
+1
 
 statement ok
 SET enable_external_access = false;
