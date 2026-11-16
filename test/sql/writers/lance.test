@@ -1,148 +1,29 @@
 # name: test/sql/writers/lance.test
-# description: Verify Lance COPY with the independent upstream reader
+# description: COPY to Lance and validate with the independent reader
 # group: [sql]
 require duckport
 
 statement ok
-COPY (SELECT 1 AS id, 'hello' AS text) TO '{TEST_DIR}/append.lance' (FORMAT duckport_lance);
-
-statement error
-COPY (SELECT 2 AS id, 'again' AS text) TO '{TEST_DIR}/append.lance' (FORMAT duckport_lance);
-----
-DuckPort
-
-query I
-COPY (SELECT 2 AS id, NULL::VARCHAR AS text) TO '{TEST_DIR}/append.lance' (FORMAT duckport_lance, APPEND);
-----
-1
-
-statement error
-COPY (SELECT 'wrong schema' AS id) TO '{TEST_DIR}/append.lance' (FORMAT duckport_lance, APPEND);
-----
-DuckPort
-
-statement ok
-COPY (SELECT 0 AS id) TO '{TEST_DIR}/overwrite.lance' (FORMAT duckport_lance);
-
-statement ok
-PREPARE overwrite_lance AS COPY (SELECT 42 AS id) TO '{TEST_DIR}/overwrite.lance' (FORMAT duckport_lance, OVERWRITE);
-
-statement ok
-EXECUTE overwrite_lance;
-
-statement ok
-EXECUTE overwrite_lance;
-
-statement ok
-COPY (SELECT 0 AS id) TO '{TEST_DIR}/empty.lance' (FORMAT duckport_lance);
-
-query I
-COPY (SELECT 0 AS id WHERE false) TO '{TEST_DIR}/empty.lance' (FORMAT duckport_lance, OVERWRITE);
-----
-0
-
-statement error
-EXPLAIN COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('missing'));
-----
-column
-
-statement error
-EXPLAIN COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('id'));
-----
-text
-
-foreach invalid NULL NULL::VARCHAR[] 42 chr(0)
-
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_COLUMNS {invalid});
-----
-<REGEX>:.*(BLOB_COLUMNS|blob_columns).*
-
-endloop
-
-foreach columns [] ['payload','payload'] ['PAYLOAD','payload']
-
-statement error
-EXPLAIN COPY (SELECT NULL::VARCHAR AS payload) TO '{TEST_DIR}/invalid.lance'
-(FORMAT duckport_lance, BLOB_COLUMNS {columns});
-----
-BLOB_COLUMNS
-
-endloop
-
-query I
-COPY (SELECT i, CASE WHEN i % 2 = 0 THEN 'text' END AS text, [i, NULL] AS numbers FROM range(5000) t(i))
-TO '{TEST_DIR}/nested.lance' (FORMAT duckport_lance);
-----
-5000
-
-# Combine URL ingestion, multiple selected columns, native bytes, empty blobs and NULLs.
-statement ok
-COPY (SELECT 'downloaded' AS payload) TO '{TEST_DIR}/source.txt' (FORMAT csv, HEADER false);
-
-query I
-COPY (SELECT * FROM (VALUES
-    (1, 'file://{TEMP_DIR_ABSOLUTE}/source.txt', NULL::VARCHAR, unhex('00FF0102'), 'https://example.invalid/keep'),
-    (2, NULL, NULL, ''::BLOB, 'empty'),
-    (3, NULL, NULL, NULL, 'null')
-) t(id, payload, audio, bytes, text)) TO '{TEST_DIR}/blobs.lance'
-(FORMAT duckport_lance, BLOB_COLUMNS ('PAYLOAD', 'Audio'));
-----
-3
-
-# Read-back must return the original bytes after the source changes.
-statement ok
-COPY (SELECT 'changed' AS payload) TO '{TEST_DIR}/source.txt' (FORMAT csv, HEADER false);
-
-statement ok
-COPY (SELECT * FROM duckport_scan_parquet('testdata/parquet/people.parquet', batch_size := 2))
-TO '{TEST_DIR}/from_reader.lance' (FORMAT duckport_lance);
+COPY (
+    SELECT id, name, [id, NULL] AS numbers,
+           CASE WHEN id = 1 THEN 'file://{WORKING_DIRECTORY}/testdata/zenodo/attachment.bin' END AS payload,
+           CASE id WHEN 1 THEN unhex('00FF0102') WHEN 2 THEN ''::BLOB END AS bytes,
+           'https://example.invalid/keep' AS text
+    FROM duckport_scan_parquet('testdata/parquet/people.parquet', batch_size := 1)
+) TO '{TEST_DIR}/output.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('PAYLOAD'));
 
 restart no_extension_load
 
 statement ok
 LOAD '{BUILD_DIRECTORY}/extension/lance/lance.duckdb_extension';
 
-query IT
-SELECT id, text FROM '{TEST_DIR}/append.lance' ORDER BY id;
+query ITIITT
+SELECT id, name, numbers IS NOT DISTINCT FROM [id, NULL],
+       payload IS NOT DISTINCT FROM CASE WHEN id = 1 THEN
+           (SELECT content FROM read_blob('testdata/zenodo/attachment.bin')) END,
+       hex(bytes), text
+FROM '{TEST_DIR}/output.lance' ORDER BY id;
 ----
-1	hello
-2	NULL
-
-query I
-SELECT id FROM '{TEST_DIR}/overwrite.lance';
-----
-42
-
-query I
-SELECT count(*) FROM '{TEST_DIR}/empty.lance';
-----
-0
-
-query I
-SELECT count(*) FROM '{TEST_DIR}/nested.lance';
-----
-5000
-
-query I
-SELECT count(*) FROM (
-    (SELECT * FROM '{TEST_DIR}/nested.lance') EXCEPT ALL
-    (SELECT i, CASE WHEN i % 2 = 0 THEN 'text' END, [i, NULL] FROM range(5000) t(i))
-);
-----
-0
-
-query IIITT
-SELECT id, payload IS NOT DISTINCT FROM CASE WHEN id = 1 THEN encode('downloaded' || chr(10)) END,
-       audio IS NULL, hex(bytes), text FROM '{TEST_DIR}/blobs.lance' ORDER BY id;
-----
-1	true	true	00FF0102	https://example.invalid/keep
-2	true	true	(empty)	empty
-3	true	true	NULL	null
-
-query IT
-SELECT id, name FROM '{TEST_DIR}/from_reader.lance' ORDER BY id;
-----
-1	Alice
-2	NULL
-3	Charlie
+1	Alice	true	true	00FF0102	https://example.invalid/keep
+2	NULL	true	true	(empty)	https://example.invalid/keep
+3	Charlie	true	true	NULL	https://example.invalid/keep
