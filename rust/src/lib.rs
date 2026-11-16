@@ -7,3 +7,8 @@ mod service_files;
 mod source;
 mod storage;
 mod validation;
+
+mod sink;
+mod sink_ffi;
+#[cfg(test)]
+mod sink_tests;

@@ -37,7 +37,7 @@ impl Drop for DuckportSource {
     }
 }
 
-unsafe fn string(value: *const c_char) -> Result<String> {
+pub(crate) unsafe fn string(value: *const c_char) -> Result<String> {
     if value.is_null() {
         return Err("null string argument".into());
     }

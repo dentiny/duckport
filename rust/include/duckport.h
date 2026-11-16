@@ -5,6 +5,8 @@
 struct ArrowSchema;
 struct ArrowArrayStream;
 struct DuckportSource;
+struct DuckportSink;
+struct ArrowArray;
 
 // Optional strings are null when unset and borrowed only for the open call.
 struct DuckportStorageOptions {
@@ -15,7 +17,7 @@ struct DuckportStorageOptions {
 	const char *session_token;
 	const char *token;
 	int32_t virtual_host_style; // 0 or 1
-	int32_t allow_anonymous;	// 0 or 1
+	int32_t allow_anonymous;    // 0 or 1
 };
 struct DuckportScanOptions {
 	// Target rows per Arrow record batch; SQL default: 8192.
@@ -30,7 +32,15 @@ void duckport_source_error_free(char *);
 
 // Format-related functions
 char *duckport_parquet_open(const char *locator, const DuckportStorageOptions &storage_options,
-							const DuckportScanOptions &scan_options, DuckportSource **output);
+                            const DuckportScanOptions &scan_options, DuckportSource **output);
 
 // Storage service-related functions (future)
+}
+
+extern "C" {
+char *duckport_lance_open(const char *path, const ArrowSchema *, const char *mode, const char *const *blob_columns,
+                          size_t column_count, const DuckportStorageOptions *, DuckportSink **output);
+char *duckport_sink_write(DuckportSink *, ArrowArray *);
+char *duckport_sink_commit(DuckportSink *);
+void duckport_sink_destroy(DuckportSink *);
 }
