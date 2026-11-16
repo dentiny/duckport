@@ -1,10 +1,11 @@
 use crate::{
-    ffi::{DuckportSource, open_reader},
-    options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig, optional_string},
+    ffi::source::{DuckportSource, open_reader},
+    options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
     source::DuckportSource as AsyncSource,
+    utils::optional_string,
 };
 use open_arrow_access::{
-    service::arxiv::{ArxivKind, ArxivReadRequest, ArxivService},
+    service::arxiv::{ArxivReadRequest, ArxivService},
     storage::OpenDalAccessor,
 };
 use std::ffi::c_char;
@@ -29,14 +30,10 @@ pub unsafe extern "C" fn duckport_arxiv_open(
         let kind =
             unsafe { optional_string(reader_options.kind) }?.unwrap_or_else(|| "source".into());
         let month = unsafe { optional_string(reader_options.month) }?;
-        let kind = match kind.as_str() {
-            "source" => ArxivKind::Source,
-            "pdf" => ArxivKind::Pdf,
-            _ => return Err("kind must be source or pdf".into()),
-        };
+        let kind = crate::utils::arxiv_kind(&kind)?;
         let month = month.map(|s| s.parse::<u16>()).transpose()?;
         let requester_pays =
-            crate::validation::boolean("requester_pays", reader_options.requester_pays)?;
+            crate::utils::boolean("requester_pays", reader_options.requester_pays)?;
         let storage = OpenDalAccessor::new(crate::storage::directory_operator_with_requester_pays(
             &locator,
             &storage_options,

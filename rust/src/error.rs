@@ -12,7 +12,7 @@ pub(crate) fn call(operation: impl FnOnce() -> Result<()>) -> *mut c_char {
         result => {
             let message = match result {
                 Ok(Err(error)) => error.to_string(),
-                _ => "source operation panicked".into(),
+                _ => "FFI operation panicked".into(),
             };
             CString::new(message.replace('\0', " ")).unwrap().into_raw()
         }
@@ -32,4 +32,18 @@ pub unsafe extern "C" fn duckport_source_error_free(error: *mut c_char) {
             drop(CString::from_raw(error));
         }
     }
+}
+
+#[cfg(test)]
+pub(crate) unsafe fn ffi_result(error: *mut c_char) -> std::result::Result<(), String> {
+    if error.is_null() {
+        return Ok(());
+    }
+    let message = unsafe { std::ffi::CStr::from_ptr(error) }
+        .to_string_lossy()
+        .into_owned();
+    unsafe {
+        duckport_source_error_free(error);
+    }
+    Err(message)
 }

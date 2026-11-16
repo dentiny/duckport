@@ -1,8 +1,11 @@
+use super::common::RUNTIME;
 use crate::{
     error::{Result, call, cleanup},
     options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
     source::DuckportSource as AsyncSource,
     storage,
+    utils::string,
+    validation,
 };
 use arrow_array::ffi_stream::FFI_ArrowArrayStream;
 use arrow_schema::ffi::FFI_ArrowSchema;
@@ -10,21 +13,7 @@ use open_arrow_access::{
     BlockingRecordBatchReader, OuterCompression, ReadOptions, ReadRequest,
     file_format::parquet::ParquetFormat, open_file_source,
 };
-use std::{
-    ffi::{CStr, c_char},
-    ptr,
-    sync::{Arc, LazyLock},
-};
-use tokio::runtime::Runtime;
-
-static RUNTIME: LazyLock<Arc<Runtime>> = LazyLock::new(|| {
-    Arc::new(
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .expect("failed to create source runtime"),
-    )
-});
+use std::{ffi::c_char, ptr, sync::Arc};
 
 pub struct DuckportSource {
     source: Option<AsyncSource>,
@@ -35,13 +24,6 @@ impl Drop for DuckportSource {
         let _guard = RUNTIME.enter();
         self.source.take();
     }
-}
-
-unsafe fn string(value: *const c_char) -> Result<String> {
-    if value.is_null() {
-        return Err("null string argument".into());
-    }
-    Ok(unsafe { CStr::from_ptr(value) }.to_str()?.to_owned())
 }
 
 /// # Safety
@@ -76,12 +58,11 @@ pub unsafe extern "C" fn duckport_source_get_schema(
     output: *mut FFI_ArrowSchema,
 ) -> *mut c_char {
     call(|| unsafe {
-        if source.is_null() || output.is_null() {
-            return Err("null schema argument".into());
-        }
+        let source = validation::required(source.as_ref(), "null schema argument")?;
+        validation::non_null(output, "null schema argument")?;
         ptr::write(
             output,
-            FFI_ArrowSchema::try_from((*source).source.as_ref().unwrap().schema().as_ref())?,
+            FFI_ArrowSchema::try_from(source.source.as_ref().unwrap().schema().as_ref())?,
         );
         Ok(())
     })
@@ -94,10 +75,8 @@ pub unsafe extern "C" fn duckport_source_get_stream(
     output: *mut FFI_ArrowArrayStream,
 ) -> *mut c_char {
     call(|| unsafe {
-        if source.is_null() || output.is_null() {
-            return Err("null stream argument".into());
-        }
-        let handle = &*source;
+        let handle = validation::required(source.as_ref(), "null stream argument")?;
+        validation::non_null(output, "null stream argument")?;
         let source = handle.source.as_ref().unwrap();
         let reader = BlockingRecordBatchReader::new(
             RUNTIME.block_on(source.reader())?,
@@ -132,9 +111,7 @@ where
     Fut: std::future::Future<Output = Result<AsyncSource>>,
 {
     call(|| unsafe {
-        if output.is_null() {
-            return Err("null source output".into());
-        }
+        validation::non_null(output, "null source output")?;
         *output = ptr::null_mut();
         let locator = string(locator)?;
         let storage = storage_options.read()?;

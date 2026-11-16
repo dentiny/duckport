@@ -1,6 +1,4 @@
-use crate::error::Result;
-use crate::options::StorageConfig;
-use std::num::NonZeroUsize;
+use crate::{error::Result, options::StorageConfig};
 use url::Url;
 
 pub(crate) fn validate_uri(url: &Url) -> Result<()> {
@@ -28,20 +26,6 @@ pub(crate) fn validate_http_config(config: &StorageConfig) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn batch_size(value: usize) -> Result<NonZeroUsize> {
-    NonZeroUsize::new(value)
-        .filter(|size| size.get() <= 1048576)
-        .ok_or_else(|| "batch_size must be between 1 and 1048576".into())
-}
-
-pub(crate) fn boolean(name: &str, value: i32) -> Result<bool> {
-    match value {
-        0 => Ok(false),
-        1 => Ok(true),
-        _ => Err(format!("{name} must be 0 or 1").into()),
-    }
-}
-
 pub(crate) fn validate_huggingface_path(
     owner: &str,
     repository: &str,
@@ -67,4 +51,116 @@ pub(crate) fn validate_huggingface_url_options(
         return Err("revision, config, and split cannot be combined with a fully qualified Hugging Face URL".into());
     }
     Ok(())
+}
+
+pub(crate) fn required<T>(value: Option<T>, message: &str) -> Result<T> {
+    value.ok_or_else(|| message.into())
+}
+
+pub(crate) fn non_null<T>(value: *const T, message: &str) -> Result<()> {
+    if value.is_null() {
+        return Err(message.into());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_requester_pays(
+    locator: &str,
+    config: &StorageConfig,
+    enabled: bool,
+) -> Result<()> {
+    if enabled && !locator.starts_with("s3://") {
+        return Err("requester_pays requires an S3 root".into());
+    }
+    if enabled && (config.access_key_id.is_none() || config.secret_access_key.is_none()) {
+        return Err("requester_pays requires a scoped S3 secret with credentials".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_oai_selectors(
+    locator: &str,
+    from: Option<&str>,
+    until: Option<&str>,
+    set: Option<&str>,
+) -> Result<()> {
+    if locator != "records" && (from.is_some() || until.is_some() || set.is_some()) {
+        return Err("resumption tokens cannot be combined with date/set selectors".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_hathifiles_locator(locator: &str) -> Result<()> {
+    if locator != "catalog" {
+        return Err("Hathifiles locator must be catalog".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn nonempty<T: AsRef<str>>(value: Option<T>, message: &str) -> Result<T> {
+    required(value.filter(|value| !value.as_ref().is_empty()), message)
+}
+
+pub(crate) const BATCH_SIZE_ERROR: &str = "batch_size must be between 1 and 1048576";
+
+pub(crate) fn validate_batch_size(value: usize) -> Result<()> {
+    if !(1..=1048576).contains(&value) {
+        return Err(BATCH_SIZE_ERROR.into());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_boolean(name: &str, value: i32) -> Result<()> {
+    if !matches!(value, 0 | 1) {
+        return Err(format!("{name} must be 0 or 1").into());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_lance_scheme(url: &Url) -> Result<()> {
+    if !matches!(url.scheme(), "file" | "s3") {
+        return Err("Lance destination must be a local path, file:// URI, or s3:// URI".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_internet_archive_credentials(config: &StorageConfig) -> Result<()> {
+    if config.access_key_id.is_some() != config.secret_access_key.is_some() {
+        return Err("Internet Archive requires both an access key and a secret key".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_courtlistener_header(header: &csv_async::StringRecord) -> Result<()> {
+    let mut names = std::collections::HashSet::new();
+    for name in header {
+        if name.is_empty() || !names.insert(name) {
+            return Err("CourtListener CSV header names must be nonempty and unique".into());
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_huggingface_uri(url: &Url) -> Result<()> {
+    validate_uri(url)?;
+    if url.scheme() != "hf" || url.host_str() != Some("datasets") || url.port().is_some() {
+        return Err("expected hf://datasets/<owner>/<repo>@<revision>/<config>/<split>/".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_attachment_record_path(
+    format: &str,
+    record_path: Option<&str>,
+) -> Result<()> {
+    if format != "xml" && record_path.is_some() {
+        return Err("record_path is only supported for XML attachments".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_attachment_options(
+    options: &open_arrow_access::AttachmentOptions,
+) -> Result<()> {
+    Ok(options.validate()?)
 }

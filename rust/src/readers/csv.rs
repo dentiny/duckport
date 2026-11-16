@@ -1,5 +1,5 @@
 use crate::{
-    ffi::{DuckportSource, open_reader},
+    ffi::source::{DuckportSource, open_reader},
     options::{DuckportScanOptions, DuckportStorageOptions},
     storage,
 };
@@ -31,7 +31,7 @@ pub unsafe extern "C" fn duckport_csv_open(
     let open = |locator: String, storage_options, scan_options| async move {
         let header = match reader_options.header {
             -1 => CsvHeader::Auto,
-            value => CsvHeader::from(crate::validation::boolean("header", value)?),
+            value => CsvHeader::from(crate::utils::boolean("header", value)?),
         };
 
         let (operator, path) = storage::operator(&locator, &storage_options)?;
