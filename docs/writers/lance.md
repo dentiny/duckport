@@ -23,3 +23,10 @@ the destination; blob URL sources use the library's default credential resolutio
 External access must be enabled. COPY publishes on successful finalization;
 failed writes can leave uncommitted files. Partitioning, rotation, temporary-file
 publication and ordering options are unsupported.
+
+Compared with [duckdb_lance_conversion](https://github.com/dentiny/duckdb_lance_conversion),
+this sink currently exposes APPEND, OVERWRITE and BLOB_COLUMNS. Blob column names
+follow DuckDB identifier matching; empty lists, duplicates and invalid columns fail
+at bind time. File URL sources require `file://`; bare local blob paths are not supported.
+Blob thresholds, target file size, storage version, column compression/encoding,
+indexes, sampling and generated-column options are not exposed yet.

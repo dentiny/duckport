@@ -42,12 +42,12 @@ COPY (SELECT 0 AS id WHERE false) TO '{TEST_DIR}/empty.lance' (FORMAT duckport_l
 0
 
 statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('missing'));
+EXPLAIN COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('missing'));
 ----
 column
 
 statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('id'));
+EXPLAIN COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('id'));
 ----
 text
 
@@ -57,6 +57,16 @@ statement error
 COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_COLUMNS {invalid});
 ----
 <REGEX>:.*(BLOB_COLUMNS|blob_columns).*
+
+endloop
+
+foreach columns [] ['payload','payload'] ['PAYLOAD','payload']
+
+statement error
+EXPLAIN COPY (SELECT NULL::VARCHAR AS payload) TO '{TEST_DIR}/invalid.lance'
+(FORMAT duckport_lance, BLOB_COLUMNS {columns});
+----
+BLOB_COLUMNS
 
 endloop
 
@@ -76,7 +86,7 @@ COPY (SELECT * FROM (VALUES
     (2, NULL, NULL, ''::BLOB, 'empty'),
     (3, NULL, NULL, NULL, 'null')
 ) t(id, payload, audio, bytes, text)) TO '{TEST_DIR}/blobs.lance'
-(FORMAT duckport_lance, BLOB_COLUMNS ('payload', 'audio'));
+(FORMAT duckport_lance, BLOB_COLUMNS ('PAYLOAD', 'Audio'));
 ----
 3
 

@@ -12,6 +12,7 @@
 #include "duckdb/planner/bound_statement.hpp"
 #include "duckdb/planner/logical_operator.hpp"
 #include "storage_options.hpp"
+#include <algorithm>
 
 namespace duckdb {
 namespace {
@@ -75,12 +76,28 @@ unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput 
 			const auto &columns = values.size() == 1 && values[0].type().id() == LogicalTypeId::LIST
 			                          ? ListValue::GetChildren(values[0])
 			                          : values;
+			if (columns.empty()) {
+				throw BinderException("BLOB_COLUMNS requires at least one column");
+			}
 			for (const auto &column : columns) {
 				if (column.IsNull() || column.type().id() != LogicalTypeId::VARCHAR ||
 				    StringValue::Get(column).find('\0') != string::npos) {
 					throw BinderException("BLOB_COLUMNS requires non-NULL text column names without NUL bytes");
 				}
-				result->options.blob_columns.push_back(StringValue::Get(column));
+				auto match = std::find(names.begin(), names.end(), Identifier(StringValue::Get(column)));
+				if (match == names.end()) {
+					throw BinderException("BLOB_COLUMNS column not found: %s", StringValue::Get(column));
+				}
+				auto index = idx_t(match - names.begin());
+				if (types[index].id() != LogicalTypeId::VARCHAR) {
+					throw BinderException("BLOB_COLUMNS column must be text: %s", *match);
+				}
+				auto &selected = result->options.blob_columns;
+				const auto &name = result->names[index];
+				if (std::find(selected.begin(), selected.end(), name) != selected.end()) {
+					throw BinderException("Duplicate BLOB_COLUMNS column: %s", name);
+				}
+				selected.push_back(name);
 			}
 			continue;
 		}
