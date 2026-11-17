@@ -1,8 +1,7 @@
 //! Explicit nested BLOB_COLUMNS selection; downloads remain native sink work.
 use crate::{error::Result, utils, validation};
 use arrow_array::{
-    Array, ArrayRef, FixedSizeListArray, LargeListArray, ListArray, StringArray, StructArray,
-    cast::AsArray, new_null_array,
+    Array, ArrayRef, StringArray, StructArray, cast::AsArray, make_array, new_null_array,
 };
 use arrow_buffer::NullBuffer;
 use arrow_schema::{DataType, Field, Schema};
@@ -13,7 +12,6 @@ use std::{collections::HashSet, sync::Arc};
 
 pub(super) struct BlobColumns {
     pub top_level: HashSet<String>,
-    pub roots: HashSet<String>,
     pub nested: SchemaEvolutionLayer,
 }
 
@@ -44,6 +42,7 @@ pub(super) fn parse(
             return Err(format!("Duplicate BLOB_COLUMNS path: {name}").into());
         }
     }
+    validation::validate_blob_indexes(&options.indexes, &roots)?;
     let remaps = schema
         .fields()
         .iter()
@@ -57,13 +56,12 @@ pub(super) fn parse(
             if source == &target {
                 return None;
             }
-            let source = source.clone();
-            let output = target.clone();
+            let output = target.data_type().clone();
             Some(FieldRemap::new(
                 source.name().clone(),
                 target,
                 move |array| {
-                    transform(array, &source, &output, None)
+                    transform(array, &output, None)
                         .map_err(|error| Error::InvalidInput(error.to_string()))
                 },
             ))
@@ -71,7 +69,6 @@ pub(super) fn parse(
         .collect();
     Ok(BlobColumns {
         top_level,
-        roots,
         nested: SchemaEvolutionLayer::new(remaps),
     })
 }
@@ -119,98 +116,57 @@ fn output_field(
     field.clone().with_data_type(data_type)
 }
 
-fn transform(
-    array: ArrayRef,
-    source: &Field,
-    target: &Field,
-    parent: Option<NullBuffer>,
-) -> Result<ArrayRef> {
-    if source == target {
+fn transform(array: ArrayRef, target: &DataType, parent: Option<NullBuffer>) -> Result<ArrayRef> {
+    if array.data_type() == target {
         return Ok(array);
     }
     let visible = NullBuffer::union(array.nulls(), parent.as_ref());
     if matches!(
-        source.data_type(),
+        array.data_type(),
         DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View
     ) {
         return blob_uris(array, target, visible);
     }
-    match (source.data_type(), target.data_type()) {
-        (DataType::Struct(input), DataType::Struct(output)) => {
-            let values = array.as_struct();
-            let children = values
-                .columns()
-                .iter()
-                .zip(input)
-                .zip(output)
-                .map(|((array, input), output)| {
-                    transform(array.clone(), input, output, visible.clone())
-                })
-                .collect::<Result<Vec<_>>>()?;
-            Ok(Arc::new(StructArray::try_new(
-                output.clone(),
-                children,
-                values.nulls().cloned(),
-            )?))
+    let data = array.to_data();
+    let children = match target {
+        DataType::Struct(fields) => fields
+            .iter()
+            .zip(data.child_data())
+            .map(|(field, child)| {
+                let child_type = field.data_type();
+                transform(make_array(child.clone()), child_type, visible.clone())
+                    .map(|array| array.to_data())
+            })
+            .collect::<Result<Vec<_>>>()?,
+        DataType::List(field) | DataType::LargeList(field) | DataType::FixedSizeList(field, _) => {
+            let offset = |row| match data.data_type() {
+                DataType::List(_) => data.buffer::<i32>(0)[row] as usize,
+                DataType::LargeList(_) => data.buffer::<i64>(0)[row] as usize,
+                DataType::FixedSizeList(_, width) => (data.offset() + row) * *width as usize,
+                _ => unreachable!("Blob parent must retain its list type"),
+            };
+            let child = &data.child_data()[0];
+            let mut mask = vec![false; child.len()];
+            for row in 0..array.len() {
+                if visible.as_ref().is_none_or(|nulls| nulls.is_valid(row)) {
+                    mask[offset(row)..offset(row + 1)].fill(true);
+                }
+            }
+            let child_type = field.data_type();
+            let child = transform(make_array(child.clone()), child_type, Some(mask.into()))?;
+            vec![child.to_data()]
         }
-        (DataType::List(input), DataType::List(output)) => {
-            let list = array.as_list::<i32>();
-            let mask = list_mask(
-                list.values().len(),
-                list.value_offsets().iter().map(|v| *v as usize).collect(),
-                visible.as_ref(),
-            );
-            let values = transform(list.values().clone(), input, output, mask)?;
-            Ok(Arc::new(ListArray::try_new(
-                output.clone(),
-                list.offsets().clone(),
-                values,
-                list.nulls().cloned(),
-            )?))
-        }
-        (DataType::LargeList(input), DataType::LargeList(output)) => {
-            let list = array.as_list::<i64>();
-            let mask = list_mask(
-                list.values().len(),
-                list.value_offsets().iter().map(|v| *v as usize).collect(),
-                visible.as_ref(),
-            );
-            let values = transform(list.values().clone(), input, output, mask)?;
-            Ok(Arc::new(LargeListArray::try_new(
-                output.clone(),
-                list.offsets().clone(),
-                values,
-                list.nulls().cloned(),
-            )?))
-        }
-        (DataType::FixedSizeList(input, width), DataType::FixedSizeList(output, _)) => {
-            let list = array.as_fixed_size_list();
-            let offsets = (0..=list.len()).map(|i| i * *width as usize).collect();
-            let mask = list_mask(list.values().len(), offsets, visible.as_ref());
-            let values = transform(list.values().clone(), input, output, mask)?;
-            Ok(Arc::new(FixedSizeListArray::try_new_with_length(
-                output.clone(),
-                *width,
-                values,
-                list.nulls().cloned(),
-                list.len(),
-            )?))
-        }
-        _ => Ok(arrow_cast::cast(&array, target.data_type())?),
-    }
+        _ => unreachable!("Blob parent must be a struct or list"),
+    };
+    Ok(make_array(
+        data.into_builder()
+            .data_type(target.clone())
+            .child_data(children)
+            .build()?,
+    ))
 }
 
-fn list_mask(len: usize, offsets: Vec<usize>, visible: Option<&NullBuffer>) -> Option<NullBuffer> {
-    let mut mask = vec![false; len];
-    for (row, range) in offsets.windows(2).enumerate() {
-        if visible.is_none_or(|nulls| nulls.is_valid(row)) {
-            mask[range[0]..range[1]].fill(true);
-        }
-    }
-    Some(NullBuffer::from(mask))
-}
-
-fn blob_uris(array: ArrayRef, target: &Field, visible: Option<NullBuffer>) -> Result<ArrayRef> {
+fn blob_uris(array: ArrayRef, target: &DataType, visible: Option<NullBuffer>) -> Result<ArrayRef> {
     let array = arrow_cast::cast(&array, &DataType::Utf8)?;
     let paths = array.as_string::<i32>();
     let uris = StringArray::new(
@@ -218,7 +174,7 @@ fn blob_uris(array: ArrayRef, target: &Field, visible: Option<NullBuffer>) -> Re
         paths.values().clone(),
         visible.clone(),
     );
-    let DataType::Struct(fields) = target.data_type() else {
+    let DataType::Struct(fields) = target else {
         unreachable!("Blob target is a struct")
     };
     Ok(Arc::new(StructArray::try_new(

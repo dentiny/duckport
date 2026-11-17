@@ -23,7 +23,6 @@ pub(crate) async fn open(
 ) -> Result<DuckportSink> {
     let options = options.with_mode(utils::sink_mode(mode)?);
     let selected = blob_columns::parse(&schema, columns, &options)?;
-    crate::validation::validate_blob_indexes(&options.indexes, &selected.roots)?;
     let destination = storage::sink_storage(path, config)?;
     let sink = LanceDatasetSink::new(destination.storage)
         .layer(DownloadBlobLayer::new(selected.top_level))

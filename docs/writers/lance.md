@@ -15,11 +15,10 @@ writes batches in input order; the default allows reordering. See
 [COPY ordering](README.md#copy-ordering) for write scheduling and reader semantics.
 
 `BLOB_COLUMNS ('image', 'audio')` explicitly selects text URL fields for download.
-Dotted paths traverse STRUCTs and implicitly traverse LIST/ARRAY elements. A
-selected list of text URLs is adapted element by element. Unselected fields keep
-their original values. Top-level text selections retain the existing
-DownloadBlobLayer path; nested selections adapt to native Blob v2 inputs before
-the same sink materializer downloads them. HTTP(S), file:// and enabled OpenDAL sources such as S3 are
+Dotted paths traverse STRUCTs and implicitly traverse LIST/ARRAY elements;
+selected text lists are adapted element by element. Unselected fields keep their
+original values. Nested selections reuse the sink's native Blob materializer,
+including its size thresholds; top-level selections retain DownloadBlobLayer. HTTP(S), file:// and enabled OpenDAL sources such as S3 are
 supported. Bytes are ingested, so the source is no longer needed after commit.
 NULLs remain NULL; other strings remain strings. Invalid columns, URLs and failed
 downloads fail COPY.
@@ -80,21 +79,7 @@ COPY input_table TO 'output.lance' (FORMAT duckport_lance, STORAGE_VERSION '2.3'
 Support is determined by the sink's capability. The current Parquet and Iceberg
 sinks reject `STORAGE_VERSION`.
 
-## Nested BLOB_COLUMNS
-
-ATIF media can be selected explicitly with the same option:
-
-```sql
-COPY (SELECT * FROM duckport_scan_atif('trajectories.jsonl'))
-TO 'trajectories.lance' (
-    FORMAT duckport_lance,
-    BLOB_COLUMNS ('steps.message.source.path', 'steps.observation.results.content.source.path')
-);
-```
-
-The selected leaves must contain absolute URLs supported by the existing Blob
-reader (`file://`, HTTP(S), S3 or other enabled services). Qualify relative ATIF
-references before COPY; this option does not infer an ATIF document base URI,
-source credentials or text-compression policy. Null structs, lists and values
-remain null, and hidden values under null parents are not downloaded. Blob size
-thresholds apply to the selected nested fields as well as top-level fields.
+For ATIF, select fields explicitly, for example:
+`BLOB_COLUMNS ('steps.message.source.path', 'steps.observation.results.content.source.path')`.
+Relative references must be qualified before COPY; no ATIF-specific path resolution
+or storage policy is inferred.

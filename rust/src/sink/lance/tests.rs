@@ -6,10 +6,11 @@ use crate::{
     sink::DuckportSink,
 };
 use arrow_array::{
-    Array, ArrayRef, Int64Array, RecordBatch, StringArray, StructArray, cast::AsArray,
+    Array, ArrayRef, Int64Array, ListArray, RecordBatch, StringArray, StructArray, cast::AsArray,
     types::Int64Type,
 };
-use arrow_schema::ffi::FFI_ArrowSchema;
+use arrow_buffer::OffsetBuffer;
+use arrow_schema::{Field, ffi::FFI_ArrowSchema};
 use open_arrow_sink_core::WriteOptions;
 use open_arrow_sink_lance::{LanceDatasetSink, Url};
 use std::{ffi::CString, path::Path, ptr, sync::Arc};
@@ -276,91 +277,34 @@ async fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
 }
 
 #[tokio::test]
-async fn blob_columns_download_selected_atif_paths() {
+async fn nested_blob_columns_preserve_payloads_and_nulls() {
     let temp = tempdir().await;
     let image = temp.path().join("image.bin");
-    tokio::fs::write(&image, b"image payload").await.unwrap();
-    let uri = Url::from_file_path(&image).unwrap();
-    let document = temp.path().join("trajectory.json");
-    tokio::fs::write(
-        &document,
-        r#"{
-        "schema_version":"ATIF-v1.8", "trajectory_id":"media",
-        "agent":{"name":"test","version":"1"},
-        "notes":"https://example.invalid/keep-as-text",
-        "steps":[{"step_id":1,"source":"user","message":[
-            {"type":"text","text":"hello"},
-            {"type":"image","source":{"media_type":"image/png","path":"MEDIA_URL"}}
-        ]}]
-    }"#
-        .replace("MEDIA_URL", uri.as_str()),
-    )
-    .await
-    .unwrap();
-    let (operator, file) =
-        crate::storage::operator(document.to_str().unwrap(), &Default::default()).unwrap();
-    let source = open_arrow_access::open_file_source(
-        operator,
-        open_arrow_access::ReadRequest::new(file),
-        open_arrow_access::file_format::atif::AtifFormat::Auto,
-        open_arrow_access::OuterCompression::Auto,
-    )
-    .await
-    .unwrap();
-    let mut reader = source.reader().await.unwrap();
-    let input = reader.next().await.unwrap().unwrap();
+    tokio::fs::write(&image, b"payload").await.unwrap();
+    let entries = StructArray::from(blob_input(Url::from_file_path(&image).unwrap().as_str()));
+    let entries = StructArray::new(
+        entries.fields().clone(),
+        entries.columns().to_vec(),
+        Some(vec![true, false].into()),
+    );
+    let field = Field::new("item", entries.data_type().clone(), true);
+    let list = ListArray::new(
+        Arc::new(field),
+        OffsetBuffer::new(vec![0, 1, 2].into()),
+        Arc::new(entries),
+        None,
+    );
+    let input = RecordBatch::try_from_iter([("media", Arc::new(list) as ArrayRef)]).unwrap();
     let destination = temp.path().join("dataset");
-    let mut writer = super::open(
-        destination.to_str().unwrap(),
-        input.schema(),
-        "create",
-        [
-            "steps.message.source.path".into(),
-            "steps.observation.results.content.source.path".into(),
-        ]
-        .into(),
-        &Default::default(),
-        WriteOptions::default(),
-        /*writer_count=*/2,
-    )
-    .await
-    .unwrap();
+    let mut writer = open(&destination, &input, "create", &["MEDIA.BLOB"])
+        .await
+        .unwrap();
     writer.write(input).await.unwrap();
     writer.commit().await.unwrap();
     tokio::fs::remove_file(image).await.unwrap();
     let actual = read(&destination).await.unwrap();
-    assert_eq!(
-        actual
-            .column_by_name("notes")
-            .unwrap()
-            .as_string::<i32>()
-            .value(0),
-        "https://example.invalid/keep-as-text"
-    );
-    let steps = actual.column_by_name("steps").unwrap().as_list::<i32>();
-    let messages = steps
-        .values()
-        .as_struct()
-        .column_by_name("message")
-        .unwrap()
-        .as_list::<i32>();
-    let content = messages.values().as_struct();
-    assert_eq!(
-        content
-            .column_by_name("text")
-            .unwrap()
-            .as_binary::<i64>()
-            .value(0),
-        b"hello"
-    );
-    let media = content.column_by_name("source").unwrap().as_struct();
-    assert!(media.is_null(0));
-    assert_eq!(
-        media
-            .column_by_name("path")
-            .unwrap()
-            .as_binary::<i64>()
-            .value(1),
-        b"image payload"
-    );
+    let media = actual.column(0).as_list::<i32>().values().as_struct();
+    assert_eq!(media.column(0).as_binary::<i64>().value(0), b"payload");
+    assert!(media.is_null(1));
+    assert_eq!(media.column(1).as_string::<i32>().value(0), "keep");
 }
