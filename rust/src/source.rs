@@ -29,12 +29,8 @@ impl DuckportSource {
 
     pub async fn reader(&self, projection: Vec<String>) -> Result<Box<dyn RecordReader>> {
         let mut options = self.options.clone();
-        // PreparedSource retains the unprojected reader opened to inspect the
-        // schema at bind. With the original batch size, None lets the first full
-        // scan reuse it; Some(all_columns) would reopen the source and may repeat
-        // storage I/O and schema inference. Normalize only an exact schema-order
-        // projection so subsets and reordered columns are still pushed down.
-        // Empty means zero columns (COUNT(*)), not SELECT *.
+        // None reuses the reader opened at bind, avoiding another open for a full scan.
+        // Other projections, including an empty list for COUNT(*), are passed through.
         options.projection = if projection.iter().map(String::as_str).eq(self
             .source
             .schema()
