@@ -4,10 +4,11 @@
 
 namespace duckdb {
 namespace {
-class LanceWriter final : public SinkWriter {
+class RustSinkWriter final : public SinkWriter {
 public:
-	LanceWriter(const string &path, const DuckportStorageOptions &storage, const SinkWriteOptions &options,
-	            ArrowSchema &schema) : writer(nullptr, duckport_sink_destroy) {
+	RustSinkWriter(const char *format, const string &path, const DuckportStorageOptions &storage,
+	               const SinkWriteOptions &options, ArrowSchema &schema)
+	    : writer(nullptr, duckport_sink_destroy) {
 		const char *mode = options.mode == SinkWriteMode::APPEND      ? "append"
 		                   : options.mode == SinkWriteMode::OVERWRITE ? "overwrite"
 		                                                              : "create";
@@ -17,7 +18,8 @@ public:
 			columns.push_back(column.c_str());
 		}
 		DuckportSink *raw = nullptr;
-		CheckError(duckport_lance_open(path.c_str(), &schema, mode, columns.data(), columns.size(), &storage, &raw));
+		CheckError(
+		    duckport_sink_open(format, path.c_str(), &schema, mode, columns.data(), columns.size(), &storage, &raw));
 		writer.reset(raw);
 	}
 	void Write(ArrowArray &array) override {
@@ -34,8 +36,8 @@ private:
 	unique_ptr<DuckportSink, decltype(&duckport_sink_destroy)> writer;
 };
 } // namespace
-unique_ptr<SinkWriter> OpenLanceWriter(const string &path, const DuckportStorageOptions &storage,
-                                     const SinkWriteOptions &options, ArrowSchema &schema) {
-	return make_uniq<LanceWriter>(path, storage, options, schema);
+unique_ptr<SinkWriter> OpenSinkWriter(const char *format, const string &path, const DuckportStorageOptions &storage,
+                                      const SinkWriteOptions &options, ArrowSchema &schema) {
+	return make_uniq<RustSinkWriter>(format, path, storage, options, schema);
 }
 } // namespace duckdb

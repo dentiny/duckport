@@ -74,7 +74,19 @@ pub(crate) fn boolean(name: &str, value: i32) -> Result<bool> {
     Ok(value == 1)
 }
 
-pub(crate) fn lance_mode(value: &str) -> Result<open_arrow_sink_core::WriteMode> {
+pub(crate) fn sink_format(value: &str) -> Result<crate::options::SinkFormat> {
+    use crate::options::SinkFormat;
+    validation::required(
+        match value {
+            "lance" => Some(SinkFormat::Lance),
+            "parquet" => Some(SinkFormat::Parquet),
+            _ => None,
+        },
+        "sink format must be lance or parquet",
+    )
+}
+
+pub(crate) fn sink_mode(value: &str) -> Result<open_arrow_sink_core::WriteMode> {
     use open_arrow_sink_core::WriteMode;
     validation::required(
         match value {
@@ -83,7 +95,7 @@ pub(crate) fn lance_mode(value: &str) -> Result<open_arrow_sink_core::WriteMode>
             "overwrite" => Some(WriteMode::Overwrite),
             _ => None,
         },
-        "Lance mode must be create, append, or overwrite",
+        "write mode must be create, append, or overwrite",
     )
 }
 
@@ -125,14 +137,14 @@ pub(crate) fn regulations_resource(
         "resource must be documents, comments, or dockets",
     )
 }
-pub(crate) fn lance_url(path: &str) -> Result<Url> {
+pub(crate) fn sink_url(path: &str) -> Result<Url> {
     let mut url = if path.contains("://") {
         Url::parse(path)?
     } else {
         Url::from_directory_path(local_path(path)?).map_err(|_| "invalid dataset path")?
     };
     validation::validate_uri(&url)?;
-    validation::validate_lance_scheme(&url)?;
+    validation::validate_sink_scheme(&url)?;
     if !url.path().ends_with('/') {
         url.set_path(&format!("{}/", url.path()));
     }

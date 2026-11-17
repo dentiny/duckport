@@ -1,7 +1,7 @@
 use crate::{
     error::{Result, ffi_result},
     ffi::sink::*,
-    options::{DuckportStorageOptions, StorageConfig},
+    options::{DuckportStorageOptions, SinkFormat, StorageConfig},
     sink::DuckportSink,
 };
 use arrow_array::{
@@ -55,6 +55,7 @@ async fn open(
     columns: &[&str],
 ) -> Result<DuckportSink> {
     DuckportSink::new(
+        SinkFormat::Lance,
         path.to_str().unwrap(),
         batch.schema(),
         mode,
@@ -187,7 +188,8 @@ async fn ffi_ingests_urls_and_preserves_ownership_and_metadata() {
             let path_c = CString::new(Url::from_file_path(&destination).unwrap().as_str()).unwrap();
             let mode = CString::new("create").unwrap();
             let column = CString::new("blob").unwrap();
-            ffi_result(duckport_lance_open(
+            ffi_result(duckport_sink_open(
+                c"lance".as_ptr(),
                 path_c.as_ptr(),
                 &schema,
                 mode.as_ptr(),
@@ -238,7 +240,8 @@ async fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
         let mut output = ptr::dangling_mut();
         unsafe {
             assert!(
-                ffi_result(duckport_lance_open(
+                ffi_result(duckport_sink_open(
+                    c"lance".as_ptr(),
                     path.as_ptr(),
                     ptr::null(),
                     mode.as_ptr(),
@@ -251,7 +254,8 @@ async fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
             );
             assert!(output.is_null());
             assert!(
-                ffi_result(duckport_lance_open(
+                ffi_result(duckport_sink_open(
+                    c"lance".as_ptr(),
                     path.as_ptr(),
                     &schema,
                     mode.as_ptr(),

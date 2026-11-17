@@ -124,3 +124,17 @@ pub(crate) fn directory_operator_with_requester_pays(
         .into_owned();
     Ok(remote_operator(locator, config, Some(&root), requester_pays)?.0)
 }
+
+/// Match the operator's local parent or S3 bucket-root namespace for directory sinks.
+pub(crate) fn sink_storage(
+    path: &str,
+    config: &StorageConfig,
+) -> Result<(Url, open_arrow_sink_storage::Storage)> {
+    let url = crate::utils::sink_url(path)?;
+    let (operator, _) = operator(url.as_str(), config)?;
+    let mut root = url.join("..")?;
+    if url.scheme() == "s3" {
+        root.set_path("/");
+    }
+    Ok((url, open_arrow_sink_storage::Storage::new(operator, root)?))
+}

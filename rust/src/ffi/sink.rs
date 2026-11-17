@@ -18,7 +18,8 @@ use std::{ffi::c_char, ptr, sync::Arc};
 /// Columns points to column_count readable string pointers (or is null for zero columns).
 /// Output points to writable sink-pointer storage. No inputs are retained.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn duckport_lance_open(
+pub unsafe extern "C" fn duckport_sink_open(
+    format: *const c_char,
     path: *const c_char,
     schema: *const FFI_ArrowSchema,
     mode: *const c_char,
@@ -31,13 +32,14 @@ pub unsafe extern "C" fn duckport_lance_open(
         validation::non_null(output, "null sink output")?;
         *output = ptr::null_mut();
         let schema = validation::required(schema.as_ref(), "null sink schema")?;
-        let storage = validation::required(storage.as_ref(), "null Lance options")?;
-        let columns = utils::ffi_slice(columns, column_count, "null Lance columns")?;
+        let storage = validation::required(storage.as_ref(), "null sink options")?;
+        let columns = utils::ffi_slice(columns, column_count, "null blob columns")?;
         let columns = columns
             .iter()
             .map(|column| string(*column))
             .collect::<crate::error::Result<std::collections::HashSet<_>>>()?;
         let sink = RUNTIME.block_on(DuckportSink::new(
+            utils::sink_format(&string(format)?)?,
             &string(path)?,
             Arc::new(Schema::try_from(schema)?),
             &string(mode)?,
@@ -66,13 +68,13 @@ pub unsafe extern "C" fn duckport_sink_write(
     })
 }
 /// # Safety
-/// Sink is a live pointer returned by duckport_lance_open.
+/// Sink is a live pointer returned by duckport_sink_open.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_sink_commit(sink: *mut DuckportSink) -> *mut c_char {
     call(|| unsafe { RUNTIME.block_on(validation::required(sink.as_mut(), "null sink")?.commit()) })
 }
 /// # Safety
-/// Sink is null or a live pointer returned by duckport_lance_open, freed once.
+/// Sink is null or a live pointer returned by duckport_sink_open, freed once.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_sink_destroy(sink: *mut DuckportSink) {
     cleanup(|| {
