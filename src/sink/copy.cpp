@@ -94,6 +94,25 @@ vector<string> ParseBlobColumns(const vector<Value> &values, const vector<Identi
 	return selected;
 }
 
+bool ParseTextOption(const string &name, const vector<Value> &values, SinkWriteOptions &options) {
+	string *target = nullptr;
+	if (name == "catalog_uri") {
+		target = &options.catalog_uri;
+	} else if (name == "warehouse") {
+		target = &options.warehouse;
+	} else if (name == "storage_root") {
+		target = &options.storage_root;
+	} else {
+		return false;
+	}
+	if (values.size() != 1 || values[0].IsNull() || values[0].type().id() != LogicalTypeId::VARCHAR ||
+	    StringValue::Get(values[0]).empty() || StringValue::Get(values[0]).find('\0') != string::npos) {
+		throw BinderException("%s requires nonempty text without NUL bytes", name);
+	}
+	*target = StringValue::Get(values[0]);
+	return true;
+}
+
 unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput &input, const vector<Identifier> &names,
                                   const vector<LogicalType> &types) {
 	CheckWriteAccess(context);
@@ -107,20 +126,7 @@ unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput 
 	result->info = input.function_info;
 	bool has_mode = false;
 	for (auto &entry : input.info.options) {
-		if (entry.first == "catalog_uri" || entry.first == "warehouse" || entry.first == "storage_root") {
-			if (entry.second.size() != 1 || entry.second[0].IsNull() ||
-			    entry.second[0].type().id() != LogicalTypeId::VARCHAR || StringValue::Get(entry.second[0]).empty() ||
-			    StringValue::Get(entry.second[0]).find('\0') != string::npos) {
-				throw BinderException("%s requires nonempty text without NUL bytes", entry.first);
-			}
-			auto value = StringValue::Get(entry.second[0]);
-			if (entry.first == "catalog_uri") {
-				result->options.catalog_uri = value;
-			} else if (entry.first == "warehouse") {
-				result->options.warehouse = value;
-			} else {
-				result->options.storage_root = value;
-			}
+		if (ParseTextOption(entry.first, entry.second, result->options)) {
 			continue;
 		}
 		if (entry.first == "blob_columns") {
