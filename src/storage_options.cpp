@@ -116,6 +116,15 @@ StorageParameters::StorageParameters(ClientContext &context, const string &locat
 	} else if (StringUtil::StartsWith(locator, "http://") || StringUtil::StartsWith(locator, "https://")) {
 		KeyValueSecretReader reader(opener, &info, "http");
 		reader.TryGetSecretKey("bearer_token", token);
+        Value extra;
+        if (reader.TryGetSecretKey("extra_http_headers", extra) && !extra.IsNull()) {
+            for (const auto &entry : MapValue::GetChildren(extra)) {
+                const auto &pair = StructValue::GetChildren(entry);
+                if (pair[0].IsNull() || pair[1].IsNull()) { throw InvalidInputException("HTTP header names and values must not be NULL"); }
+                header_names.push_back(pair[0].GetValue<string>());
+                header_values.push_back(pair[1].GetValue<string>());
+            }
+        }
 	}
 	config.endpoint = OptionalString(endpoint);
 	config.region = OptionalString(region);
@@ -123,5 +132,8 @@ StorageParameters::StorageParameters(ClientContext &context, const string &locat
 	config.secret_access_key = OptionalString(secret_access_key);
 	config.session_token = OptionalString(session_token);
 	config.token = OptionalString(token);
+    for (idx_t i = 0; i < header_names.size(); i++) { headers.push_back({header_names[i].c_str(), header_values[i].c_str()}); }
+    config.http_headers = headers.data();
+    config.http_header_count = headers.size();
 }
 } // namespace duckdb

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "duckdb/common/string.hpp"
+#include "duckdb/common/vector.hpp"
 #include "duckport.h"
 
 namespace duckdb {
@@ -8,6 +9,7 @@ class ClientContext;
 class ExtensionLoader;
 
 void RegisterStorageSettings(ExtensionLoader &loader);
+DuckportStoragePolicy ReadStoragePolicy(ClientContext &context);
 
 class StorageParameters {
   public:
@@ -23,5 +25,8 @@ class StorageParameters {
 	string secret_access_key;
 	string session_token;
 	string token;
+    vector<string> header_names;
+    vector<string> header_values;
+    vector<DuckportHttpHeader> headers;
 };
 } // namespace duckdb

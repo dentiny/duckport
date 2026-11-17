@@ -1,4 +1,5 @@
 #pragma once
+#include "blob_secrets.hpp"
 
 #include "duckdb.hpp"
 #include "duckdb/common/arrow/arrow.hpp"
@@ -53,6 +54,7 @@ struct SinkWriteOptions {
 	string warehouse;
 	string storage_root;
 	string storage_version;
+    vector<BlobSecret> blob_secrets; // captured at writer open, never stored in the COPY plan
 	vector<ColumnEncodingOptions> column_encodings;
 	vector<IndexOptions> indexes;
 

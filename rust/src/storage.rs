@@ -74,6 +74,15 @@ fn remote_operator(
         }
         opendal::Operator::new(builder)?
     };
+    let operator = if matches!(scheme.as_str(), "http" | "https")
+        && (!config.http_headers.is_empty() || config.token.is_some())
+    {
+        let transport = crate::blob_auth::fixed_http_transport(locator, config)?;
+        let context = operator.base_context().with_http_transport(transport);
+        operator.with_context(context)
+    } else {
+        operator
+    };
     Ok((config.policy.config()?.apply(operator)?, path))
 }
 

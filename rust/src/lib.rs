@@ -1,4 +1,5 @@
 mod error;
+mod blob_auth;
 mod ffi;
 mod oai;
 pub mod options;

@@ -339,6 +339,7 @@ unique_ptr<GlobalFunctionData> InitCopy(ClientContext &context, FunctionData &da
 	}
 	StorageParameters storage(context, bind.options.storage_root.empty() ? path : bind.options.storage_root, {});
 	auto options = bind.options;
+    options.blob_secrets = CaptureBlobSecrets(context);
 	options.write_options.writer_count = options.file_count.value_or(
 	    options.preserve_order ? 1 : TaskScheduler::GetScheduler(context).NumberOfThreads());
 	state->writer = bind.info->Cast<WriterInfo>().open(path, storage.config, options, schema.arrow_schema);

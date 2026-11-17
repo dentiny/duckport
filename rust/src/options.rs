@@ -15,6 +15,8 @@ pub struct DuckportStorageOptions {
     pub virtual_host_style: i32,
     pub allow_anonymous: i32,
     pub policy: DuckportStoragePolicy,
+    pub http_headers: *const crate::blob_auth::DuckportHttpHeader,
+    pub http_header_count: usize,
 }
 
 #[repr(C)]
@@ -25,6 +27,7 @@ pub struct DuckportScanOptions {
 
 #[derive(Default)]
 pub struct StorageConfig {
+    pub http_headers: Vec<(String, String)>,
     pub endpoint: Option<String>,
     pub region: Option<String>,
     pub access_key_id: Option<String>,
@@ -40,6 +43,21 @@ impl DuckportStorageOptions {
     pub(crate) unsafe fn read(&self) -> Result<StorageConfig> {
         self.policy.config()?;
         Ok(StorageConfig {
+            http_headers: unsafe {
+                crate::utils::ffi_slice(
+                    self.http_headers,
+                    self.http_header_count,
+                    "null HTTP headers",
+                )
+            }?
+            .iter()
+            .map(|h| unsafe {
+                Ok((
+                    crate::utils::string(h.name)?,
+                    crate::utils::string(h.value)?,
+                ))
+            })
+            .collect::<Result<_>>()?,
             endpoint: unsafe { optional_string(self.endpoint) }?,
             region: unsafe { optional_string(self.region) }?,
             access_key_id: unsafe { optional_string(self.access_key_id) }?,

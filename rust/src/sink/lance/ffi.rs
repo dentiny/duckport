@@ -18,6 +18,8 @@ pub unsafe extern "C" fn duckport_lance_open(
     columns: *const *const c_char,
     column_count: usize,
     options: *const DuckportWriteOptions,
+    secrets: *const crate::blob_auth::DuckportBlobSecret,
+    secret_count: usize,
     storage: *const crate::options::DuckportStorageOptions,
     output: *mut *mut DuckportSink,
 ) -> *mut c_char {
@@ -42,6 +44,7 @@ pub unsafe extern "C" fn duckport_lance_open(
             &storage.read()?,
             write_options,
             options.writer_count,
+            crate::blob_auth::read_secrets(secrets, secret_count)?,
         ))?;
         *output = Box::into_raw(Box::new(sink));
         Ok(())

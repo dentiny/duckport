@@ -1,0 +1,59 @@
+{
+  "routes": [
+    {
+      "path": "/private/a.bin",
+      "file": "payload.bin",
+      "auth_header": "Authorization",
+      "auth_value": "Bearer fixture-key",
+      "redirect": ""
+    },
+    {
+      "path": "/private/narrow/b.bin",
+      "file": "payload.bin",
+      "auth_header": "Authorization",
+      "auth_value": "Bearer fixture-narrow",
+      "redirect": ""
+    },
+    {
+      "path": "/api-key/c.bin",
+      "file": "payload.bin",
+      "auth_header": "X-API-Key",
+      "auth_value": "fixture-custom",
+      "redirect": ""
+    },
+    {
+      "path": "/api-key/records.json",
+      "file": "records.json",
+      "auth_header": "X-API-Key",
+      "auth_value": "fixture-custom",
+      "redirect": ""
+    },
+    {
+      "path": "/public/d.bin",
+      "file": "payload.bin",
+      "auth_header": "",
+      "auth_value": "",
+      "redirect": ""
+    },
+    {
+      "path": "/private/redirect.bin",
+      "file": "payload.bin",
+      "auth_header": "Authorization",
+      "auth_value": "Bearer fixture-key",
+      "redirect": "API_ORIGIN/private/narrow/b.bin"
+    },
+    {
+      "path": "/private/cross.bin",
+      "file": "payload.bin",
+      "auth_header": "Authorization",
+      "auth_value": "Bearer fixture-key",
+      "redirect": "ORIGIN/public.bin"
+    }
+  ],
+  "downloads": [
+    {
+      "path": "/public.bin",
+      "file": "payload.bin"
+    }
+  ]
+}

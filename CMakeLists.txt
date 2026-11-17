@@ -60,7 +60,7 @@ set_target_properties(duckport_source_rust PROPERTIES IMPORTED_LOCATION "${RUST_
 add_dependencies(duckport_source_rust duckport_rust_build)
 
 include_directories(src/include rust/include)
-set(EXTENSION_SOURCES src/duckport_extension.cpp src/source_metadata.cpp src/error.cpp src/storage_options.cpp src/source/options.cpp src/source/reader.cpp src/source/source_factory.cpp)
+set(EXTENSION_SOURCES src/duckport_extension.cpp src/source_metadata.cpp src/error.cpp src/storage_options.cpp src/blob_secrets.cpp src/source/options.cpp src/source/reader.cpp src/source/source_factory.cpp)
 list(APPEND EXTENSION_SOURCES src/sink/copy.cpp src/sink/writer.cpp src/sink/lance/writer.cpp src/sink/parquet/writer.cpp src/sink/iceberg/writer.cpp)
 list(APPEND EXTENSION_SOURCES src/source/readers/csv.cpp)
 list(APPEND EXTENSION_SOURCES src/source/readers/huggingface.cpp)
