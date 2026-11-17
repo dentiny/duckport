@@ -245,3 +245,20 @@ pub(crate) fn validate_iceberg_write_options(
     }
     Ok(())
 }
+
+/// Validate an optional byte count; -1 preserves the backend default.
+pub(crate) fn optional_byte_size(
+    name: &str,
+    value: i64,
+    allow_zero: bool,
+) -> Result<Option<usize>> {
+    if value == -1 {
+        return Ok(None);
+    }
+    if value < 0 || (!allow_zero && value == 0) {
+        return Err(format!("{name} has an invalid byte size").into());
+    }
+    Ok(Some(
+        usize::try_from(value).map_err(|_| format!("{name} exceeds platform size"))?,
+    ))
+}

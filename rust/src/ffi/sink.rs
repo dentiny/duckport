@@ -35,29 +35,19 @@ impl Default for DuckportWriteOptions {
 impl DuckportWriteOptions {
     // Selecting URL columns requests blob support even without explicit layout overrides.
     pub(crate) fn read(&self, blob_column_count: usize) -> Result<WriteOptions> {
-        fn size(name: &str, value: i64, allow_zero: bool) -> Result<Option<usize>> {
-            if value == -1 {
-                return Ok(None);
-            }
-            if value < 0 || (!allow_zero && value == 0) {
-                return Err(format!("{name} has an invalid byte size").into());
-            }
-            Ok(Some(
-                usize::try_from(value).map_err(|_| format!("{name} exceeds platform size"))?,
-            ))
-        }
-        let inline = size(
+        let inline = validation::optional_byte_size(
             "BLOB_INLINE_SIZE_THRESHOLD",
             self.blob_inline_size_threshold,
             true,
         )?;
-        let dedicated = size(
+        let dedicated = validation::optional_byte_size(
             "BLOB_DEDICATED_SIZE_THRESHOLD",
             self.blob_dedicated_size_threshold,
             false,
         )?;
         let mut options = WriteOptions::default();
-        options.target_file_size = size("TARGET_FILE_SIZE", self.target_file_size, false)?;
+        options.target_file_size =
+            validation::optional_byte_size("TARGET_FILE_SIZE", self.target_file_size, false)?;
         if blob_column_count != 0 || inline.is_some() || dedicated.is_some() {
             options.blob_handle = Some(BlobHandleConfig {
                 inline_size_threshold: inline,
