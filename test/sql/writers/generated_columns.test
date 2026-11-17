@@ -1,0 +1,39 @@
+# name: test/sql/writers/generated_columns.test
+# description: Generated columns and chained expressions round-trip after append
+# group: [sql]
+
+require duckport
+
+require parquet
+
+foreach sink lance parquet
+
+statement ok
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/generated_${sink}' (
+    FORMAT duckport_${sink},
+    GENERATED_COLUMNS {'doubled': 'id * 2', 'label': 'doubled::VARCHAR'});
+
+# Formatting differences normalize to the same parsed definition.
+statement ok
+COPY (SELECT 2 AS id) TO '{TEST_DIR}/generated_${sink}' (
+    FORMAT duckport_${sink}, APPEND,
+    GENERATED_COLUMNS {'doubled': 'id*2', 'label': 'doubled :: VARCHAR'});
+
+endloop
+
+query IIT
+SELECT * FROM read_parquet('{TEST_DIR}/generated_parquet/*.parquet') ORDER BY id;
+----
+1	2	2
+2	4	4
+
+restart no_extension_load
+
+statement ok
+LOAD '{BUILD_DIRECTORY}/extension/lance/lance.duckdb_extension';
+
+query IIT
+SELECT * FROM '{TEST_DIR}/generated_lance' ORDER BY id;
+----
+1	2	2
+2	4	4

@@ -3,6 +3,7 @@
 #include "duckdb/catalog/catalog_entry/copy_function_catalog_entry.hpp"
 #include "duckdb/common/arrow/arrow_converter.hpp"
 #include "duckdb/common/arrow/arrow_wrapper.hpp"
+#include "duckdb/common/arrow/schema_metadata.hpp"
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/function/copy_function.hpp"
 #include "duckdb/main/client_context.hpp"
@@ -10,11 +11,15 @@
 #include "duckdb/main/settings.hpp"
 #include "duckdb/parser/expression/star_expression.hpp"
 #include "duckdb/parser/parsed_data/sample_options.hpp"
+#include "duckdb/parser/parsed_expression_iterator.hpp"
+#include "duckdb/parser/parser.hpp"
 #include "duckdb/parser/query_node/select_node.hpp"
 #include "duckdb/parser/statement/select_statement.hpp"
 #include "duckdb/parser/tableref/subqueryref.hpp"
 #include "duckdb/planner/binder.hpp"
 #include "duckdb/planner/bound_statement.hpp"
+#include "duckdb/planner/expression/bound_columnref_expression.hpp"
+#include "duckdb/planner/expression_iterator.hpp"
 #include "duckdb/planner/logical_operator.hpp"
 #include "duckdb/planner/operator/logical_copy_to_file.hpp"
 #include "storage_options.hpp"
@@ -23,6 +28,8 @@
 
 namespace duckdb {
 namespace {
+constexpr const char *GENERATED_EXPRESSION_METADATA_KEY = "lance_conversion:generated_expression";
+
 constexpr const char *INDEX_OPTIONS[] = {
     "scalar_index_columns", "vector_index_columns", "text_index_columns", "bloom_filter_index_columns",
 };
@@ -40,6 +47,7 @@ struct WriterInfo : CopyFunctionInfo {
 struct CopyBindData : FunctionData {
 	vector<LogicalType> types;
 	vector<string> names;
+	vector<string> generated_expressions;
 	string path;
 	SinkWriteOptions options;
 	shared_ptr<CopyFunctionInfo> info;
@@ -48,6 +56,7 @@ struct CopyBindData : FunctionData {
 		auto result = make_uniq<CopyBindData>();
 		result->types = types;
 		result->names = names;
+		result->generated_expressions = generated_expressions;
 		result->path = path;
 		result->options = options;
 		result->info = info;
@@ -55,7 +64,8 @@ struct CopyBindData : FunctionData {
 	}
 	bool Equals(const FunctionData &other) const override {
 		auto &bind = other.Cast<CopyBindData>();
-		return types == bind.types && names == bind.names && path == bind.path && options.mode == bind.options.mode &&
+		return types == bind.types && names == bind.names && generated_expressions == bind.generated_expressions &&
+		       path == bind.path && options.mode == bind.options.mode &&
 		       options.blob_columns == bind.options.blob_columns &&
 		       options.write_options.blob_inline_size_threshold == bind.options.write_options.blob_inline_size_threshold &&
 		       options.write_options.blob_dedicated_size_threshold == bind.options.write_options.blob_dedicated_size_threshold &&
@@ -285,6 +295,17 @@ unique_ptr<GlobalFunctionData> InitCopy(ClientContext &context, FunctionData &da
 	state->properties = context.GetClientProperties();
 	ArrowSchemaWrapper schema;
 	ArrowConverter::ToArrowSchema(&schema.arrow_schema, bind.types, bind.names, state->properties);
+	for (idx_t column = 0; column < bind.generated_expressions.size(); column++) {
+		if (bind.generated_expressions[column].empty()) {
+			continue;
+		}
+		auto &field = *schema.arrow_schema.children[column];
+		auto metadata = field.metadata ? ArrowSchemaMetadata(field.metadata) : ArrowSchemaMetadata();
+		metadata.AddOption(GENERATED_EXPRESSION_METADATA_KEY, bind.generated_expressions[column]);
+		auto &holder = *static_cast<DuckDBArrowSchemaHolder *>(schema.arrow_schema.private_data);
+		holder.metadata_info.emplace_back(metadata.SerializeMetadata());
+		field.metadata = holder.metadata_info.back().get();
+	}
 	StorageParameters storage(context, bind.options.storage_root.empty() ? path : bind.options.storage_root, {});
 	state->writer = bind.info->Cast<WriterInfo>().open(path, storage.config, bind.options, schema.arrow_schema);
 	if (!state->writer) {
@@ -341,6 +362,102 @@ unique_ptr<SampleOptions> TakeSampleOptions(ClientContext &context, CopyInfo &in
 	return sample;
 }
 
+void ValidateGeneratedExpression(const Identifier &column, const ParsedExpression &expression) {
+	switch (expression.GetExpressionClass()) {
+	case ExpressionClass::STAR:
+		throw BinderException("GENERATED_COLUMNS expression cannot contain *: %s", column);
+	case ExpressionClass::PARAMETER:
+		throw BinderException("GENERATED_COLUMNS expression cannot contain a parameter: %s", column);
+	default:
+		break;
+	}
+	ParsedExpressionIterator::EnumerateChildren(
+	    expression, [&](const ParsedExpression &child) { ValidateGeneratedExpression(column, child); });
+}
+
+vector<unique_ptr<ParsedExpression>> TakeGeneratedColumns(ClientContext &context, CopyInfo &info) {
+	vector<unique_ptr<ParsedExpression>> result;
+	auto entry = info.options.find(Identifier("generated_columns"));
+	if (entry == info.options.end()) {
+		return result;
+	}
+	const auto &values = entry->second;
+	if (values.size() != 1 || values[0].type().id() != LogicalTypeId::STRUCT || values[0].IsNull()) {
+		throw BinderException("GENERATED_COLUMNS requires a struct such as {'column': 'expression'}");
+	}
+	auto &entries = StructType::GetChildTypes(values[0].type());
+	auto &children = StructValue::GetChildren(values[0]);
+	identifier_set_t names;
+	Parser parser(context);
+	result.reserve(entries.size());
+	for (idx_t i = 0; i < entries.size(); i++) {
+		const auto &name = entries[i].first;
+		if (name.GetIdentifierName().empty() || name.GetIdentifierName().find('\0') != string::npos ||
+		    !names.insert(name).second) {
+			throw BinderException("GENERATED_COLUMNS requires unique, nonempty "
+			                      "column names without NUL bytes");
+		}
+		if (children[i].IsNull() || children[i].type().id() != LogicalTypeId::VARCHAR ||
+		    StringValue::Get(children[i]).find('\0') != string::npos) {
+			throw BinderException("GENERATED_COLUMNS expression must be text without NUL bytes: %s", name);
+		}
+		auto expressions = parser.ParseExpressionList(children[i].GetValue<string>());
+		if (expressions.size() != 1) {
+			throw BinderException("GENERATED_COLUMNS expression must be exactly one SQL expression: %s", name);
+		}
+		ValidateGeneratedExpression(name, *expressions[0]);
+		expressions[0]->SetAlias(name);
+		result.emplace_back(std::move(expressions[0]));
+	}
+	info.options.erase(entry);
+	return result;
+}
+
+unique_ptr<QueryNode> ApplyGeneratedColumns(unique_ptr<QueryNode> query,
+                                            const vector<unique_ptr<ParsedExpression>> &columns) {
+	auto subquery = make_uniq<SelectStatement>();
+	subquery->node = std::move(query);
+	auto result = make_uniq<SelectNode>();
+	result->select_list.push_back(make_uniq<StarExpression>());
+	result->from_table = make_uniq<SubqueryRef>(std::move(subquery));
+	result->select_list.reserve(result->select_list.size() + columns.size());
+	for (const auto &column : columns) {
+		result->select_list.emplace_back(column->Copy());
+	}
+	return result;
+}
+
+// Non-scalar operations, including those introduced by macros, bind references
+// to operators other than the source row.
+void ValidateBoundGeneratedColumns(const BoundStatement &source, const vector<unique_ptr<ParsedExpression>> &columns) {
+	auto &expressions = source.plan->expressions;
+	if (source.plan->type != LogicalOperatorType::LOGICAL_PROJECTION || expressions.size() != source.names.size() ||
+	    expressions[0]->GetExpressionClass() != ExpressionClass::BOUND_COLUMN_REF) {
+		throw InternalException("GENERATED_COLUMNS expected a projection over the COPY source");
+	}
+	auto source_table = expressions[0]->Cast<BoundColumnRefExpression>().Binding().table_index;
+	auto first = source.names.size() - columns.size();
+	for (idx_t i = 0; i < columns.size(); i++) {
+		const auto &name = columns[i]->GetAlias();
+		if (source.names[first + i] != name) {
+			throw BinderException("GENERATED_COLUMNS column already exists in the COPY source: %s", name);
+		}
+		auto &expression = *expressions[first + i];
+		if (expression.IsVolatile()) {
+			throw BinderException("GENERATED_COLUMNS expression cannot use volatile functions: %s", name);
+		}
+		ExpressionIterator::VisitExpression<BoundColumnRefExpression>(
+		    expression, [&](const BoundColumnRefExpression &reference) {
+			    if (reference.Binding().table_index != source_table) {
+				    throw BinderException("GENERATED_COLUMNS expression must be computed from one source "
+				                          "row (no aggregate, window, "
+				                          "unnest or subquery): %s",
+				                          name);
+			    }
+		    });
+	}
+}
+
 // Like duckdb_lance_conversion, own the logical COPY plan: dataset backends
 // control overwrite, naming and publication, rather than DuckDB's file helpers.
 BoundStatement PlanCopy(Binder &binder, CopyStatement &statement) {
@@ -355,6 +472,7 @@ BoundStatement PlanCopy(Binder &binder, CopyStatement &statement) {
 	auto function = entry.function;
 	function.plan = nullptr;
 	auto query = info->select_statement->Copy();
+	auto generated = TakeGeneratedColumns(binder.context, *info);
 	if (auto sample = TakeSampleOptions(binder.context, *info)) {
 		auto subquery = make_uniq<SelectStatement>();
 		subquery->node = std::move(query);
@@ -364,10 +482,23 @@ BoundStatement PlanCopy(Binder &binder, CopyStatement &statement) {
 		sampled->sample = std::move(sample);
 		query = std::move(sampled);
 	}
+	if (!generated.empty()) {
+		query = ApplyGeneratedColumns(std::move(query), generated);
+	}
 	auto source = binder.Bind(*query);
 	QueryResult::DeduplicateColumns(source.names);
+	if (!generated.empty()) {
+		ValidateBoundGeneratedColumns(source, generated);
+	}
 	CopyFunctionBindInput input(*info, function.function_info);
 	auto data = BindCopy(binder.context, input, source.names, source.types);
+	if (!generated.empty()) {
+		auto &expressions = data->Cast<CopyBindData>().generated_expressions;
+		expressions.resize(source.names.size() - generated.size());
+		for (const auto &column : generated) {
+			expressions.emplace_back(column->ToString());
+		}
+	}
 	auto copy = make_uniq<LogicalCopyToFile>(function, std::move(data), std::move(info), binder.GenerateTableIndex());
 	copy->file_path = statement.info->file_path;
 	copy->file_extension = function.extension;
@@ -400,8 +531,8 @@ void CommonCopyOptions(ClientContext &, CopyOptionsInput &input) {
 	input.options["overwrite"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
 	// Preserve original values for validation.
 	for (const auto &option : {"target_file_size", "blob_inline_size_threshold", "blob_dedicated_size_threshold",
-	                          "sample_percent", "sample_rows", "column_compression", "column_compression_level",
-	                          "column_structural_encoding"}) {
+	                           "sample_percent", "sample_rows", "column_compression", "column_compression_level",
+	                           "column_structural_encoding", "generated_columns"}) {
 		input.options[option] = CopyOption(LogicalType::ANY, CopyOptionMode::WRITE_ONLY);
 	}
 }
