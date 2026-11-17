@@ -1,7 +1,7 @@
 //! Per-query policy shared by OpenDAL operators and provider HTTP transports.
 use crate::error::Result;
 use open_arrow_access::storage::{RetryConfig, StorageConfig, TimeoutConfig};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 const DEFAULT_STORAGE_TIMEOUT_MS: u64 = 30_000;
 const DEFAULT_STORAGE_IO_TIMEOUT_MS: u64 = 30_000;
@@ -36,35 +36,7 @@ impl Default for DuckportStoragePolicy {
 
 impl DuckportStoragePolicy {
     pub(crate) fn config(self) -> Result<StorageConfig> {
-        for (name, value) in [
-            ("timeout_ms", self.timeout_ms),
-            ("io_timeout_ms", self.io_timeout_ms),
-            ("retry_min_delay_ms", self.retry_min_delay_ms),
-            ("retry_max_delay_ms", self.retry_max_delay_ms),
-        ] {
-            if value == 0 {
-                return Err(format!("conversion_storage_{name} must be positive").into());
-            }
-            if Instant::now()
-                .checked_add(Duration::from_millis(value))
-                .is_none()
-            {
-                return Err(format!("conversion_storage_{name} is too large").into());
-            }
-        }
-        if self.retry_max_delay_ms < self.retry_min_delay_ms {
-            return Err(
-                "conversion_storage_retry_max_delay_ms must be at least retry_min_delay_ms".into(),
-            );
-        }
-        if !self.retry_factor.is_finite()
-            || self.retry_factor < 1.0
-            || self.retry_factor > f32::MAX as f64
-        {
-            return Err(
-                "conversion_storage_retry_factor must be finite and between 1 and f32::MAX".into(),
-            );
-        }
+        crate::validation::validate_storage_policy(&self)?;
         Ok(StorageConfig {
             timeout: Some(TimeoutConfig {
                 operation_timeout: Duration::from_millis(self.timeout_ms),
