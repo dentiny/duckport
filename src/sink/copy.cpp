@@ -7,6 +7,11 @@
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/main/query_result.hpp"
 #include "duckdb/main/settings.hpp"
+#include "duckdb/parser/expression/star_expression.hpp"
+#include "duckdb/parser/parsed_data/sample_options.hpp"
+#include "duckdb/parser/query_node/select_node.hpp"
+#include "duckdb/parser/statement/select_statement.hpp"
+#include "duckdb/parser/tableref/subqueryref.hpp"
 #include "duckdb/planner/binder.hpp"
 #include "duckdb/planner/bound_statement.hpp"
 #include "duckdb/planner/logical_operator.hpp"
@@ -223,6 +228,37 @@ void FinalizeCopy(ClientContext &, FunctionData &, GlobalFunctionData &global) {
 	state.terminal = true;
 	state.writer->Commit();
 }
+unique_ptr<SampleOptions> TakeSampleOptions(ClientContext &context, CopyInfo &info) {
+	auto percent = info.options.find(Identifier("sample_percent"));
+	auto rows = info.options.find(Identifier("sample_rows"));
+	if (percent != info.options.end() && rows != info.options.end()) {
+		throw BinderException("Only one of SAMPLE_PERCENT or SAMPLE_ROWS can be specified");
+	}
+	auto entry = percent != info.options.end() ? percent : rows;
+	if (entry == info.options.end()) {
+		return nullptr;
+	}
+	bool is_percent = percent != info.options.end();
+	const auto &values = entry->second;
+	if (values.size() != 1 || values[0].IsNull() ||
+	    (is_percent ? !values[0].type().IsNumeric() : !values[0].type().IsIntegral())) {
+		throw BinderException("%s requires one %s", entry->first, is_percent ? "number" : "integer");
+	}
+	auto sample = make_uniq<SampleOptions>();
+	sample->is_percentage = is_percent;
+	sample->method = is_percent ? SampleMethod::BERNOULLI_SAMPLE : SampleMethod::RESERVOIR_SAMPLE;
+	sample->sample_size = values[0].CastAs(context, is_percent ? LogicalType::DOUBLE : LogicalType::BIGINT);
+	unique_ptr<char, decltype(&duckport_source_error_free)> error(
+	    is_percent ? duckport_validate_sample_percent(sample->sample_size.GetValue<double>())
+	               : duckport_validate_sample_rows(sample->sample_size.GetValue<int64_t>(), SampleOptions::MAX_SAMPLE_ROWS),
+	    duckport_source_error_free);
+	if (error) {
+		throw BinderException("%s", error.get());
+	}
+	info.options.erase(entry);
+	return sample;
+}
+
 // Like duckdb_lance_conversion, own the logical COPY plan: dataset backends
 // control overwrite, naming and publication, rather than DuckDB's file helpers.
 BoundStatement PlanCopy(Binder &binder, CopyStatement &statement) {
@@ -236,7 +272,17 @@ BoundStatement PlanCopy(Binder &binder, CopyStatement &statement) {
 	    QualifiedName(Identifier(SYSTEM_CATALOG), Identifier::DefaultSchema(), Identifier(info->format)));
 	auto function = entry.function;
 	function.plan = nullptr;
-	auto source = binder.Bind(*info->select_statement);
+	auto query = info->select_statement->Copy();
+	if (auto sample = TakeSampleOptions(binder.context, *info)) {
+		auto subquery = make_uniq<SelectStatement>();
+		subquery->node = std::move(query);
+		auto sampled = make_uniq<SelectNode>();
+		sampled->select_list.push_back(make_uniq<StarExpression>());
+		sampled->from_table = make_uniq<SubqueryRef>(std::move(subquery));
+		sampled->sample = std::move(sample);
+		query = std::move(sampled);
+	}
+	auto source = binder.Bind(*query);
 	QueryResult::DeduplicateColumns(source.names);
 	CopyFunctionBindInput input(*info, function.function_info);
 	auto data = BindCopy(binder.context, input, source.names, source.types);
@@ -267,8 +313,9 @@ void CommonCopyOptions(ClientContext &, CopyOptionsInput &input) {
 	input.options["blob_columns"] = CopyOption(LogicalType::LIST(LogicalType::VARCHAR), CopyOptionMode::WRITE_ONLY);
 	input.options["append"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
 	input.options["overwrite"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
-	// Validate the original value instead of rounding fractional byte sizes.
-	for (const auto &option : {"target_file_size", "blob_inline_size_threshold", "blob_dedicated_size_threshold"}) {
+	// Preserve original numeric values for validation.
+	for (const auto &option : {"target_file_size", "blob_inline_size_threshold", "blob_dedicated_size_threshold",
+	                          "sample_percent", "sample_rows"}) {
 		input.options[option] = CopyOption(LogicalType::ANY, CopyOptionMode::WRITE_ONLY);
 	}
 }

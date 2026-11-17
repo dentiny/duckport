@@ -26,3 +26,20 @@ C++ adapters live in `src/sink/<backend>/writer.cpp`. Shared COPY binding stays 
 
 Use the same directories for additional backends. SQL round-trip tests live in
 `test/sql/writers/` and `test/integration/`.
+
+# COPY sampling
+
+`SAMPLE_PERCENT` and `SAMPLE_ROWS` apply to all DuckPort sinks. Sampling happens
+after the COPY source query and before writing:
+
+```sql
+COPY input_table TO 'sample_dataset' (FORMAT duckport_parquet, SAMPLE_PERCENT 10);
+COPY input_table TO 'sample.lance' (FORMAT duckport_lance, SAMPLE_ROWS 1000);
+```
+
+`SAMPLE_PERCENT` accepts a finite number from 0 to 100 and independently samples
+each source row; the output count is approximate. `SAMPLE_ROWS` accepts an integer
+from 0 to DuckDB's maximum sample size (currently 1,000,000,000) and selects that
+many rows uniformly, or all rows when the source contains fewer. Both methods
+read the source; fixed-row sampling buffers the sample. The options are mutually
+exclusive and do not promise output order.

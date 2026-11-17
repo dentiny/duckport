@@ -34,6 +34,8 @@ extern "C" {
 // Common FFI support
 void duckport_source_error_free(char *);
 char *duckport_validate_byte_size(const char *name, int64_t value);
+char *duckport_validate_sample_percent(double value);
+char *duckport_validate_sample_rows(int64_t value, uint64_t max_rows);
 
 // Source functions
 char *duckport_source_get_schema(const DuckportSource *, ArrowSchema *);
