@@ -231,6 +231,20 @@ A scoped HTTP secret stores the Figshare token in `BEARER_TOKEN`; DuckPort sends
 the API origin and are not forwarded to cross-origin attachment hosts.
 All reader options above are VARCHAR; `batch_size` remains BIGINT.
 
+For one secret that also works with direct HTTP/COPY Blob reads, specify the
+actual Authorization header through DuckDB's standard HTTP secret:
+
+```sql
+CREATE SECRET figshare_private (
+    TYPE http,
+    EXTRA_HTTP_HEADERS MAP {'Authorization': 'token your-figshare-token'},
+    SCOPE 'https://api.figshare.com/v2/'
+);
+```
+
+Alternatively, `TYPE http, BEARER_TOKEN 'your-figshare-token'` is mapped to the
+Figshare scheme by the provider scan adapter. Choose one form per secret.
+
 ### InternetArchive
 
 ```sql

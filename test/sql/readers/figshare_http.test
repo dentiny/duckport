@@ -37,6 +37,22 @@ FROM duckport_fixture_requests('figshare') GROUP BY origin;
 api	true
 download	true
 
+# The standard custom Authorization header also authenticates ordinary Blob reads.
+statement ok
+CREATE OR REPLACE SECRET figshare_test (TYPE http,
+    EXTRA_HTTP_HEADERS MAP {'Authorization': 'token fixture-key'}, SCOPE getvariable('figshare_scope'));
+
+query I
+SELECT count(*) FROM duckport_scan_figshare('21422193', file_name := 'records.csv', format := 'csv', endpoint := getvariable('figshare_endpoint'));
+----
+2
+
+query I
+COPY (SELECT getvariable('figshare_endpoint') || '/v2/articles/21422193' AS metadata)
+TO '{TEST_DIR}/figshare_metadata.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('metadata'));
+----
+1
+
 statement ok
 DROP SECRET figshare_test;
 

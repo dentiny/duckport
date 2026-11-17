@@ -41,11 +41,25 @@ pub unsafe extern "C" fn duckport_figshare_open(
         let attachment_options = crate::utils::attachment_options(&format, record_path.as_deref())?;
         let connection =
             Connection::new(&endpoint)?.with_http_config(storage_options.policy.config()?)?;
-        let connection = if let Some(token) = storage_options.security.token {
+        if storage_options.security.token.is_some()
+            && storage_options
+                .security
+                .http_headers
+                .iter()
+                .any(|(name, _)| name.eq_ignore_ascii_case("authorization"))
+        {
+            return Err(
+                "Figshare secret must choose BEARER_TOKEN or an Authorization header".into(),
+            );
+        }
+        let mut connection = if let Some(token) = storage_options.security.token {
             connection.with_header("authorization", &format!("token {token}"))?
         } else {
             connection
         };
+        for (name, value) in storage_options.security.http_headers {
+            connection = connection.with_header(&name, &value)?;
+        }
         let files = FigshareService::with_connection(connection)
             .article(
                 locator.parse()?,
