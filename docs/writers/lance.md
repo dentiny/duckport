@@ -1,6 +1,6 @@
 # Lance sink
 
-Builds require `protoc` and use open-arrow-sink 0.1.1.
+Builds require `protoc` and use open-arrow-sink 0.3.0.
 
 ```sql
 COPY input_table TO 'output.lance' (FORMAT duckport_lance);

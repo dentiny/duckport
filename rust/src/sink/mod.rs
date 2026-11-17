@@ -65,6 +65,7 @@ impl DuckportSink {
     }
     pub(crate) async fn commit(&mut self) -> Result<()> {
         let writer = validation::required(self.writer.take(), "sink writer is closed")?;
-        Ok(writer.commit().await?)
+        writer.commit().await?;
+        Ok(())
     }
 }

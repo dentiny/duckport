@@ -1,6 +1,6 @@
 # Iceberg sink
 
-Uses `open-arrow-sink-iceberg` 0.1.1 and the Iceberg Rust REST catalog.
+Uses `open-arrow-sink-iceberg` 0.3.0 and the Iceberg Rust REST catalog.
 
 ```sql
 COPY (SELECT id, value FROM input_table)
