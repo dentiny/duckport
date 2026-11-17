@@ -8,7 +8,7 @@ use iceberg_catalog_rest::{
 };
 use open_arrow_sink_core::{Ordering, Sink, WriteMode, WriteOptions};
 use open_arrow_sink_iceberg::{
-    IcebergTableSink, OpenDalStorageFactory, Storage,
+    IcebergTableSink, OpenDalStorageFactory,
     iceberg::{self, Catalog, CatalogBuilder, TableIdent},
 };
 use std::{collections::HashMap, sync::Arc};
@@ -28,8 +28,7 @@ pub(crate) async fn open(
     let identifier = TableIdent::from_strs(identifier)?;
     let root = utils::sink_url(storage_root)?;
     validation::validate_iceberg_storage_root(&root)?;
-    let operator = storage::directory_operator(root.as_str(), config)?;
-    let factory = OpenDalStorageFactory::new(Storage::new(operator, root)?);
+    let factory = OpenDalStorageFactory::new(storage::sink_storage_from_root(root, config)?);
     let mut props = HashMap::from([(REST_CATALOG_PROP_URI.into(), uri.to_string())]);
     if !warehouse.is_empty() {
         props.insert(REST_CATALOG_PROP_WAREHOUSE.into(), warehouse.into());

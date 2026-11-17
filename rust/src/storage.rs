@@ -130,16 +130,19 @@ pub(crate) struct SinkStorage {
     pub(crate) storage: open_arrow_sink_storage::Storage,
 }
 
-/// Match the operator's local parent or S3 bucket-root namespace for directory sinks.
+/// Build a directory sink destination within the shared storage namespace.
 pub(crate) fn sink_storage(path: &str, config: &StorageConfig) -> Result<SinkStorage> {
     let url = crate::utils::sink_url(path)?;
-    let (operator, _) = operator(url.as_str(), config)?;
-    let mut root = url.join("..")?;
-    if url.scheme() == "s3" {
-        root.set_path("/");
-    }
-    Ok(SinkStorage {
-        url,
-        storage: open_arrow_sink_storage::Storage::new(operator, root)?,
-    })
+    let storage = sink_storage_from_root(url.join("..")?, config)?;
+    Ok(SinkStorage { url, storage })
+}
+
+/// Use the same sanitized root for the OpenDAL operator and its URL scope.
+pub(crate) fn sink_storage_from_root(
+    root: Url,
+    config: &StorageConfig,
+) -> Result<open_arrow_sink_storage::Storage> {
+    let root = crate::utils::sanitize_storage_root(root);
+    let operator = directory_operator(root.as_str(), config)?;
+    Ok(open_arrow_sink_storage::Storage::new(operator, root)?)
 }
