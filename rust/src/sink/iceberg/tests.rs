@@ -180,6 +180,8 @@ fn ffi_failure_clears_output_and_validates_pointers() {
             ffi_result(duckport_iceberg_open(
                 identifier.as_ptr(),
                 &schema,
+                c"append".as_ptr(),
+                0,
                 uri.as_ptr(),
                 empty.as_ptr(),
                 root.as_ptr(),
@@ -193,6 +195,8 @@ fn ffi_failure_clears_output_and_validates_pointers() {
             ffi_result(duckport_iceberg_open(
                 identifier.as_ptr(),
                 ptr::null(),
+                c"append".as_ptr(),
+                0,
                 uri.as_ptr(),
                 empty.as_ptr(),
                 root.as_ptr(),
@@ -206,6 +210,8 @@ fn ffi_failure_clears_output_and_validates_pointers() {
             ffi_result(duckport_iceberg_open(
                 identifier.as_ptr(),
                 &schema,
+                c"append".as_ptr(),
+                0,
                 uri.as_ptr(),
                 empty.as_ptr(),
                 root.as_ptr(),

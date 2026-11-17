@@ -22,10 +22,9 @@ void CheckWriteAccess(ClientContext &context) {
 	}
 }
 struct WriterInfo : CopyFunctionInfo {
-	WriterInfo(WriterOpen open, bool iceberg) : open(std::move(open)), iceberg(iceberg) {
+	explicit WriterInfo(WriterOpen open) : open(std::move(open)) {
 	}
 	WriterOpen open;
-	bool iceberg;
 };
 struct CopyBindData : FunctionData {
 	vector<LogicalType> types;
@@ -102,11 +101,13 @@ unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput 
 	result->names = IdentifiersToStrings(names);
 	result->types = types;
 	result->path = input.info.file_path;
+	if (result->path.find('\0') != string::npos) {
+		throw BinderException("DuckPort COPY destination must not contain NUL bytes");
+	}
 	result->info = input.function_info;
-	bool iceberg = result->info->Cast<WriterInfo>().iceberg;
 	bool has_mode = false;
 	for (auto &entry : input.info.options) {
-		if (iceberg && (entry.first == "catalog_uri" || entry.first == "warehouse" || entry.first == "storage_root")) {
+		if (entry.first == "catalog_uri" || entry.first == "warehouse" || entry.first == "storage_root") {
 			if (entry.second.size() != 1 || entry.second[0].IsNull() ||
 			    entry.second[0].type().id() != LogicalTypeId::VARCHAR || StringValue::Get(entry.second[0]).empty() ||
 			    StringValue::Get(entry.second[0]).find('\0') != string::npos) {
@@ -123,9 +124,6 @@ unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput 
 			continue;
 		}
 		if (entry.first == "blob_columns") {
-			if (iceberg) {
-				throw BinderException("Iceberg COPY does not support BLOB_COLUMNS");
-			}
 			result->options.blob_columns = ParseBlobColumns(entry.second, names, types);
 			continue;
 		}
@@ -142,19 +140,6 @@ unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput 
 		bool enabled = entry.second.empty() || entry.second[0].CastAs(context, LogicalType::BOOLEAN).GetValue<bool>();
 		if (enabled) {
 			result->options.mode = entry.first == "append" ? SinkWriteMode::APPEND : SinkWriteMode::OVERWRITE;
-		}
-	}
-	if (iceberg) {
-		if (result->options.mode != SinkWriteMode::APPEND) {
-			throw BinderException("Iceberg COPY requires APPEND to an existing "
-			                      "table; create and overwrite are unsupported");
-		}
-		if (result->options.catalog_uri.empty() || result->options.storage_root.empty()) {
-			throw BinderException("Iceberg COPY requires CATALOG_URI and STORAGE_ROOT");
-		}
-		if (result->path.find('.') == string::npos || result->path.front() == '.' || result->path.back() == '.' ||
-		    result->path.find("..") != string::npos || result->path.find('\0') != string::npos) {
-			throw BinderException("Iceberg destination must be namespace.table");
 		}
 	}
 	return std::move(result);
@@ -234,23 +219,17 @@ BoundStatement PlanCopy(Binder &binder, CopyStatement &statement) {
 }
 } // namespace
 
-void RegisterCopyFunction(ExtensionLoader &loader, const string &name, WriterOpen open, bool iceberg) {
+void RegisterCopyFunction(ExtensionLoader &loader, const string &name, WriterOpen open) {
 	CopyFunction function {Identifier(name)};
-	function.function_info = make_shared_ptr<WriterInfo>(std::move(open), iceberg);
+	function.function_info = make_shared_ptr<WriterInfo>(std::move(open));
 	function.copy_options = [](ClientContext &, CopyOptionsInput &input) {
+		for (const auto &name : {"catalog_uri", "warehouse", "storage_root"}) {
+			input.options[name] = CopyOption(LogicalType::VARCHAR, CopyOptionMode::WRITE_ONLY);
+		}
 		input.options["blob_columns"] = CopyOption(LogicalType::LIST(LogicalType::VARCHAR), CopyOptionMode::WRITE_ONLY);
 		input.options["append"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
 		input.options["overwrite"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
 	};
-	if (iceberg) {
-		function.copy_options = [](ClientContext &, CopyOptionsInput &input) {
-			for (const auto &name : {"catalog_uri", "warehouse", "storage_root"}) {
-				input.options[name] = CopyOption(LogicalType::VARCHAR, CopyOptionMode::WRITE_ONLY);
-			}
-			input.options["append"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
-			input.options["overwrite"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
-		};
-	}
 	function.copy_to_bind = BindCopy;
 	function.copy_to_initialize_global = InitCopy;
 	function.copy_to_initialize_local = [](ExecutionContext &, FunctionData &) -> unique_ptr<LocalFunctionData> {
@@ -269,6 +248,6 @@ void RegisterCopyFunction(ExtensionLoader &loader, const string &name, WriterOpe
 void RegisterCopyFunctions(ExtensionLoader &loader) {
 	RegisterCopyFunction(loader, "duckport_lance", OpenLanceWriter);
 	RegisterCopyFunction(loader, "duckport_parquet", OpenParquetWriter);
-	RegisterCopyFunction(loader, "duckport_iceberg", OpenIcebergWriter, true);
+	RegisterCopyFunction(loader, "duckport_iceberg", OpenIcebergWriter);
 }
 } // namespace duckdb

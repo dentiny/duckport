@@ -225,15 +225,20 @@ class IcebergRoundTrip(unittest.TestCase):
             root = Path(temporary).resolve()
             with Catalog(root) as catalog:
                 options = (
-                    f"FORMAT duckport_iceberg, APPEND, CATALOG_URI 'http://127.0.0.1:{catalog.server_port}', "
+                    f"FORMAT duckport_iceberg, CATALOG_URI 'http://127.0.0.1:{catalog.server_port}', "
                     f"STORAGE_ROOT {sql_string(root)}"
                 )
 
-                def write(query, error=None):
+                def write(query, error=None, mode="APPEND", extra_options=""):
+                    write_options = options
+                    if mode:
+                        write_options += f", {mode}"
+                    if extra_options:
+                        write_options += f", {extra_options}"
                     return self.query(
                         args.writer,
                         writer_setup,
-                        f"COPY ({query}) TO 'tests.people' ({options});",
+                        f"COPY ({query}) TO 'tests.people' ({write_options});",
                         error,
                     )
 
@@ -262,6 +267,21 @@ class IcebergRoundTrip(unittest.TestCase):
                 self.assertEqual(catalog.commit_count, 2)
 
                 committed_metadata = catalog.metadata_file
+                for mode in ("", "OVERWRITE"):
+                    write(
+                        "SELECT 6 AS id, 'invalid-mode' AS name",
+                        mode=mode,
+                        error="Iceberg COPY requires APPEND",
+                    )
+                    self.assertEqual(read(), expected)
+                write(
+                    "SELECT 6 AS id, 'invalid-blob' AS name",
+                    extra_options="BLOB_COLUMNS ('name')",
+                    error="Iceberg COPY does not support BLOB_COLUMNS",
+                )
+                self.assertEqual(catalog.metadata_file, committed_metadata)
+                self.assertEqual(read(), expected)
+
                 write("SELECT 6 AS id, 'empty' AS name WHERE false")
                 self.assertEqual(catalog.metadata_file, committed_metadata)
                 self.assertEqual(read(), expected)

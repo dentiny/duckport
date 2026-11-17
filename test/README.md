@@ -38,7 +38,8 @@ They restart and load that reader to check written rows and downloaded blob byte
 The Iceberg COPY round-trip test uses a local REST catalog fixture and verifies
 committed table contents with DuckDB's independent Iceberg extension in a separate
 reader process. It checks the initial COPY, APPEND, NULLs, Unicode and empty
-strings, empty input, schema mismatch, and visibility after a failed catalog
+strings, empty input, unsupported modes and BLOB options, schema mismatch, and
+visibility after a failed catalog
 commit. Python's standard library is sufficient; no external catalog is needed.
 
 Install Iceberg once for the reader CLI, then run after building DuckPort:
