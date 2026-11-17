@@ -31,7 +31,8 @@ follow DuckDB identifier matching; empty lists, duplicates and invalid columns f
 at bind time. File URL sources require `file://`; bare local blob paths are not supported.
 Column compression/encoding uses the [shared COPY options](README.md#column-compression-and-encoding).
 Indexes use the [shared COPY index options](README.md#copy-indexes).
-Generated-column options are not exposed yet.
+Generated columns use the [shared COPY option](README.md#generated-columns),
+including expression metadata and APPEND definition checks.
 
 ## Byte-size options
 

@@ -11,6 +11,13 @@ require iceberg
 statement ok
 SET VARIABLE iceberg_catalog = duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'start');
 
+statement error
+COPY (SELECT 1 AS id) TO 'tests.people' (FORMAT duckport_iceberg,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse', APPEND,
+    GENERATED_COLUMNS {'name': 'id::VARCHAR'});
+----
+GENERATED_COLUMNS definition must match the Iceberg catalog field
+
 statement ok
 COPY (SELECT * FROM (VALUES (1, 'Alice'), (2, NULL), (3, 'Charlie'), (NULL, 'missing-id')) AS t(id, name))
 TO 'tests.people' (FORMAT duckport_iceberg,

@@ -221,6 +221,16 @@ pub(crate) fn validate_iceberg_schema(
             "Iceberg input column names, order and types must match the existing table".into(),
         );
     }
+    for (input, output) in schema.fields().iter().zip(output_schema.fields()) {
+        let key = "lance_conversion:generated_expression";
+        if input.metadata().get(key) != output.metadata().get(key) {
+            return Err(format!(
+                "GENERATED_COLUMNS definition must match the Iceberg catalog field: {}",
+                input.name()
+            )
+            .into());
+        }
+    }
     Ok(())
 }
 

@@ -1,0 +1,125 @@
+# name: test/sql/writers/generated_columns.test
+# description: Generated expressions, persisted definitions and append consistency
+# group: [sql]
+
+require duckport
+
+require parquet
+
+foreach sink lance parquet
+
+statement ok
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/generated_${sink}' (
+    FORMAT duckport_${sink}, SAMPLE_ROWS 1,
+    GENERATED_COLUMNS {'doubled': 'id * 2', 'label': 'doubled::VARCHAR'});
+
+# Formatting differences normalize to the same parsed definition.
+statement ok
+COPY (SELECT 2 AS id) TO '{TEST_DIR}/generated_${sink}' (
+    FORMAT duckport_${sink}, APPEND,
+    GENERATED_COLUMNS {'doubled': 'id*2', 'label': 'doubled :: VARCHAR'});
+
+# All columns and types still match; only expression metadata differs.
+statement error
+COPY (SELECT 3 AS id) TO '{TEST_DIR}/generated_${sink}' (
+    FORMAT duckport_${sink}, APPEND,
+    GENERATED_COLUMNS {'doubled': 'id * 3', 'label': 'doubled::VARCHAR'});
+----
+schema
+
+statement error
+COPY (SELECT 3 AS id, 6 AS doubled, '6' AS label) TO '{TEST_DIR}/generated_${sink}' (
+    FORMAT duckport_${sink}, APPEND);
+----
+schema
+
+statement ok
+COPY (SELECT 1 AS id, 2 AS doubled) TO '{TEST_DIR}/plain_${sink}' (FORMAT duckport_${sink});
+
+statement error
+COPY (SELECT 2 AS id) TO '{TEST_DIR}/plain_${sink}' (
+    FORMAT duckport_${sink}, APPEND, GENERATED_COLUMNS {'doubled': 'id * 2'});
+----
+schema
+
+statement ok
+COPY (SELECT 4 AS id) TO '{TEST_DIR}/plain_${sink}' (
+    FORMAT duckport_${sink}, OVERWRITE, GENERATED_COLUMNS {'doubled': 'id * 3'});
+
+statement ok
+COPY (SELECT 5 AS id) TO '{TEST_DIR}/plain_${sink}' (
+    FORMAT duckport_${sink}, APPEND, GENERATED_COLUMNS {'doubled': 'id * 3'});
+
+endloop
+
+query IIT
+SELECT * FROM read_parquet('{TEST_DIR}/generated_parquet/*.parquet') ORDER BY id;
+----
+1	2	2
+2	4	4
+
+query II
+SELECT * FROM read_parquet('{TEST_DIR}/plain_parquet/*.parquet') ORDER BY id;
+----
+4	12
+5	15
+
+statement error
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid' (FORMAT duckport_parquet, GENERATED_COLUMNS 'id + 1');
+----
+GENERATED_COLUMNS requires a struct
+
+statement error
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid' (FORMAT duckport_parquet, GENERATED_COLUMNS {'ID': 'id + 1'});
+----
+already exists
+
+statement error
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid' (FORMAT duckport_parquet, GENERATED_COLUMNS {'value': 'random()'});
+----
+volatile
+
+statement error
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid' (FORMAT duckport_parquet, GENERATED_COLUMNS {'value': 'row_number() OVER ()'});
+----
+one source row
+
+statement error
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid' (FORMAT duckport_parquet, GENERATED_COLUMNS {'value': '(SELECT 42)'});
+----
+one source row
+
+statement error
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid' (FORMAT duckport_parquet, GENERATED_COLUMNS {'value': '*'});
+----
+cannot contain *
+
+statement error
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid' (FORMAT duckport_parquet, GENERATED_COLUMNS {'value': '$1'});
+----
+cannot contain a parameter
+
+statement ok
+CREATE MACRO generated_window() AS row_number() OVER ();
+
+statement error
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid' (FORMAT duckport_parquet, GENERATED_COLUMNS {'value': 'generated_window()'});
+----
+one source row
+
+restart no_extension_load
+
+statement ok
+LOAD '{BUILD_DIRECTORY}/extension/lance/lance.duckdb_extension';
+
+query IIT
+SELECT * FROM '{TEST_DIR}/generated_lance' ORDER BY id;
+----
+1	2	2
+2	4	4
+
+query II
+SELECT * FROM '{TEST_DIR}/plain_lance' ORDER BY id;
+----
+4	12
+5	15

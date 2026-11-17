@@ -44,6 +44,34 @@ many rows uniformly, or all rows when the source contains fewer. Both methods
 read the source; fixed-row sampling buffers the sample. The options are mutually
 exclusive and do not promise output order.
 
+# Generated columns
+
+`GENERATED_COLUMNS` uses the same STRUCT syntax as `duckdb_lance_conversion`.
+Expressions run after sampling and may reference source columns and earlier
+entries in the STRUCT:
+
+```sql
+COPY (SELECT id, body FROM input_table) TO 'output.lance' (
+    FORMAT duckport_lance,
+    GENERATED_COLUMNS {'body_hash': 'sha256(body)', 'key': 'id::VARCHAR || body_hash'}
+);
+```
+
+Names must be unique and must not collide with source columns. Each value is one
+SQL scalar expression evaluated from the source row. Volatile functions,
+aggregates, windows, unnest, subqueries, parameters and stars are rejected,
+including non-scalar operations introduced by macros.
+
+Lance and Parquet preserve the parsed expression text in each generated field's
+`lance_conversion:generated_expression` metadata. APPEND requires the same
+field definitions: missing, extra or different definitions fail before writing
+rows, even if the resulting column names and types match. Parsing normalizes SQL
+formatting; semantic equivalence is not inferred. OVERWRITE replaces definitions.
+
+Iceberg writes use the existing catalog schema. Generated definitions must match
+its field metadata; an ordinary catalog field cannot acquire a generated
+definition through COPY. Mismatches fail instead of discarding the metadata.
+
 # Column compression and encoding
 
 All DuckPort COPY formats accept the same STRUCT option syntax as
