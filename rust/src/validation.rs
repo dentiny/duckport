@@ -267,3 +267,17 @@ pub(crate) fn optional_byte_size(name: &str, value: i64) -> Result<Option<usize>
     }
     byte_size(name, value).map(Some)
 }
+
+pub(crate) fn sample_percent(value: f64) -> Result<()> {
+    if !value.is_finite() || !(0.0..=100.0).contains(&value) {
+        return Err("SAMPLE_PERCENT must be between 0 and 100".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn sample_rows(value: i64, max_rows: u64) -> Result<()> {
+    if value < 0 || value as u64 > max_rows {
+        return Err(format!("SAMPLE_ROWS must be between 0 and {max_rows}").into());
+    }
+    Ok(())
+}

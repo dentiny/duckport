@@ -27,6 +27,16 @@ pub unsafe extern "C" fn duckport_validate_byte_size(
     })
 }
 
+#[unsafe(no_mangle)]
+pub extern "C" fn duckport_validate_sample_percent(value: f64) -> *mut c_char {
+    call(|| validation::sample_percent(value))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn duckport_validate_sample_rows(value: i64, max_rows: u64) -> *mut c_char {
+    call(|| validation::sample_rows(value, max_rows))
+}
+
 /// Shared C ABI write options. -1 byte sizes and a null version preserve backend defaults.
 #[repr(C)]
 #[derive(Clone, Copy)]
