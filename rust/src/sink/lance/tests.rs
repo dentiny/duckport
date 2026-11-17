@@ -1,3 +1,4 @@
+use super::ffi::duckport_lance_open;
 use crate::{
     error::{Result, ffi_result},
     ffi::sink::*,
@@ -54,7 +55,7 @@ async fn open(
     mode: &str,
     columns: &[&str],
 ) -> Result<DuckportSink> {
-    DuckportSink::new(
+    super::open(
         path.to_str().unwrap(),
         batch.schema(),
         mode,

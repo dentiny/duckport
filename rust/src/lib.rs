@@ -10,5 +10,3 @@ mod utils;
 mod validation;
 
 mod sink;
-#[cfg(test)]
-mod sink_tests;
