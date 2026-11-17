@@ -15,7 +15,7 @@ TO '{TEST_DIR}/sizes.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('payload'), AP
     BLOB_INLINE_SIZE_THRESHOLD 0, BLOB_DEDICATED_SIZE_THRESHOLD 1, TARGET_FILE_SIZE 1);
 
 # Keep names lowercase to match the binder's error messages.
-foreach option blob_inline_size_threshold blob_dedicated_size_threshold target_file_size
+foreach option blob_inline_size_threshold blob_dedicated_size_threshold
 
 foreach value -1 NULL 1.5 9223372036854775808 true '1024'
 
@@ -42,7 +42,7 @@ endloop
 
 endloop
 
-foreach option blob_dedicated_size_threshold target_file_size
+foreach option blob_dedicated_size_threshold
 
 statement error
 COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, ${option} 0);

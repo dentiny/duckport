@@ -1,0 +1,23 @@
+# name: test/sql/writers/copy_sizes.test
+# description: Shared COPY target file size validation before destination I/O
+# group: [sql]
+
+require duckport
+
+foreach format duckport_lance duckport_parquet duckport_iceberg
+
+foreach value -1 0 NULL 1.5 9223372036854775808 true '1024'
+
+statement error
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid' (FORMAT ${format}, TARGET_FILE_SIZE ${value});
+----
+target_file_size
+
+endloop
+
+statement error
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid' (FORMAT ${format}, TARGET_FILE_SIZE);
+----
+target_file_size
+
+endloop

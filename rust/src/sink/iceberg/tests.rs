@@ -7,9 +7,14 @@ use super::{
 async fn catalog_schema_is_applied_and_required_nulls_abort() {
     let (_temp, catalog, id) = table().await;
     let input = batch(vec![Some(1)]);
-    let mut writer = open_catalog(catalog.clone(), id.clone(), input.schema())
-        .await
-        .unwrap();
+    let mut writer = open_catalog(
+        catalog.clone(),
+        id.clone(),
+        input.schema(),
+        open_arrow_sink_core::WriteOptions::default(),
+    )
+    .await
+    .unwrap();
     let schema = writer.output_schema.as_ref().unwrap();
     assert!(!schema.field(0).is_nullable());
     assert_eq!(
@@ -51,6 +56,7 @@ fn ffi_failure_clears_output() {
             c"http://127.0.0.1:1".as_ptr(),
             c"".as_ptr(),
             c"/tmp".as_ptr(),
+            &crate::ffi::sink::DuckportWriteOptions::default(),
             &storage,
             &mut output,
         ))

@@ -11,7 +11,7 @@ enum class SinkWriteMode : uint8_t { CREATE, APPEND, OVERWRITE };
 struct SinkWriteOptions {
 	SinkWriteMode mode = SinkWriteMode::CREATE;
 	vector<string> blob_columns;
-	DuckportLanceWriteOptions lance = {-1, -1, -1};
+	DuckportWriteOptions write = {-1, -1, -1};
 	string catalog_uri;
 	string warehouse;
 	string storage_root;

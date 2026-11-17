@@ -51,6 +51,7 @@ COPY input_table TO 'images.lance' (
 );
 ```
 
-These options are specific to `duckport_lance`. Blob thresholds apply to logical
+`TARGET_FILE_SIZE` is supported by all DuckPort sinks. The two Blob threshold
+options are specific to `duckport_lance` and apply to logical
 Blob fields, including columns selected by `BLOB_COLUMNS`; ordinary binary columns
 are unaffected. They configure writes in create, append and overwrite modes.

@@ -11,7 +11,7 @@ unique_ptr<SinkWriter> OpenParquetWriter(const string &path, const DuckportStora
 	                   : options.mode == SinkWriteMode::OVERWRITE ? "overwrite"
 	                                                              : "create";
 	DuckportSink *raw = nullptr;
-	CheckError(duckport_parquet_open(path.c_str(), &schema, mode, &storage, &raw));
+	CheckError(duckport_parquet_open(path.c_str(), &schema, mode, &options.write, &storage, &raw));
 	return MakeSinkWriter(SinkPtr(raw, duckport_sink_destroy));
 }
 } // namespace duckdb

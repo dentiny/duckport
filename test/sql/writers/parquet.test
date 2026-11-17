@@ -11,11 +11,11 @@ COPY (
     SELECT id::BIGINT AS id, name, [id::BIGINT, NULL] AS numbers,
            CASE id WHEN 1 THEN unhex('00FF0102') WHEN 2 THEN ''::BLOB END AS bytes
     FROM duckport_scan_parquet('testdata/parquet/people.parquet', batch_size := 1)
-) TO '{TEST_DIR}/output' (FORMAT duckport_parquet);
+) TO '{TEST_DIR}/output' (FORMAT duckport_parquet, TARGET_FILE_SIZE 1024);
 
 statement ok
 COPY (SELECT 4::BIGINT AS id, 'appended' AS name, [4::BIGINT, NULL] AS numbers, NULL::BLOB AS bytes)
-TO '{TEST_DIR}/output' (FORMAT duckport_parquet, APPEND);
+TO '{TEST_DIR}/output' (FORMAT duckport_parquet, APPEND, TARGET_FILE_SIZE 1024);
 
 query ITIT
 SELECT id, name, numbers IS NOT DISTINCT FROM [id, NULL], hex(bytes)

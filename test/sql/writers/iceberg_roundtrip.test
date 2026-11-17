@@ -14,12 +14,12 @@ SET VARIABLE iceberg_catalog = duckport_iceberg_fixture('{TEST_DIR}/iceberg_ware
 statement ok
 COPY (SELECT * FROM (VALUES (1, 'Alice'), (2, NULL), (3, 'Charlie'), (NULL, 'missing-id')) AS t(id, name))
 TO 'tests.people' (FORMAT duckport_iceberg,
-    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse', APPEND);
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse', APPEND, TARGET_FILE_SIZE 1024);
 
 statement ok
 COPY (SELECT * FROM (VALUES (4, 'Δuck'), (5, '')) AS t(id, name))
 TO 'tests.people' (FORMAT duckport_iceberg,
-    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse', APPEND);
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse', APPEND, TARGET_FILE_SIZE 1024);
 
 statement error
 COPY (SELECT 6 AS id, 'invalid-mode' AS name)

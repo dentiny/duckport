@@ -1,12 +1,13 @@
 //! Backend-specific Arrow C ABI opening.
 use super::super::DuckportSink;
+use crate::ffi::sink::DuckportWriteOptions;
 use crate::{error::call, ffi::common::RUNTIME, utils::string, validation};
 use arrow_schema::{Schema, ffi::FFI_ArrowSchema};
 use std::{ffi::c_char, ptr, sync::Arc};
 
 /// # Safety
 /// Strings are borrowed NUL-terminated UTF-8. Schema/storage are live and borrowed.
-/// Output points to writable sink-pointer storage. No inputs are retained.
+/// Write options are live and borrowed. Output points to writable sink-pointer storage. No inputs are retained.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_iceberg_open(
     identifier: *const c_char,
@@ -16,6 +17,7 @@ pub unsafe extern "C" fn duckport_iceberg_open(
     catalog_uri: *const c_char,
     warehouse: *const c_char,
     storage_root: *const c_char,
+    options: *const DuckportWriteOptions,
     storage: *const crate::options::DuckportStorageOptions,
     output: *mut *mut DuckportSink,
 ) -> *mut c_char {
@@ -33,6 +35,7 @@ pub unsafe extern "C" fn duckport_iceberg_open(
             &catalog_uri,
             &storage_root,
         )?;
+        let options = validation::required(options.as_ref(), "null sink write options")?;
         let sink = RUNTIME.block_on(super::open(
             &string(identifier)?,
             Arc::new(Schema::try_from(schema)?),
@@ -40,6 +43,7 @@ pub unsafe extern "C" fn duckport_iceberg_open(
             &string(warehouse)?,
             &storage_root,
             &storage.read()?,
+            options.read()?,
         ))?;
         *output = Box::into_raw(Box::new(sink));
         Ok(())

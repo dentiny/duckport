@@ -46,9 +46,9 @@ struct CopyBindData : FunctionData {
 		auto &bind = other.Cast<CopyBindData>();
 		return types == bind.types && names == bind.names && path == bind.path && options.mode == bind.options.mode &&
 		       options.blob_columns == bind.options.blob_columns &&
-		       options.lance.blob_inline_size_threshold == bind.options.lance.blob_inline_size_threshold &&
-		       options.lance.blob_dedicated_size_threshold == bind.options.lance.blob_dedicated_size_threshold &&
-		       options.lance.target_file_size == bind.options.lance.target_file_size &&
+		       options.write.blob_inline_size_threshold == bind.options.write.blob_inline_size_threshold &&
+		       options.write.blob_dedicated_size_threshold == bind.options.write.blob_dedicated_size_threshold &&
+		       options.write.target_file_size == bind.options.write.target_file_size &&
 		       options.catalog_uri == bind.options.catalog_uri && options.warehouse == bind.options.warehouse &&
 		       options.storage_root == bind.options.storage_root && info == bind.info;
 	}
@@ -116,7 +116,7 @@ bool ParseTextOption(const Identifier &name, const vector<Value> &values, SinkWr
 	return true;
 }
 
-bool ParseLanceSizeOption(const Identifier &name, const vector<Value> &values, DuckportLanceWriteOptions &options) {
+bool ParseSizeOption(const Identifier &name, const vector<Value> &values, DuckportWriteOptions &options) {
 	int64_t *target = nullptr;
 	if (name == "blob_inline_size_threshold") {
 		target = &options.blob_inline_size_threshold;
@@ -152,8 +152,8 @@ unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput 
 	result->info = input.function_info;
 	bool has_mode = false;
 	for (auto &entry : input.info.options) {
-		if (StringUtil::CIEquals(input.info.format, "duckport_lance") &&
-		    ParseLanceSizeOption(entry.first, entry.second, result->options.lance)) {
+		if ((entry.first == "target_file_size" || StringUtil::CIEquals(input.info.format, "duckport_lance")) &&
+		    ParseSizeOption(entry.first, entry.second, result->options.write)) {
 			continue;
 		}
 		if (ParseTextOption(entry.first, entry.second, result->options)) {
@@ -260,6 +260,8 @@ void CommonCopyOptions(ClientContext &, CopyOptionsInput &input) {
 	input.options["blob_columns"] = CopyOption(LogicalType::LIST(LogicalType::VARCHAR), CopyOptionMode::WRITE_ONLY);
 	input.options["append"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
 	input.options["overwrite"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
+	// Validate the original value instead of rounding fractional byte sizes.
+	input.options["target_file_size"] = CopyOption(LogicalType::ANY, CopyOptionMode::WRITE_ONLY);
 }
 } // namespace
 
@@ -270,8 +272,7 @@ void RegisterCopyFunction(ExtensionLoader &loader, const string &name, WriterOpe
 	if (name == "duckport_lance") {
 		function.copy_options = [](ClientContext &context, CopyOptionsInput &input) {
 			CommonCopyOptions(context, input);
-			for (const auto &option :
-			     {"blob_inline_size_threshold", "blob_dedicated_size_threshold", "target_file_size"}) {
+			for (const auto &option : {"blob_inline_size_threshold", "blob_dedicated_size_threshold"}) {
 				// Preserve the original value so validation rejects fractional byte sizes.
 				input.options[option] = CopyOption(LogicalType::ANY, CopyOptionMode::WRITE_ONLY);
 			}

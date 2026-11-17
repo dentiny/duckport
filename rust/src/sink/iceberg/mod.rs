@@ -20,6 +20,7 @@ pub(crate) async fn open(
     warehouse: &str,
     storage_root: &str,
     config: &StorageConfig,
+    options: WriteOptions,
 ) -> Result<DuckportSink> {
     let uri = url::Url::parse(catalog_uri)?;
     validation::validate_iceberg_catalog_uri(&uri)?;
@@ -40,13 +41,14 @@ pub(crate) async fn open(
         .with_storage_factory(Arc::new(factory))
         .load("duckport", props)
         .await?;
-    open_catalog(Arc::new(catalog), identifier, schema).await
+    open_catalog(Arc::new(catalog), identifier, schema, options).await
 }
 
 pub(crate) async fn open_catalog(
     catalog: Arc<dyn Catalog>,
     identifier: TableIdent,
     schema: SchemaRef,
+    options: WriteOptions,
 ) -> Result<DuckportSink> {
     let table = catalog.load_table(&identifier).await?;
     validation::validate_iceberg_table(&table)?;
@@ -60,7 +62,7 @@ pub(crate) async fn open_catalog(
         .open(
             identifier,
             output_schema.clone(),
-            WriteOptions::default()
+            options
                 .with_mode(WriteMode::Append)
                 .with_ordering(Ordering::Unordered),
         )

@@ -1,4 +1,4 @@
-use super::ffi::{DuckportLanceWriteOptions, duckport_lance_open};
+use super::ffi::duckport_lance_open;
 use crate::{
     error::{Result, ffi_result},
     ffi::sink::*,
@@ -196,7 +196,7 @@ async fn ffi_ingests_urls_and_preserves_ownership_and_metadata() {
                 mode.as_ptr(),
                 [column.as_ptr()].as_ptr(),
                 1,
-                &DuckportLanceWriteOptions {
+                &DuckportWriteOptions {
                     blob_inline_size_threshold: 0,
                     blob_dedicated_size_threshold: 1,
                     target_file_size: 1,
@@ -273,7 +273,7 @@ async fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
                     mode.as_ptr(),
                     ptr::null(),
                     0,
-                    &DuckportLanceWriteOptions::default(),
+                    &DuckportWriteOptions::default(),
                     &options,
                     &mut output
                 ))
@@ -287,7 +287,7 @@ async fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
                     mode.as_ptr(),
                     ptr::null(),
                     1,
-                    &DuckportLanceWriteOptions::default(),
+                    &DuckportWriteOptions::default(),
                     &options,
                     &mut output
                 ))
@@ -310,7 +310,7 @@ async fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
 async fn configured_thresholds_control_blob_layout() {
     use lance::datatypes::BlobKind;
     let temp = tempdir().await;
-    let options = DuckportLanceWriteOptions {
+    let options = DuckportWriteOptions {
         blob_inline_size_threshold: 1,
         blob_dedicated_size_threshold: 2,
         target_file_size: -1,
@@ -368,12 +368,12 @@ async fn configured_thresholds_control_blob_layout() {
 
 #[test]
 fn size_options_validate_boundaries_and_preserve_defaults() {
-    let defaults = DuckportLanceWriteOptions::default();
+    let defaults = DuckportWriteOptions::default();
     let options = defaults.read().unwrap();
     assert!(options.blob_handle.is_none());
     assert!(options.target_file_size.is_none());
     assert!(
-        DuckportLanceWriteOptions {
+        DuckportWriteOptions {
             blob_inline_size_threshold: 0,
             ..defaults
         }
@@ -381,19 +381,19 @@ fn size_options_validate_boundaries_and_preserve_defaults() {
         .is_ok()
     );
     for invalid in [
-        DuckportLanceWriteOptions {
+        DuckportWriteOptions {
             blob_inline_size_threshold: -2,
             ..defaults
         },
-        DuckportLanceWriteOptions {
+        DuckportWriteOptions {
             blob_dedicated_size_threshold: 0,
             ..defaults
         },
-        DuckportLanceWriteOptions {
+        DuckportWriteOptions {
             target_file_size: 0,
             ..defaults
         },
-        DuckportLanceWriteOptions {
+        DuckportWriteOptions {
             target_file_size: -2,
             ..defaults
         },
@@ -431,7 +431,7 @@ async fn target_file_size_rotates_files_without_losing_rows() {
     .unwrap();
     for (label, target_file_size) in [("default", -1), ("small", 1)] {
         let path = temp.path().join(label);
-        let options = DuckportLanceWriteOptions {
+        let options = DuckportWriteOptions {
             target_file_size,
             ..Default::default()
         }
