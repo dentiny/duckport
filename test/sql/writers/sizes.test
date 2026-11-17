@@ -1,0 +1,48 @@
+# name: test/sql/writers/sizes.test
+# description: Target file size controls final data-file sizes for every sink
+# group: [sql]
+
+require duckport
+
+require duckport_test_fixture
+
+statement ok
+CREATE TABLE input AS
+SELECT i::INTEGER AS id, repeat(sha256(i::VARCHAR), 16) AS name
+FROM range(65536) t(i);
+
+foreach target 1024 67108864
+
+statement ok
+COPY input TO '{TEST_DIR}/${target}/lance'
+(FORMAT duckport_lance, TARGET_FILE_SIZE ${target});
+
+statement ok
+COPY input TO '{TEST_DIR}/${target}/parquet'
+(FORMAT duckport_parquet, TARGET_FILE_SIZE ${target});
+
+statement ok
+SET VARIABLE iceberg_catalog = duckport_iceberg_fixture('{TEST_DIR}/${target}/iceberg', 'start');
+
+statement ok
+COPY input TO 'tests.people' (FORMAT duckport_iceberg, APPEND,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/${target}/iceberg',
+    TARGET_FILE_SIZE ${target});
+
+statement ok
+SELECT duckport_iceberg_fixture('{TEST_DIR}/${target}/iceberg', 'stop');
+
+endloop
+
+# Targets are soft: compare actual data-file sizes instead of requiring an exact cutoff.
+foreach files lance/data/*.lance parquet/*.parquet iceberg/people/data/*.parquet
+
+query I
+SELECT (
+    (SELECT max(size) FROM read_blob('{TEST_DIR}/1024/${files}')) <
+    (SELECT max(size) FROM read_blob('{TEST_DIR}/67108864/${files}'))
+)::INTEGER;
+----
+1
+
+endloop
