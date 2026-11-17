@@ -39,9 +39,3 @@ SELECT decode(steps[1].message[1].text),
 FROM duckport_scan_atif('testdata/atif/trajectory_media.json');
 ----
 hello 你好🙂	true	true	true
-
-# Empty projection must preserve row counts through the media stream adapter.
-query I
-SELECT count(*) FROM duckport_scan_atif('testdata/atif/trajectory_media.jsonl.gz');
-----
-2

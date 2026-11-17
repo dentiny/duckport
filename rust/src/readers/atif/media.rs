@@ -1,5 +1,5 @@
 //! Normalize ATIF media references without reading their payloads.
-use super::{SOURCE_TYPE, STORAGE_POLICY, StoragePolicy};
+use super::STORAGE_POLICY;
 use crate::error::Result;
 use arrow_array::{
     ArrayRef, RecordBatch, RecordBatchOptions, builder::StringBuilder, cast::AsArray, make_array,
@@ -11,11 +11,9 @@ use url::Url;
 
 fn tag_field(field: &FieldRef, path: &str, document: &str) -> FieldRef {
     let policy = match path {
-        "steps.message.text" | "steps.observation.results.content.text" => {
-            Some(StoragePolicy::Text)
-        }
+        "steps.message.text" | "steps.observation.results.content.text" => Some("text"),
         "steps.message.source.path" | "steps.observation.results.content.source.path" => {
-            Some(StoragePolicy::Blob)
+            Some("blob")
         }
         _ => None,
     };
@@ -33,11 +31,8 @@ fn tag_field(field: &FieldRef, path: &str, document: &str) -> FieldRef {
     if let Some(policy) = policy {
         field
             .metadata_mut()
-            .insert(SOURCE_TYPE.into(), "atif".into());
-        field
-            .metadata_mut()
-            .insert(STORAGE_POLICY.into(), policy.as_str().into());
-        if policy == StoragePolicy::Blob {
+            .insert(STORAGE_POLICY.into(), policy.into());
+        if policy == "blob" {
             field
                 .metadata_mut()
                 .insert("duckport:media_document".into(), document.into());
@@ -53,7 +48,6 @@ pub(crate) fn uri_schema(schema: &SchemaRef, document: &str) -> SchemaRef {
         .iter()
         .map(|field| tag_field(field, field.name(), document))
         .collect();
-    schema.metadata.insert(SOURCE_TYPE.into(), "atif".into());
     Arc::new(schema)
 }
 

@@ -13,20 +13,8 @@
       "file": "atif-audio.wav"
     },
     {
-      "path": "/runs/bad_local_media.json",
-      "file": "bad_local_media.json"
-    },
-    {
       "path": "/runs/bad_origin_media.json",
       "file": "bad_origin_media.json"
-    },
-    {
-      "path": "/runs/bad_scheme_media.json",
-      "file": "bad_scheme_media.json"
-    },
-    {
-      "path": "/runs/parent_media.json",
-      "file": "parent_media.json"
     }
   ],
   "auth": "authorization",

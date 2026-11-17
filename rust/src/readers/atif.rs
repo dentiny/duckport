@@ -1,5 +1,4 @@
 mod media;
-mod policy;
 use crate::source::open_file_source;
 use crate::{
     ffi::source::{DuckportSource, open_reader},
@@ -8,7 +7,7 @@ use crate::{
 };
 pub(crate) use media::MediaResolver;
 use open_arrow_access::{OuterCompression, ReadRequest, file_format::atif::AtifFormat};
-use policy::{SOURCE_TYPE, STORAGE_POLICY, StoragePolicy};
+pub(crate) const STORAGE_POLICY: &str = "duckport:storage_policy";
 use std::ffi::c_char;
 
 /// # Safety

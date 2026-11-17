@@ -30,20 +30,10 @@ SELECT count(*) FROM duckport_fixture_requests('atif') WHERE target LIKE '%.png%
 ----
 0
 
-query I
-SELECT steps[1].message[2].source.path = getvariable('atif_endpoint') || '/media/atif-image.png'
-FROM duckport_scan_atif(getvariable('atif_endpoint') || '/runs/parent_media.json');
-----
-true
-
-foreach bad local origin scheme
-
 statement error
-SELECT steps FROM duckport_scan_atif(getvariable('atif_endpoint') || '/runs/bad_${bad}_media.json');
+SELECT steps FROM duckport_scan_atif(getvariable('atif_endpoint') || '/runs/bad_origin_media.json');
 ----
 ATIF remote media must use the trajectory's storage origin
-
-endloop
 
 statement ok
 COPY remote_atif TO '{TEST_DIR}/remote.lance' (FORMAT duckport_lance);

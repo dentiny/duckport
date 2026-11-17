@@ -5,10 +5,7 @@ Copied from open-arrow-access's MIT-licensed ATIF fixtures. `trajectory.json` co
 `trajectory_media.json` and the generated PNG/WAV are copied from
 `dentiny/duckdb_lance_conversion`'s MIT-licensed media fixtures. They exercise
 message and observation image/audio content, Unicode and storage metadata.
-`trajectory_media.jsonl.gz` contains two copies compressed with gzip.
+
 
 `http.json` serves authenticated trajectories/media through the native loopback
-fixture. `bad_*_media.json` cover forbidden local-file, cross-origin and
-cross-scheme references in remote trajectories.
-
-`parent_media.json` checks URL-relative parent-directory resolution without fetching media.
+fixture. `bad_origin_media.json` covers cross-origin references in remote trajectories.
