@@ -9,7 +9,7 @@ vector<BlobSecret> CaptureBlobSecrets(ClientContext &context) {
 	vector<BlobSecret> result;
 	auto policy = ReadStoragePolicy(context);
 	for (const auto &entry : entries) {
-		if (entry.secret->GetType() != "http" && entry.secret->GetType() != "s3") {
+		if (entry.secret->GetType() != "http" && entry.secret->GetType() != "s3" && entry.secret->GetType() != "huggingface") {
 			continue;
 		}
 		auto secret = dynamic_cast<const KeyValueSecret *>(entry.secret.get());
@@ -37,8 +37,8 @@ vector<BlobSecret> CaptureBlobSecrets(ClientContext &context) {
             value.security.allow_anonymous = value.security.access_key_id.empty() && value.security.secret_access_key.empty() && value.security.session_token.empty();
         }
 		Value token;
-		if (secret->TryGetValue("bearer_token", token) && !token.IsNull()) {
-			value.security.token = token.GetValue<string>();
+        if (secret->TryGetValue(value.type == "huggingface" ? "token" : "bearer_token", token) && !token.IsNull()) {
+            value.security.token = token.GetValue<string>();
             value.security.has_token = true;
 		}
 		Value headers;

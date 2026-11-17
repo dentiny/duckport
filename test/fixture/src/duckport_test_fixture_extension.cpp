@@ -15,6 +15,7 @@
 #include "yyjson.hpp"
 
 #include <atomic>
+#include <cstdlib>
 #include <cctype>
 #include <fstream>
 #include <iterator>
@@ -25,6 +26,14 @@ namespace duckdb {
 void RegisterFileAndBlobFixtures(ExtensionLoader &loader);
 namespace {
 using namespace duckdb_yyjson;
+
+void SetFixtureEnvironment(const char *name, const char *value) {
+#ifdef _WIN32
+    _putenv_s(name, value ? value : "");
+#else
+    if (value) { setenv(name, value, 1); } else { unsetenv(name); }
+#endif
+}
 
 string ReadFile(const string &provider, const string &name) {
 	std::ifstream file(string(DUCKPORT_TESTDATA_DIR) + "/" + provider + "/" + name, std::ios::binary);
@@ -94,6 +103,9 @@ public:
 			LoadRoutes();
 			require_bearer = authenticated && auth == "authorization";
 			require_low = authenticated && provider == "internet_archive";
+            api.Post(".*", [this](const duckdb_httplib::Request &req, duckdb_httplib::Response &res) {
+                Respond(req, res, api_routes, "api");
+            });
 			api.Get(".*", [this](const duckdb_httplib::Request &req, duckdb_httplib::Response &res) {
 				Respond(req, res, api_routes, "api");
 			});
@@ -104,6 +116,15 @@ public:
 			download_worker = std::thread([this] { downloads.listen_after_bind(); });
 			api.wait_until_ready();
 			downloads.wait_until_ready();
+            if (provider == "blob_hf") {
+                // This dedicated SQL fixture temporarily redirects HF's standard
+                // test endpoint; restore the process environment on stop.
+                if (auto old = std::getenv("HF_ENDPOINT")) { old_hf_endpoint = old; had_hf_endpoint = true; }
+                if (auto old = std::getenv("HF_HUB_DISABLE_IMPLICIT_TOKEN")) { old_hf_implicit = old; had_hf_implicit = true; }
+                SetFixtureEnvironment("HF_ENDPOINT", endpoint.c_str());
+                SetFixtureEnvironment("HF_HUB_DISABLE_IMPLICIT_TOKEN", "1");
+                hf_environment = true;
+            }
 			if (!api.is_running() || !downloads.is_running()) {
 				throw IOException("Cannot start provider fixture servers");
 			}
@@ -142,6 +163,11 @@ private:
 		if (download_worker.joinable()) {
 			download_worker.join();
 		}
+        if (hf_environment) {
+            if (had_hf_endpoint) { SetFixtureEnvironment("HF_ENDPOINT", old_hf_endpoint.c_str()); } else { SetFixtureEnvironment("HF_ENDPOINT", nullptr); }
+            if (had_hf_implicit) { SetFixtureEnvironment("HF_HUB_DISABLE_IMPLICIT_TOKEN", old_hf_implicit.c_str()); } else { SetFixtureEnvironment("HF_HUB_DISABLE_IMPLICIT_TOKEN", nullptr); }
+            hf_environment = false;
+        }
 	}
 
 	string Expand(string value) {
@@ -289,6 +315,8 @@ private:
 		res.set_content(route->body, "application/octet-stream");
 	}
 
+    bool hf_environment = false, had_hf_endpoint = false, had_hf_implicit = false;
+    string old_hf_endpoint, old_hf_implicit;
 	string provider;
 	string auth;
 	string reject_route;
@@ -362,6 +390,8 @@ string FixtureCommand(const string &provider, const string &command) {
 }
 
 struct RequestsBindData : public FunctionData {
+    bool hf_environment = false, had_hf_endpoint = false, had_hf_implicit = false;
+    string old_hf_endpoint, old_hf_implicit;
 	string provider;
 	unique_ptr<FunctionData> Copy() const override {
 		auto result = make_uniq<RequestsBindData>();

@@ -123,6 +123,7 @@ pub(crate) fn blob_downloader(
     secrets: Vec<SourceSecret>,
     policy: crate::storage_policy::DuckportStoragePolicy,
 ) -> Result<BlobDownloader> {
+    let raw_policy = policy;
     let source = policy.config()?;
     let policy = open_arrow_sink_storage::StorageConfig {
         retry: source.retry.map(|r| open_arrow_sink_storage::RetryConfig {
@@ -146,6 +147,7 @@ pub(crate) fn blob_downloader(
         fallback,
         secrets,
         policy,
+        raw_policy,
     };
     Ok(BlobDownloader::with_defaults()?.with_downloader(Arc::new(backend)))
 }
@@ -153,6 +155,7 @@ struct SourceDownloader {
     fallback: OpenDalDownloader,
     secrets: Arc<Vec<SourceSecret>>,
     policy: open_arrow_sink_storage::StorageConfig,
+    raw_policy: crate::storage_policy::DuckportStoragePolicy,
 }
 #[async_trait]
 impl Downloader for SourceDownloader {
@@ -162,6 +165,9 @@ impl Downloader for SourceDownloader {
         context: DownloadContext,
     ) -> open_arrow_sink_core::Result<DownloadStream> {
         let url = Url::parse(source).map_err(Error::backend)?;
+        if url.scheme() == "hf" {
+            return self.open_huggingface(source, &url, context).await;
+        }
         if url.scheme() != "s3" {
             return self.fallback.open(source, context).await;
         }
@@ -180,6 +186,84 @@ impl Downloader for SourceDownloader {
         stream_operator(operator, path, context).await
     }
 }
+impl SourceDownloader {
+    async fn open_huggingface(
+        &self,
+        source: &str,
+        url: &Url,
+        context: DownloadContext,
+    ) -> open_arrow_sink_core::Result<DownloadStream> {
+        use open_arrow_access::{
+            Accessor, ByteReadRequest,
+            service::huggingface::{HuggingFaceOptions, HuggingFaceRepository, HuggingFaceService},
+        };
+        crate::validation::validate_uri(url).map_err(Error::Backend)?;
+        if url.host_str() != Some("datasets") {
+            return Err(Error::InvalidInput(
+                "Hugging Face Blob sources require hf://datasets/<owner>/<repo>/<file>".into(),
+            ));
+        }
+        let mut path = url.path().trim_start_matches('/').splitn(3, '/');
+        let owner = path
+            .next()
+            .filter(|v| !v.is_empty())
+            .ok_or_else(|| Error::InvalidInput("missing Hugging Face owner".into()))?;
+        let repo = path
+            .next()
+            .filter(|v| !v.is_empty())
+            .ok_or_else(|| Error::InvalidInput("missing Hugging Face repository".into()))?;
+        let file = path
+            .next()
+            .filter(|v| !v.is_empty())
+            .ok_or_else(|| Error::InvalidInput("missing Hugging Face Blob file".into()))?;
+        let (repo, revision) = repo.split_once('@').unwrap_or((repo, "main"));
+        let decode = |value: &str| {
+            percent_encoding::percent_decode_str(value)
+                .decode_utf8()
+                .map(|v| v.into_owned())
+                .map_err(Error::backend)
+        };
+        let mut options = HuggingFaceOptions::default();
+        let policy = if let Some(config) = select(&self.secrets, source, "huggingface") {
+            let token = config
+                .security
+                .token
+                .as_ref()
+                .filter(|s| !s.is_empty())
+                .ok_or_else(|| {
+                    Error::InvalidConfig("Hugging Face secret TOKEN must not be empty".into())
+                })?;
+            options = options.with_token(token);
+            config.policy
+        } else {
+            self.raw_policy
+        };
+        let service = HuggingFaceService::new(options)
+            .await
+            .map_err(Error::backend)?
+            .with_http_config(policy.config().map_err(Error::Backend)?)
+            .map_err(Error::backend)?;
+        let repository =
+            HuggingFaceRepository::new(format!("{}/{}", decode(owner)?, decode(repo)?))
+                .with_revision(decode(revision)?);
+        let files = service
+            .repository(repository)
+            .await
+            .map_err(Error::backend)?
+            .with_chunk_size(
+                std::num::NonZeroUsize::new(context.chunk_bytes())
+                    .ok_or_else(|| Error::InvalidConfig("zero Blob chunk size".into()))?,
+            );
+        let reader = files
+            .open(ByteReadRequest::new(decode(file)?))
+            .await
+            .map_err(Error::backend)?;
+        Ok(Box::pin(
+            open_arrow_access::into_stream(reader).map_err(Error::backend),
+        ))
+    }
+}
+
 async fn stream_operator(
     operator: opendal::Operator,
     path: String,
