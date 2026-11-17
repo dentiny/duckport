@@ -15,10 +15,18 @@ struct SinkWriteOptions {
 	    .blob_inline_size_threshold = -1,
 	    .blob_dedicated_size_threshold = -1,
 	    .target_file_size = -1,
+	    .storage_version = nullptr,
 	};
 	string catalog_uri;
 	string warehouse;
 	string storage_root;
+	string storage_version;
+
+	DuckportWriteOptions ToFfi() const {
+		auto result = write_options;
+		result.storage_version = storage_version.empty() ? nullptr : storage_version.c_str();
+		return result;
+	}
 };
 
 // Backend boundary for a single fixed-schema session. Implementations must not

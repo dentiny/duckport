@@ -25,11 +25,12 @@ failed writes can leave uncommitted files. Partitioning, rotation, temporary-fil
 publication and ordering options are unsupported.
 
 Compared with [duckdb_lance_conversion](https://github.com/dentiny/duckdb_lance_conversion),
-this sink exposes APPEND, OVERWRITE, BLOB_COLUMNS and the byte-size options below. Blob column names
+this sink exposes APPEND, OVERWRITE, BLOB_COLUMNS, byte-size and storage-version
+options. Blob column names
 follow DuckDB identifier matching; empty lists, duplicates and invalid columns fail
 at bind time. File URL sources require `file://`; bare local blob paths are not supported.
-Storage version, column compression/encoding, indexes, sampling and generated-column
-options are not exposed yet.
+Column compression/encoding, indexes, sampling and generated-column options are
+not exposed yet.
 
 ## Byte-size options
 
@@ -55,3 +56,16 @@ COPY input_table TO 'images.lance' (
 options are specific to `duckport_lance` and apply to logical
 Blob fields, including columns selected by `BLOB_COLUMNS`; ordinary binary columns
 are unaffected. They configure writes in create, append and overwrite modes.
+
+## Storage version
+
+`STORAGE_VERSION` selects the Lance data-file format. The current backend accepts
+`'2.2'` and `'2.3'`. Omit it to preserve the backend default; when appending, an
+explicit version must match the existing dataset.
+
+```sql
+COPY input_table TO 'output.lance' (FORMAT duckport_lance, STORAGE_VERSION '2.3');
+```
+
+Support is determined by the sink's capability. The current Parquet and Iceberg
+sinks reject `STORAGE_VERSION`.
