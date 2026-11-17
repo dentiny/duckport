@@ -6,7 +6,7 @@ mod parquet;
 use crate::{error::Result, validation};
 use arrow_array::RecordBatch;
 use arrow_schema::SchemaRef;
-use open_arrow_sink_core::{Ordering, ParallelSink, Sink, SinkExt, WriteOptions, Writer};
+use open_arrow_sink_core::{ParallelSink, Sink, SinkExt, WriteOptions, Writer};
 use open_arrow_sink_layer::UnorderedWriteLayer;
 use std::num::NonZeroUsize;
 
@@ -17,11 +17,8 @@ pub(crate) async fn open_writer<S: ParallelSink>(
     options: WriteOptions,
     writer_count: usize,
 ) -> Result<Box<dyn Writer>> {
-    open_arrow_sink_core::validation::validate_ordering_options(
-        options.ordering,
-        sink.capability().ordering,
-    )?;
-    if options.ordering == Ordering::PreserveInput {
+    // DuckDB schedules ordered batches before they reach the single writer.
+    if writer_count == 1 {
         return Ok(sink.open(request, schema, options).await?);
     }
     let count = validation::required(

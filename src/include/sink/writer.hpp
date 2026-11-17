@@ -34,6 +34,7 @@ struct IndexOptions {
 
 struct SinkWriteOptions {
 	SinkWriteMode mode = SinkWriteMode::CREATE;
+	bool preserve_order = false;
 	vector<string> blob_columns;
 	DuckportWriteOptions write_options {
 	    .blob_inline_size_threshold = -1,
@@ -44,7 +45,6 @@ struct SinkWriteOptions {
 	    .column_encoding_count = 0,
 	    .indexes = nullptr,
 	    .index_count = 0,
-	    .preserve_order = false,
 	    .writer_count = 1,
 	};
 	string catalog_uri;

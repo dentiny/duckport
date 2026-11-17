@@ -70,7 +70,7 @@ struct CopyBindData : FunctionData {
 		return types == bind.types && names == bind.names && generated_expressions == bind.generated_expressions &&
 		       path == bind.path && options.mode == bind.options.mode &&
 		       options.blob_columns == bind.options.blob_columns &&
-		       options.write_options.preserve_order == bind.options.write_options.preserve_order &&
+		       options.preserve_order == bind.options.preserve_order &&
 		       options.write_options.blob_inline_size_threshold == bind.options.write_options.blob_inline_size_threshold &&
 		       options.write_options.blob_dedicated_size_threshold == bind.options.write_options.blob_dedicated_size_threshold &&
 		       options.write_options.target_file_size == bind.options.write_options.target_file_size &&
@@ -279,7 +279,7 @@ unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput 
 			if (entry.second.size() > 1 || (!entry.second.empty() && entry.second[0].IsNull())) {
 				throw BinderException("PRESERVE_ORDER requires a boolean");
 			}
-			result->options.write_options.preserve_order =
+			result->options.preserve_order =
 			    entry.second.empty() || entry.second[0].CastAs(context, LogicalType::BOOLEAN).GetValue<bool>();
 			continue;
 		}
@@ -325,7 +325,7 @@ unique_ptr<GlobalFunctionData> InitCopy(ClientContext &context, FunctionData &da
 	StorageParameters storage(context, bind.options.storage_root.empty() ? path : bind.options.storage_root, {});
 	auto options = bind.options;
 	options.write_options.writer_count =
-	    options.write_options.preserve_order ? 1 : TaskScheduler::GetScheduler(context).NumberOfThreads();
+	    options.preserve_order ? 1 : TaskScheduler::GetScheduler(context).NumberOfThreads();
 	state->writer = bind.info->Cast<WriterInfo>().open(path, storage.config, options, schema.arrow_schema);
 	if (!state->writer) {
 		throw InternalException("DuckPort sink opener returned no writer");
@@ -531,7 +531,7 @@ BoundStatement PlanCopy(Binder &binder, CopyStatement &statement) {
 			expressions.emplace_back(column->ToString());
 		}
 	}
-	auto preserve_order = data->Cast<CopyBindData>().options.write_options.preserve_order;
+	auto preserve_order = data->Cast<CopyBindData>().options.preserve_order;
 	auto copy = make_uniq<LogicalCopyToFile>(function, std::move(data), std::move(info), binder.GenerateTableIndex());
 	copy->file_path = statement.info->file_path;
 	copy->file_extension = function.extension;

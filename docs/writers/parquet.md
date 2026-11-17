@@ -12,8 +12,9 @@ with matching schemas. Empty create writes a readable Parquet footer with the sc
 Local paths, file:// and S3 use the existing storage resolver and scoped DuckDB secrets.
 
 OVERWRITE and BLOB_COLUMNS are unsupported by this backend. Text URLs remain text;
-native BLOB values, NULLs and nested values retain their Arrow types. Row order is
-unspecified; `PRESERVE_ORDER true` is rejected by the sink capability. Files can appear before commit; failures may leave incomplete files,
+native BLOB values, NULLs and nested values retain their Arrow types. Both
+[COPY ordering modes](README.md#copy-ordering) are supported; ordered writes do not
+define directory scan order. Files can appear before commit; failures may leave incomplete files,
 and append does not provide a directory transaction. Use native `FORMAT PARQUET`
 when writing one file instead of a dataset directory.
 

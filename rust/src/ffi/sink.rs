@@ -11,7 +11,7 @@ use arrow_array::{
     ffi::{FFI_ArrowArray, from_ffi},
 };
 use arrow_schema::ffi::FFI_ArrowSchema;
-use open_arrow_sink_core::{BlobHandleConfig, Ordering, WriteOptions};
+use open_arrow_sink_core::{BlobHandleConfig, WriteOptions};
 use std::ffi::c_char;
 
 /// # Safety
@@ -64,7 +64,6 @@ pub struct DuckportWriteOptions {
     pub column_encoding_count: usize,
     pub indexes: *const DuckportIndexOptions,
     pub index_count: usize,
-    pub preserve_order: bool,
     pub writer_count: usize,
 }
 
@@ -79,7 +78,6 @@ impl Default for DuckportWriteOptions {
             column_encoding_count: 0,
             indexes: std::ptr::null(),
             index_count: 0,
-            preserve_order: false,
             writer_count: 1,
         }
     }
@@ -103,11 +101,7 @@ impl DuckportWriteOptions {
             "BLOB_DEDICATED_SIZE_THRESHOLD",
             self.blob_dedicated_size_threshold,
         )?;
-        let mut options = WriteOptions::default().with_ordering(if self.preserve_order {
-            Ordering::PreserveInput
-        } else {
-            Ordering::Unordered
-        });
+        let mut options = WriteOptions::default();
         options.storage_version = unsafe { optional_string(self.storage_version) }?;
         options.target_file_size =
             utils::optional_byte_size("TARGET_FILE_SIZE", self.target_file_size)?;

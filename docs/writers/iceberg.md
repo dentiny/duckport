@@ -28,7 +28,7 @@ storage credentials are not used; configure storage credentials through DuckDB s
 
 `APPEND` is required; create, overwrite, `BLOB_COLUMNS`, partitioned tables,
 DuckDB file-rotation options and temporary-file publication are unsupported.
-`PRESERVE_ORDER false` is supported; `true` is rejected by the sink capability. Input
+Both [COPY ordering modes](README.md#copy-ordering) are supported. Input
 column names, order and types must match the catalog table. DuckPort attaches
 Iceberg field IDs from the catalog schema; NULLs in required columns fail COPY.
 Nested types must also match field names and nullability.

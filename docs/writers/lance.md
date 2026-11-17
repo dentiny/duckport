@@ -10,8 +10,9 @@ TO 'images.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('image'), OVERWRITE);
 ```
 
 Create fails if the dataset exists; APPEND requires an existing dataset; OVERWRITE
-replaces its rows. Empty input commits the selected schema. Row order is unspecified
-unless `PRESERVE_ORDER true` is requested; see [COPY ordering](README.md#copy-ordering).
+replaces its rows. Empty input commits the selected schema. `PRESERVE_ORDER true`
+writes batches in input order; the default allows reordering. See
+[COPY ordering](README.md#copy-ordering) for write scheduling and reader semantics.
 
 `BLOB_COLUMNS ('image', 'audio')` selects top-level text columns for download through
 DownloadBlobLayer. HTTP(S), file:// and enabled OpenDAL sources such as S3 are

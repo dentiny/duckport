@@ -6,18 +6,16 @@ require duckport
 
 require parquet
 
+require duckport_test_fixture
+
 statement ok
 SET threads = 4;
 
+foreach sink lance parquet
+
 statement ok
 COPY (SELECT i AS id FROM range(131072) t(i) ORDER BY i DESC)
-TO '{TEST_DIR}/ordered.lance' (FORMAT duckport_lance, PRESERVE_ORDER true, TARGET_FILE_SIZE 4096);
-
-statement ok
-COPY (SELECT -1::BIGINT AS id) TO '{TEST_DIR}/ordered.lance'
-(FORMAT duckport_lance, APPEND, PRESERVE_ORDER true);
-
-foreach sink lance parquet
+TO '{TEST_DIR}/ordered_${sink}' (FORMAT duckport_${sink}, PRESERVE_ORDER true);
 
 statement ok
 COPY (SELECT i AS id FROM range(131072) t(i))
@@ -25,10 +23,47 @@ TO '{TEST_DIR}/unordered_${sink}' (FORMAT duckport_${sink}, PRESERVE_ORDER false
 
 endloop
 
+statement ok
+COPY (SELECT -1::BIGINT AS id) TO '{TEST_DIR}/ordered_lance'
+(FORMAT duckport_lance, APPEND, PRESERVE_ORDER true);
+
+foreach mode,preserve_order ordered,true unordered,false
+
+statement ok
+SET VARIABLE iceberg_catalog = duckport_iceberg_fixture('{TEST_DIR}/${mode}_iceberg', 'start');
+
+statement ok
+COPY (SELECT i::INTEGER AS id, i::VARCHAR AS name FROM range(131072) t(i) ORDER BY i DESC)
+TO 'tests.people' (FORMAT duckport_iceberg, APPEND, PRESERVE_ORDER ${preserve_order},
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/${mode}_iceberg');
+
+statement ok
+SELECT duckport_iceberg_fixture('{TEST_DIR}/${mode}_iceberg', 'stop');
+
+endloop
+
+# Read single-writer files serially to check their stored row sequence.
+statement ok
+SET threads = 1;
+
+foreach path ordered_parquet ordered_iceberg/people/data
+
+query II
+SELECT count(*), count(*) FILTER (WHERE id != 131072 - position)
+FROM (SELECT id, row_number() OVER () AS position FROM read_parquet('{TEST_DIR}/${path}/*.parquet'));
+----
+131072	0
+
+endloop
+
+foreach path unordered_parquet unordered_iceberg/people/data
+
 query III
-SELECT count(*), count(DISTINCT id), sum(id) FROM read_parquet('{TEST_DIR}/unordered_parquet/*.parquet');
+SELECT count(*), count(DISTINCT id), sum(id) FROM read_parquet('{TEST_DIR}/${path}/*.parquet');
 ----
 131072	131072	8589869056
+
+endloop
 
 restart no_extension_load
 
@@ -41,7 +76,7 @@ SET threads = 1;
 
 query II
 SELECT count(*), count(*) FILTER (WHERE id != 131072 - position)
-FROM (SELECT id, row_number() OVER () AS position FROM '{TEST_DIR}/ordered.lance');
+FROM (SELECT id, row_number() OVER () AS position FROM '{TEST_DIR}/ordered_lance');
 ----
 131073	0
 

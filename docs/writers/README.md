@@ -37,12 +37,13 @@ TO 'ordered.lance' (FORMAT duckport_lance, PRESERVE_ORDER true);
 COPY input_table TO 'output_dataset' (FORMAT duckport_parquet, PRESERVE_ORDER false);
 ```
 
-With `true`, DuckDB flushes batches in input order to a single writer. Sources
-that support batch indexes can prepare batches in parallel; other sources use a
-serial COPY. Lance preserves the sequence across batches and rolled fragments;
-APPEND adds new rows after existing fragments. This preserves the source sequence,
-without sorting it: use `ORDER BY` in the source query for a specific sort order,
-and use an ordered reader when reading the dataset.
+All three sinks (Lance, Parquet and Iceberg) support both modes.
+
+With `true`, DuckDB flushes batches in input order to a single backend writer.
+Sources that support batch indexes can prepare batches in parallel; other sources
+use a serial COPY. Rows retain their input sequence as batches are written into
+data files. This does not sort the source: use `ORDER BY` in the source query for
+a specific sort order.
 
 With `false`, upstream execution may run in parallel and the backend uses a
 bounded pool of independent writers, sized by DuckDB's `threads` setting. Writers
@@ -50,10 +51,11 @@ share one publication session. The library overlaps I/O; Parquet and Iceberg
 encoding runs in the calling task, while Lance also uses background workers.
 Rows may be reordered but are neither dropped nor duplicated by this mode.
 
-Support comes from the sink's ordering capability. Lance supports both modes;
-Parquet directories and Iceberg support only `false` and reject `true`. DuckPort
-never silently downgrades an ordered request. The sink dependency is pinned to
-[the Lance ordering change](https://github.com/dentiny/open-arrow-sink/pull/197).
+This option controls write scheduling, not a reader's dataset scan order.
+Parquet directory listing, Iceberg scan planning and parallel readers can choose
+a different file or row sequence. Use an explicit query `ORDER BY` when results
+must be sorted. Write scheduling belongs to the DuckPort adapter; it does not
+request the sink library's separate `Ordering::PreserveInput` scan-order guarantee.
 
 # COPY sampling
 
