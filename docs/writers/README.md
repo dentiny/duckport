@@ -17,6 +17,7 @@ rust/src/sink/
     mod.rs            REST catalog and Iceberg setup
     ffi.rs            Iceberg opener
     tests.rs
+    test_utils.rs     catalog fixtures and batch helpers
 ```
 
 C++ adapters live in `src/sink/<backend>/writer.cpp`. Shared COPY binding stays in
