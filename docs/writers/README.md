@@ -40,17 +40,18 @@ COPY input_table TO 'output_dataset'
 
 All three sinks (Lance, Parquet and Iceberg) support both modes.
 
-With `true`, DuckDB flushes batches in input order to a single backend writer.
-Sources that support batch indexes can prepare batches in parallel; other sources
-use a serial COPY. Rows retain their input sequence as batches are written into
-data files. This does not sort the source: use `ORDER BY` in the source query for
-a specific sort order.
+DuckDB uses a serial COPY sink in both modes and passes batches to Rust. Writer
+concurrency is managed entirely on the Rust side.
 
-With `false`, upstream execution may run in parallel and the backend uses a
-bounded pool of independent writers. `FILE_COUNT` sets the writer count; when
-omitted it defaults to DuckDB's `threads` setting. Writers share one publication
-session. The library overlaps I/O; Parquet and Iceberg
-encoding runs in the calling task, while Lance also uses background workers.
+With `true`, Rust uses a single backend writer and retains the incoming batch
+and row sequence as data is written into files. This does not sort the source:
+use `ORDER BY` in the source query for a specific sort order.
+
+With `false`, Rust uses a bounded pool of independent backend writers.
+`FILE_COUNT` sets the writer count; when omitted it defaults to DuckDB's `threads`
+setting. Writers share one publication session. The library overlaps I/O;
+Parquet and Iceberg encoding runs in the calling task, while Lance also uses
+background workers.
 Rows may be reordered but are neither dropped nor duplicated by this mode.
 
 `FILE_COUNT` accepts a positive integer and applies to every sink. With

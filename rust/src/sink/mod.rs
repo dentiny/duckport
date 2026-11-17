@@ -17,7 +17,7 @@ pub(crate) async fn open_writer<S: ParallelSink>(
     options: WriteOptions,
     writer_count: usize,
 ) -> Result<Box<dyn Writer>> {
-    // DuckDB schedules ordered batches before they reach the single writer.
+    // DuckDB delivers batches serially; one writer retains their input sequence.
     if writer_count == 1 {
         return Ok(sink.open(request, schema, options).await?);
     }

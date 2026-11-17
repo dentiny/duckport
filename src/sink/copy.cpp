@@ -4,9 +4,7 @@
 #include "duckdb/common/arrow/arrow_converter.hpp"
 #include "duckdb/common/arrow/arrow_wrapper.hpp"
 #include "duckdb/common/arrow/schema_metadata.hpp"
-#include "duckdb/common/mutex.hpp"
 #include "duckdb/common/string_util.hpp"
-#include "duckdb/common/types/column/column_data_collection.hpp"
 #include "duckdb/function/copy_function.hpp"
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/main/query_result.hpp"
@@ -82,7 +80,6 @@ struct CopyBindData : FunctionData {
 	}
 };
 struct CopyGlobalState : GlobalFunctionData {
-	mutex lock;
 	unique_ptr<SinkWriter> writer;
 	ClientProperties properties;
 	bool terminal = false;
@@ -94,9 +91,6 @@ struct CopyGlobalState : GlobalFunctionData {
 	}
 };
 struct CopyLocalState : LocalFunctionData {};
-struct CopyPreparedBatch : PreparedBatchData {
-	unique_ptr<ColumnDataCollection> collection;
-};
 
 vector<string> ParseBlobColumns(const vector<Value> &values, const vector<Identifier> &names,
                                 const vector<LogicalType> &types) {
@@ -358,28 +352,14 @@ unique_ptr<GlobalFunctionData> InitCopy(ClientContext &context, FunctionData &da
 	}
 	return std::move(state);
 }
-void WriteChunk(CopyGlobalState &state, DataChunk &input) {
+void SinkCopy(ExecutionContext &, FunctionData &, GlobalFunctionData &global, LocalFunctionData &, DataChunk &input) {
 	if (input.size() == 0) {
 		return;
 	}
+	auto &state = global.Cast<CopyGlobalState>();
 	ArrowArrayWrapper array;
 	ArrowConverter::ToArrowArray(input, &array.arrow_array, state.properties, {});
-	lock_guard<mutex> guard(state.lock);
 	state.writer->Write(array.arrow_array);
-}
-void SinkCopy(ExecutionContext &, FunctionData &, GlobalFunctionData &global, LocalFunctionData &, DataChunk &input) {
-	WriteChunk(global.Cast<CopyGlobalState>(), input);
-}
-unique_ptr<PreparedBatchData> PrepareCopyBatch(ClientContext &, FunctionData &, GlobalFunctionData &,
-                                               unique_ptr<ColumnDataCollection> collection) {
-	auto batch = make_uniq<CopyPreparedBatch>();
-	batch->collection = std::move(collection);
-	return std::move(batch);
-}
-void FlushCopyBatch(ClientContext &, FunctionData &, GlobalFunctionData &global, PreparedBatchData &prepared) {
-	for (auto &chunk : prepared.Cast<CopyPreparedBatch>().collection->Chunks()) {
-		WriteChunk(global.Cast<CopyGlobalState>(), chunk);
-	}
 }
 void CombineCopy(ExecutionContext &, FunctionData &, GlobalFunctionData &, LocalFunctionData &) {
 }
@@ -610,14 +590,8 @@ void RegisterCopyFunction(ExtensionLoader &loader, const string &name, WriterOpe
 	function.copy_to_sink = SinkCopy;
 	function.copy_to_combine = CombineCopy;
 	function.copy_to_finalize = FinalizeCopy;
-	function.prepare_batch = PrepareCopyBatch;
-	function.flush_batch = FlushCopyBatch;
-	function.execution_mode = [](bool preserve_order, bool supports_batch_index) {
-		if (!preserve_order) {
-			return CopyFunctionExecutionMode::PARALLEL_COPY_TO_FILE;
-		}
-		return supports_batch_index ? CopyFunctionExecutionMode::BATCH_COPY_TO_FILE
-		                            : CopyFunctionExecutionMode::REGULAR_COPY_TO_FILE;
+	function.execution_mode = [](bool, bool) {
+		return CopyFunctionExecutionMode::REGULAR_COPY_TO_FILE;
 	};
 	function.plan = PlanCopy;
 	loader.RegisterFunction(function);
