@@ -1,0 +1,14 @@
+{
+  "schema_version": "ATIF-v1.8",
+  "trajectory_id": "media",
+  "agent": {"name": "fixture", "version": "1"},
+  "steps": [{
+    "step_id": 1,
+    "source": "user",
+    "message": [
+      {"type": "text", "text": "hello"},
+      {"type": "image", "source": {"media_type": "image/png", "path": "../zenodo/attachment.bin"}},
+      {"type": "audio", "source": {"media_type": "audio/wav", "path": "data:audio/wav;base64,YXVkaW8=", "duration_sec": 1.25}}
+    ]
+  }]
+}

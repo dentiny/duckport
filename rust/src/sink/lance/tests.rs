@@ -61,6 +61,7 @@ async fn open(
         &StorageConfig::default(),
         WriteOptions::default(),
         /*writer_count=*/1,
+        Vec::new(),
     )
     .await
 }
@@ -273,4 +274,86 @@ async fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
     })
     .await
     .unwrap();
+}
+
+#[tokio::test]
+async fn atif_nested_media_is_ingested_on_write() {
+    let temp = tempdir().await;
+    let path = temp.path().join("trajectory.json");
+    let image = temp.path().join("image.bin");
+    tokio::fs::write(&image, b"image payload").await.unwrap();
+    tokio::fs::write(&path, r#"{
+        "schema_version":"ATIF-v1.8", "trajectory_id":"media",
+        "agent":{"name":"test","version":"1"},
+        "steps":[{"step_id":1,"source":"user","message":[
+            {"type":"text","text":"hello"},
+            {"type":"image","source":{"media_type":"image/png","path":"image.bin"}},
+            {"type":"audio","source":{"media_type":"audio/wav","path":"data:audio/wav;base64,YXVkaW8=","duration_sec":1.25}}
+        ]}]
+    }"#).await.unwrap();
+    let (operator, file) =
+        crate::storage::operator(path.to_str().unwrap(), &Default::default()).unwrap();
+    let source = open_arrow_access::open_file_source(
+        operator,
+        open_arrow_access::ReadRequest::new(file),
+        open_arrow_access::file_format::atif::AtifFormat::Auto,
+        open_arrow_access::OuterCompression::Auto,
+    )
+    .await
+    .unwrap();
+    let source = crate::source::DuckportSource::from(source);
+    let schema = crate::atif::source_schema(&source.schema(), path.to_str().unwrap()).unwrap();
+    let source = source.with_schema(schema.clone());
+    let mut reader = source.reader().await.unwrap();
+    let input = reader.next().await.unwrap().unwrap();
+    let destination = temp.path().join("dataset");
+    let mut writer = super::open(
+        destination.to_str().unwrap(),
+        schema,
+        "create",
+        Default::default(),
+        &Default::default(),
+        WriteOptions::default(),
+        /*writer_count=*/1,
+        Vec::new(),
+    )
+    .await
+    .unwrap();
+    writer.write(input).await.unwrap();
+    writer.commit().await.unwrap();
+    tokio::fs::remove_file(image).await.unwrap();
+    let actual = read(&destination).await.unwrap();
+    let steps = actual.column_by_name("steps").unwrap().as_list::<i32>();
+    let steps = steps.values().as_struct();
+    let messages = steps.column_by_name("message").unwrap().as_list::<i32>();
+    let content = messages.values().as_struct();
+    assert_eq!(
+        content
+            .column_by_name("text")
+            .unwrap()
+            .as_binary::<i64>()
+            .value(0),
+        b"hello"
+    );
+    let media = content.column_by_name("source").unwrap().as_struct();
+    assert!(media.is_null(0));
+    let bytes = media.column_by_name("path").unwrap().as_binary::<i64>();
+    assert_eq!(bytes.value(1), b"image payload");
+    assert_eq!(bytes.value(2), b"audio");
+    assert_eq!(
+        media
+            .column_by_name("media_type")
+            .unwrap()
+            .as_string::<i32>()
+            .value(1),
+        "image/png"
+    );
+    assert_eq!(
+        media
+            .column_by_name("duration_sec")
+            .unwrap()
+            .as_primitive::<arrow_array::types::Float64Type>()
+            .value(2),
+        1.25
+    );
 }

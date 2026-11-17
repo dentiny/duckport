@@ -9,6 +9,7 @@ use std::{ffi::c_char, ptr, sync::Arc};
 /// Strings are NUL-terminated UTF-8; schema and storage are live and borrowed.
 /// Columns points to column_count readable string pointers (or is null for zero columns).
 /// Write options and output are non-null. Output points to writable sink-pointer storage.
+/// Blob sources are readable for their declared count; source strings/storage are borrowed during open.
 /// No inputs are retained.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_lance_open(
@@ -35,6 +36,17 @@ pub unsafe extern "C" fn duckport_lance_open(
         let schema = Arc::new(Schema::try_from(schema)?);
         let write_options = options.convert(column_count, &schema)?;
         validation::validate_blob_indexes(&write_options.indexes, &columns)?;
+        let sources = utils::ffi_slice(
+            options.blob_sources,
+            options.blob_source_count,
+            "null Blob sources",
+        )?
+        .iter()
+        .map(|source| {
+            let root = utils::source_url(&string(source.locator)?)?.join("/")?;
+            crate::storage::sink_storage_from_root(root, &source.storage.read()?)
+        })
+        .collect::<crate::error::Result<Vec<_>>>()?;
         let sink = RUNTIME.block_on(super::open(
             &string(path)?,
             schema,
@@ -43,6 +55,7 @@ pub unsafe extern "C" fn duckport_lance_open(
             &storage.read()?,
             write_options,
             options.writer_count,
+            sources,
         ))?;
         *output = Box::into_raw(Box::new(sink));
         Ok(())

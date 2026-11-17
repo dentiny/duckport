@@ -1,0 +1,44 @@
+# name: test/sql/writers/atif.test
+# description: ATIF storage policy survives DuckDB tables and projections; media is downloaded by the sink
+# group: [sql]
+
+require duckport
+
+statement ok
+CREATE TABLE trajectories AS SELECT * FROM duckport_scan_atif('testdata/atif/media.json');
+
+query T
+SELECT steps[1].message[2].source.path FROM trajectories;
+----
+../zenodo/attachment.bin
+
+statement ok
+COPY (SELECT trajectory_id, steps AS content FROM trajectories)
+TO '{TEST_DIR}/atif_nested.lance' (FORMAT duckport_lance);
+
+statement ok
+COPY (
+    SELECT steps[1].message[1].text AS text,
+           steps[1].message[2].source.path AS image,
+           steps[1].message[3].source.path AS audio
+    FROM trajectories
+) TO '{TEST_DIR}/atif_media.lance' (
+    FORMAT duckport_lance, COLUMN_COMPRESSION {'text': 'zstd'},
+    BLOB_INLINE_SIZE_THRESHOLD 0, BLOB_DEDICATED_SIZE_THRESHOLD 1
+);
+
+restart no_extension_load
+
+statement ok
+LOAD '{BUILD_DIRECTORY}/extension/lance/lance.duckdb_extension';
+
+query T
+SELECT trajectory_id FROM '{TEST_DIR}/atif_nested.lance';
+----
+media
+
+query TII
+SELECT decode(text), image = (SELECT content FROM read_blob('testdata/zenodo/attachment.bin')),
+       audio = 'audio'::BLOB FROM '{TEST_DIR}/atif_media.lance';
+----
+hello	true	true

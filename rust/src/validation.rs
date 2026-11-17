@@ -341,3 +341,25 @@ pub(crate) fn validate_file_count(value: i64, preserve_order: bool) -> Result<()
     }
     Ok(())
 }
+
+pub(crate) fn validate_atif_media_uri(base: &Url, uri: &Url) -> Result<()> {
+    validate_uri(uri)?;
+    if !matches!(uri.scheme(), "file" | "http" | "https" | "s3") {
+        return Err("unsupported ATIF media URI scheme".into());
+    }
+    if base.scheme() != "file"
+        && (base.scheme() != uri.scheme()
+            || base.host_str() != uri.host_str()
+            || base.port_or_known_default() != uri.port_or_known_default())
+    {
+        return Err("remote ATIF media must remain within its document's storage origin".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_atif_media_reference(path: &str) -> Result<()> {
+    if path.is_empty() || path.contains('\0') {
+        return Err("ATIF media path must be nonempty and contain no NUL bytes".into());
+    }
+    Ok(())
+}

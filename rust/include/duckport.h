@@ -19,6 +19,10 @@ struct DuckportStorageOptions {
 	int32_t virtual_host_style; // 0 or 1
 	int32_t allow_anonymous;    // 0 or 1
 };
+struct DuckportBlobSource {
+	const char *locator;
+	DuckportStorageOptions storage;
+};
 struct DuckportScanOptions {
 	// Target rows per Arrow record batch; SQL default: 8192.
 	size_t batch_size;
@@ -45,6 +49,8 @@ struct DuckportWriteOptions {
 	const DuckportIndexOptions *indexes;
 	size_t index_count;
 	size_t writer_count;
+	const DuckportBlobSource *blob_sources;
+	size_t blob_source_count;
 };
 extern "C" {
 // Common FFI support

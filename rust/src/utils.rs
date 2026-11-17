@@ -1,6 +1,7 @@
 //! Parsing, normalization and object construction; input checks live in validation.
 use crate::{error::Result, options::StorageConfig, validation};
-use arrow_schema::{DataType, Schema};
+use arrow_array::RecordBatch;
+use arrow_schema::{DataType, Schema, SchemaRef};
 use open_arrow_access::service::arxiv::ArxivKind;
 use open_arrow_access::service::biorxiv::Server;
 use open_arrow_access::service::huggingface::HuggingFaceDatasetRequest;
@@ -344,4 +345,27 @@ pub(crate) fn index_spec(schema: &Schema, column: &str, option: &str) -> Result<
         _ => return Err(format!("Unknown index option: {option}").into()),
     };
     Ok(IndexSpec::new(field.name().clone(), index_type))
+}
+
+pub(crate) fn apply_batch_schema(batch: RecordBatch, schema: SchemaRef) -> Result<RecordBatch> {
+    let columns = batch
+        .columns()
+        .iter()
+        .zip(schema.fields())
+        .map(|(array, field)| arrow_cast::cast(array, field.data_type()))
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+    Ok(RecordBatch::try_new(schema, columns)?)
+}
+
+pub(crate) fn source_url(locator: &str) -> Result<Url> {
+    let url = if crate::storage::is_local(locator) {
+        Url::from_file_path(local_path(locator)?).map_err(|_| "invalid source path")?
+    } else {
+        Url::parse(locator)?
+    };
+    validation::validate_uri(&url)?;
+    if url.scheme() != "file" {
+        validation::validate_storage_scheme(url.scheme())?;
+    }
+    Ok(url)
 }

@@ -73,3 +73,12 @@ COPY input_table TO 'output.lance' (FORMAT duckport_lance, STORAGE_VERSION '2.3'
 
 Support is determined by the sink's capability. The current Parquet and Iceberg
 sinks reject `STORAGE_VERSION`.
+
+## ATIF media
+
+COPY from `duckport_scan_atif` automatically adapts marked media paths, including
+nested content, to native Blob v2 inputs before the sink downloads them. No
+`BLOB_COLUMNS` list is needed for these fields. Media ingestion runs through the
+same native materializer in single-writer and writer-pool modes. See
+[ATIF reader and storage policy](../readers/atif.md) for path resolution,
+credentials, metadata preservation and text encoding.

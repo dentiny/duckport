@@ -48,6 +48,8 @@ struct SinkWriteOptions {
 	    .indexes = nullptr,
 	    .index_count = 0,
 	    .writer_count = 1,
+	    .blob_sources = nullptr,
+	    .blob_source_count = 0,
 	};
 	string catalog_uri;
 	string warehouse;

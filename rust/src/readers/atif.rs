@@ -20,14 +20,16 @@ pub unsafe extern "C" fn duckport_atif_open(
 ) -> *mut c_char {
     let open = |locator: String, storage_options, scan_options| async move {
         let (operator, path) = storage::operator(&locator, &storage_options)?;
-        Ok(open_file_source(
+        let source = open_file_source(
             operator,
             ReadRequest::new(path).with_options(scan_options),
             AtifFormat::Auto,
             OuterCompression::Auto,
         )
-        .await?
-        .into())
+        .await?;
+        let source = crate::source::DuckportSource::from(source);
+        let schema = crate::atif::source_schema(source.schema().as_ref(), &locator)?;
+        Ok(source.with_schema(schema))
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }

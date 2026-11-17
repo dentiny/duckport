@@ -2031,8 +2031,10 @@ name = "duckport-source"
 version = "0.1.0"
 dependencies = [
  "arrow-array",
+ "arrow-buffer",
  "arrow-cast",
  "arrow-schema",
+ "base64 0.22.1",
  "csv-async",
  "futures",
  "iceberg-catalog-rest",

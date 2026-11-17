@@ -24,6 +24,7 @@
 #include "duckdb/planner/logical_operator.hpp"
 #include "duckdb/planner/operator/logical_copy_to_file.hpp"
 #include "storage_options.hpp"
+#include "source/metadata.hpp"
 #include <algorithm>
 #include <iterator>
 
@@ -331,6 +332,7 @@ unique_ptr<GlobalFunctionData> InitCopy(ClientContext &context, FunctionData &da
 	state->properties = context.GetClientProperties();
 	ArrowSchemaWrapper schema;
 	ArrowConverter::ToArrowSchema(&schema.arrow_schema, bind.types, bind.names, state->properties);
+	ExportSourceMetadata(bind.types, schema.arrow_schema);
 	for (idx_t column = 0; column < bind.generated_expressions.size(); column++) {
 		if (bind.generated_expressions[column].empty()) {
 			continue;
@@ -343,7 +345,20 @@ unique_ptr<GlobalFunctionData> InitCopy(ClientContext &context, FunctionData &da
 		field.metadata = holder.metadata_info.back().get();
 	}
 	StorageParameters storage(context, bind.options.storage_root.empty() ? path : bind.options.storage_root, {});
+	auto locations = SourceLocations(schema.arrow_schema);
+	vector<unique_ptr<StorageParameters>> source_storage;
+	vector<DuckportBlobSource> sources;
+	sources.reserve(locations.size());
+	for (const auto &location : locations) {
+		source_storage.push_back(make_uniq<StorageParameters>(context, location, string()));
+		sources.push_back(DuckportBlobSource {
+		    .locator = location.c_str(),
+		    .storage = source_storage.back()->config,
+		});
+	}
 	auto options = bind.options;
+	options.write_options.blob_sources = sources.data();
+	options.write_options.blob_source_count = sources.size();
 	options.write_options.writer_count = options.file_count.value_or(
 	    options.preserve_order ? 1 : TaskScheduler::GetScheduler(context).NumberOfThreads());
 	state->writer = bind.info->Cast<WriterInfo>().open(path, storage.config, options, schema.arrow_schema);
