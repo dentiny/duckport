@@ -1,0 +1,28 @@
+{
+  "routes": [
+    {
+      "path": "/source-a/a.bin",
+      "file": "payload.bin",
+      "auth_header": "Authorization",
+      "auth_value": "AWS4-HMAC-SHA256 Credential=key-a/",
+      "auth_match": "prefix",
+      "session_token": "session-a"
+    },
+    {
+      "path": "/source-b/b.bin",
+      "file": "payload.bin",
+      "auth_header": "Authorization",
+      "auth_value": "AWS4-HMAC-SHA256 Credential=key-b/",
+      "auth_match": "prefix",
+      "session_token": "session-b"
+    },
+    {
+      "path": "/source-a/narrow/c.bin",
+      "file": "payload.bin",
+      "auth_header": "Authorization",
+      "auth_value": "AWS4-HMAC-SHA256 Credential=key-c/",
+      "auth_match": "prefix",
+      "session_token": "session-c"
+    }
+  ]
+}

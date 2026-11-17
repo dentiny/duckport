@@ -20,6 +20,9 @@ unique_ptr<SinkWriter> OpenLanceWriter(const string &path, const DuckportStorage
     for (idx_t i = 0; i < options.blob_secrets.size(); i++) {
         const auto &source = options.blob_secrets[i];
         DuckportStorageOptions config {};
+        config.endpoint = source.endpoint.empty() ? nullptr : source.endpoint.c_str();
+        config.region = source.region.empty() ? nullptr : source.region.c_str();
+        config.virtual_host_style = source.virtual_host_style;
         config.policy = source.policy;
         config.security = source.security.ToFfi(headers[i]);
         secrets.push_back({source.scope.c_str(), source.type.c_str(), config});

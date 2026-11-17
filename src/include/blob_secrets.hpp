@@ -9,6 +9,8 @@ struct BlobSecret {
 	string scope;
 	string type;
 	SecurityParameters security;
+    string endpoint, region;
+    bool virtual_host_style = false;
 	DuckportStoragePolicy policy;
 };
 vector<BlobSecret> CaptureBlobSecrets(ClientContext &context);

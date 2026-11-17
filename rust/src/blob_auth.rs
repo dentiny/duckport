@@ -5,8 +5,12 @@ use crate::{
     options::{DuckportStorageOptions, StorageConfig},
     utils,
 };
+use futures::TryStreamExt;
 use http::{HeaderMap, HeaderName, HeaderValue, Request, Response};
-use open_arrow_sink_storage::{BlobDownloader, OpenDalDownloader};
+use open_arrow_sink_core::{Error, async_trait};
+use open_arrow_sink_storage::{
+    BlobDownloader, DownloadContext, DownloadStream, Downloader, OpenDalDownloader,
+};
 use opendal::{Buffer, HttpBody, HttpTransport, HttpTransporter};
 use std::{ffi::c_char, sync::Arc};
 use url::Url;
@@ -135,10 +139,81 @@ pub(crate) fn blob_downloader(
                 io_timeout: t.io_timeout,
             }),
     };
-    let backend = OpenDalDownloader::new(policy)?
-        .with_http_transport(transport(Credentials::Sources(Arc::new(secrets)))?);
+    let secrets = Arc::new(secrets);
+    let fallback = OpenDalDownloader::new(policy.clone())?
+        .with_http_transport(transport(Credentials::Sources(secrets.clone()))?);
+    let backend = SourceDownloader {
+        fallback,
+        secrets,
+        policy,
+    };
     Ok(BlobDownloader::with_defaults()?.with_downloader(Arc::new(backend)))
 }
+struct SourceDownloader {
+    fallback: OpenDalDownloader,
+    secrets: Arc<Vec<SourceSecret>>,
+    policy: open_arrow_sink_storage::StorageConfig,
+}
+#[async_trait]
+impl Downloader for SourceDownloader {
+    async fn open(
+        &self,
+        source: &str,
+        context: DownloadContext,
+    ) -> open_arrow_sink_core::Result<DownloadStream> {
+        let url = Url::parse(source).map_err(Error::backend)?;
+        if url.scheme() != "s3" {
+            return self.fallback.open(source, context).await;
+        }
+        crate::validation::validate_uri(&url).map_err(Error::Backend)?;
+        // Explicit source secrets always win, even when the source shares a
+        // namespace with the destination. Never consult context.primary here.
+        let (operator, path) = if let Some(config) = select(&self.secrets, source, "s3") {
+            crate::storage::operator(source, config).map_err(Error::Backend)?
+        } else {
+            // Preserve independent native/environment source resolution, without
+            // accidentally reusing the destination's scoped operator.
+            let storage = open_arrow_sink_storage::Storage::from_url(&url)?
+                .with_config(self.policy.clone())?;
+            (storage.operator(), storage.path(&url)?.as_str().to_owned())
+        };
+        stream_operator(operator, path, context).await
+    }
+}
+async fn stream_operator(
+    operator: opendal::Operator,
+    path: String,
+    context: DownloadContext,
+) -> open_arrow_sink_core::Result<DownloadStream> {
+    let transport = context
+        .http_requests()
+        .wrap(operator.base_context().http_transport().clone());
+    let operator_context = operator.base_context().with_http_transport(transport);
+    let operator = operator.with_context(operator_context);
+    let reader = operator
+        .reader(&path)
+        .await
+        .map_err(Error::backend)?
+        .into_stream(..)
+        .await
+        .map_err(Error::backend)?;
+    let chunk_bytes = context.chunk_bytes();
+    let chunks = reader
+        .map_err(Error::backend)
+        .map_ok(move |buffer| {
+            futures::stream::try_unfold(buffer, move |mut buffer| async move {
+                if buffer.is_empty() {
+                    return Ok::<_, Error>(None);
+                }
+                let size = chunk_bytes.min(buffer.len());
+                let chunk = open_arrow_access::Bytes::from(buffer.split_to(size).to_vec());
+                Ok(Some((chunk, buffer)))
+            })
+        })
+        .try_flatten();
+    Ok(Box::pin(chunks))
+}
+
 fn failure(message: &'static str) -> opendal::Error {
     opendal::Error::new(opendal::ErrorKind::Unexpected, message)
 }

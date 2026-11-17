@@ -62,6 +62,8 @@ struct Route {
 	bool is_download = false;
     string auth_header;
     string auth_value;
+    bool auth_prefix = false;
+    string session_token;
 };
 
 struct Trace {
@@ -168,6 +170,8 @@ private:
 			route.redirect = Expand(JsonString(entry, "redirect"));
             route.auth_header = JsonString(entry, "auth_header");
             route.auth_value = JsonString(entry, "auth_value");
+            route.auth_prefix = JsonString(entry, "auth_match") == "prefix";
+            route.session_token = JsonString(entry, "session_token");
 			auto status = yyjson_obj_get(entry, "status");
 			if (status && !yyjson_is_int(status)) {
 				throw InvalidInputException("Fixture route status must be an integer");
@@ -258,10 +262,13 @@ private:
 			res.set_content("Internet Archive credentials required", "text/plain");
 			return;
 		}
-        if (route && !route->auth_header.empty() && req.get_header_value(route->auth_header) != route->auth_value) {
+        if (route && !route->auth_header.empty() && (route->auth_prefix ? req.get_header_value(route->auth_header).rfind(route->auth_value, 0) != 0 : req.get_header_value(route->auth_header) != route->auth_value)) {
             res.status = 401;
             res.set_content("source credentials required", "text/plain");
             return;
+        }
+        if (route && !route->session_token.empty() && req.get_header_value("x-amz-security-token") != route->session_token) {
+            res.status = 403; res.set_content("source session token required", "text/plain"); return;
         }
 		if (!route) {
 			res.status = 404;

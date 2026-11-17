@@ -1,0 +1,86 @@
+# name: test/sql/writers/s3_blob_auth.test
+# description: S3 Blob source secrets are scoped per bucket and prefix
+# group: [sql]
+
+require duckport
+
+require duckport_test_fixture
+
+require httpfs
+
+statement ok
+SET VARIABLE s3_blob_endpoint = duckport_fixture('blob_s3', 'start_anonymous');
+
+statement ok
+CREATE SECRET s3_blob_fallback (TYPE s3, KEY_ID 'wrong-key', SECRET 'wrong-secret',
+    ENDPOINT substring(getvariable('s3_blob_endpoint'), 8), USE_SSL false, URL_STYLE 'path', SCOPE 's3://');
+
+statement error
+COPY (SELECT 's3://source-a/a.bin' AS payload) TO '{TEST_DIR}/wrong_source_key.lance'
+(FORMAT duckport_lance, BLOB_COLUMNS ('payload'));
+----
+DuckPort
+
+statement ok
+CREATE SECRET s3_blob_a (TYPE s3, KEY_ID 'key-a', SECRET 'secret-a', SESSION_TOKEN 'session-a', REGION 'us-west-2',
+    ENDPOINT substring(getvariable('s3_blob_endpoint'), 8), USE_SSL false, URL_STYLE 'path', SCOPE 's3://source-a/');
+
+statement ok
+CREATE SECRET s3_blob_b (TYPE s3, KEY_ID 'key-b', SECRET 'secret-b', SESSION_TOKEN 'session-b', REGION 'eu-west-1',
+    ENDPOINT substring(getvariable('s3_blob_endpoint'), 8), USE_SSL false, URL_STYLE 'path', SCOPE 's3://source-b/');
+
+statement ok
+CREATE SECRET s3_blob_c (TYPE s3, KEY_ID 'key-c', SECRET 'secret-c', SESSION_TOKEN 'session-c', REGION 'ap-southeast-1',
+    ENDPOINT substring(getvariable('s3_blob_endpoint'), 8), USE_SSL false, URL_STYLE 'path', SCOPE 's3://source-a/narrow/');
+
+query I
+COPY (SELECT payload FROM (VALUES ('s3://source-a/a.bin'), ('s3://source-b/b.bin'), ('s3://source-a/narrow/c.bin')) t(payload))
+TO '{TEST_DIR}/s3_sources.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('payload'));
+----
+3
+
+query T
+SELECT bool_and(contains("authorization", '/us-west-2/s3/') AND contains(headers, 'session-a'))
+FROM duckport_fixture_requests('blob_s3') WHERE target = '/source-a/a.bin' AND contains("authorization", 'Credential=key-a/');
+----
+true
+
+query T
+SELECT bool_and(contains("authorization", '/eu-west-1/s3/') AND contains(headers, 'session-b'))
+FROM duckport_fixture_requests('blob_s3') WHERE target = '/source-b/b.bin';
+----
+true
+
+query T
+SELECT bool_and(contains("authorization", '/ap-southeast-1/s3/') AND contains(headers, 'session-c'))
+FROM duckport_fixture_requests('blob_s3') WHERE target = '/source-a/narrow/c.bin';
+----
+true
+
+statement ok
+DROP SECRET s3_blob_a;
+
+statement ok
+DROP SECRET s3_blob_b;
+
+statement ok
+DROP SECRET s3_blob_c;
+
+statement ok
+DROP SECRET s3_blob_fallback;
+
+query T
+SELECT duckport_fixture('blob_s3', 'stop');
+----
+stopped
+
+restart no_extension_load
+
+statement ok
+LOAD '{BUILD_DIRECTORY}/extension/lance/lance.duckdb_extension';
+
+query II
+SELECT count(*), count(*) FILTER (WHERE payload = (SELECT content FROM read_blob('testdata/blob_s3/payload.bin')))
+FROM '{TEST_DIR}/s3_sources.lance';
+----
+3	3
