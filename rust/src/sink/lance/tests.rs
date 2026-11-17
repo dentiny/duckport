@@ -60,7 +60,7 @@ async fn open(
         columns.iter().map(|s| s.to_string()).collect(),
         &StorageConfig::default(),
         WriteOptions::default(),
-        /*writer_count=*/1,
+        /*writer_count=*/ 1,
     )
     .await
 }
@@ -273,4 +273,103 @@ async fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
     })
     .await
     .unwrap();
+}
+
+#[tokio::test]
+async fn atif_media_defaults_survive_source_deletion_and_wide_sliced_batches() {
+    use arrow_schema::{DataType, Field, Schema};
+    fn wide(field: &Field) -> Arc<Field> {
+        let ty = match field.data_type() {
+            DataType::Utf8 => DataType::LargeUtf8,
+            DataType::Struct(fields) => DataType::Struct(fields.iter().map(|f| wide(f)).collect()),
+            DataType::List(item) => DataType::LargeList(wide(item)),
+            other => other.clone(),
+        };
+        Arc::new(field.clone().with_data_type(ty))
+    }
+    let temp = tempdir().await;
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/atif");
+    let document = std::fs::read_to_string(fixtures.join("trajectory_media.json")).unwrap();
+    // Exercise out-of-line media with a multi-MB payload.
+    let image = vec![42; 2 * 1024 * 1024 + 1];
+    let audio = std::fs::read(fixtures.join("atif-audio.wav")).unwrap();
+    std::fs::write(temp.path().join("atif-image.png"), &image).unwrap();
+    std::fs::write(temp.path().join("atif-audio.wav"), &audio).unwrap();
+    let input = temp.path().join("trajectory.json");
+    std::fs::write(&input, format!("{document}\n{document}")).unwrap();
+    let source = crate::readers::atif::open(
+        input.to_str().unwrap(),
+        StorageConfig::default(),
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    let mut reader = source.reader().await.unwrap();
+    let batch = reader.next().await.unwrap().unwrap();
+    let schema = Arc::new(Schema::new_with_metadata(
+        batch
+            .schema()
+            .fields()
+            .iter()
+            .map(|f| wide(f))
+            .collect::<Vec<_>>(),
+        batch.schema().metadata().clone(),
+    ));
+    let columns = batch
+        .columns()
+        .iter()
+        .zip(schema.fields())
+        .map(|(a, f)| arrow_cast::cast(a, f.data_type()).unwrap())
+        .collect();
+    let batch = RecordBatch::try_new(schema, columns).unwrap();
+    // Nonzero offsets in the outer trajectory list and every nested struct.
+    let batch = arrow_select_for_test(&batch);
+    let output = temp.path().join("atif.lance");
+    let mut writer = open(&output, &batch, "create", &[]).await.unwrap();
+    writer.write(batch).await.unwrap();
+    writer.commit().await.unwrap();
+    for file in ["trajectory.json", "atif-image.png", "atif-audio.wav"] {
+        std::fs::remove_file(temp.path().join(file)).unwrap();
+    }
+    let dataset = LanceDatasetSink::default()
+        .dataset_builder(Url::from_directory_path(&output).unwrap())
+        .unwrap()
+        .load()
+        .await
+        .unwrap();
+    let text = dataset
+        .schema()
+        .field("steps.item.message.item.text")
+        .unwrap();
+    assert_eq!(text.metadata["duckport:storage_policy"], "text");
+    assert_eq!(text.metadata["lance-encoding:compression"], "lz4");
+    assert!(!text.metadata.contains_key("ARROW:extension:name"));
+    let media = dataset
+        .schema()
+        .field("steps.item.message.item.source.path")
+        .unwrap();
+    assert_eq!(media.metadata["ARROW:extension:name"], "lance.blob.v2");
+    let batch = read(&output).await.unwrap();
+    let steps = batch["steps"].as_list::<i64>().value(0);
+    let parts = steps.as_struct()["message"].as_list::<i64>().value(0);
+    let parts = parts.as_struct();
+    let paths = parts["source"].as_struct()["path"].as_binary::<i64>();
+    assert_eq!(paths.value(1), image);
+    assert_eq!(paths.value(2), audio);
+    assert_eq!(
+        parts["text"].as_binary::<i64>().value(0),
+        "hello 你好🙂".as_bytes()
+    );
+}
+
+fn arrow_select_for_test(batch: &RecordBatch) -> RecordBatch {
+    // Concatenate via Arrow's compute kernel, then take the second row.
+    let columns = batch
+        .columns()
+        .iter()
+        .map(|a| arrow_select::concat::concat(&[a.as_ref(), a.as_ref()]).unwrap())
+        .collect();
+    RecordBatch::try_new(batch.schema(), columns)
+        .unwrap()
+        .slice(1, 1)
 }

@@ -5,6 +5,7 @@
 #include "source/reader.hpp"
 #include "source/source_factory.hpp"
 #include "storage_options.hpp"
+#include "source_metadata.hpp"
 
 namespace duckdb {
 namespace {
@@ -31,6 +32,7 @@ unique_ptr<FunctionData> BindReader(ClientContext &context, TableFunctionBindInp
 	ArrowTableFunction::PopulateArrowTableSchema(context, result->arrow_table, result->schema_root.arrow_schema);
 	names = StringsToIdentifiers(result->arrow_table.GetNames());
 	types = result->arrow_table.GetTypes();
+	ImportSourceMetadata(types, result->schema_root.arrow_schema);
 	if (types.empty()) {
 		throw BinderException("source must have at least one column");
 	}

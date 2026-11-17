@@ -2033,6 +2033,8 @@ dependencies = [
  "arrow-array",
  "arrow-cast",
  "arrow-schema",
+ "arrow-select",
+ "base64 0.22.1",
  "csv-async",
  "futures",
  "iceberg-catalog-rest",

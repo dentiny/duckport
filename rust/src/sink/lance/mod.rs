@@ -7,6 +7,7 @@ use open_arrow_sink_lance::LanceDatasetSink;
 use open_arrow_sink_layer::DownloadBlobLayer;
 use std::collections::HashSet;
 
+mod atif;
 mod ffi;
 #[cfg(test)]
 mod tests;
@@ -30,10 +31,18 @@ pub(crate) async fn open(
     let columns = paths.into_iter().map(|path| path.join(".")).collect();
     let destination = storage::sink_storage(path, config)?;
     let sink = LanceDatasetSink::new(destination.storage).layer(DownloadBlobLayer::new(columns));
-    let writer = open_writer(sink, destination.url, schema.clone(), options, writer_count).await?;
+    let output_schema = atif::configure(&schema)?;
+    let writer = open_writer(
+        sink,
+        destination.url,
+        output_schema.clone(),
+        options,
+        writer_count,
+    )
+    .await?;
     Ok(DuckportSink {
         writer: Some(writer),
         schema,
-        output_schema: None,
+        output_schema: Some(output_schema),
     })
 }
