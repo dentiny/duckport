@@ -20,9 +20,6 @@ async fn tempdir() -> tempfile::TempDir {
         .unwrap()
         .unwrap()
 }
-async fn remove_tempdir(temp: tempfile::TempDir) {
-    tokio::fs::remove_dir_all(temp.keep()).await.unwrap();
-}
 
 fn input() -> RecordBatch {
     RecordBatch::try_from_iter([
@@ -115,7 +112,6 @@ async fn create_append_overwrite_and_empty_commit() {
     let mut writer = open(&path, &batch, "overwrite", &[]).await.unwrap();
     writer.commit().await.unwrap();
     assert_eq!(read(&path).await.unwrap().num_rows(), 0);
-    remove_tempdir(temp).await;
 }
 #[tokio::test]
 async fn invalid_inputs_and_abandoned_create_do_not_publish() {
@@ -137,7 +133,6 @@ async fn invalid_inputs_and_abandoned_create_do_not_publish() {
     assert!(writer.write(batch).await.is_err());
     assert!(writer.commit().await.is_err());
     assert!(read(&failed).await.is_err());
-    remove_tempdir(temp).await;
 }
 #[tokio::test]
 async fn aborted_writes_preserve_committed_rows() {
@@ -166,7 +161,6 @@ async fn aborted_writes_preserve_committed_rows() {
         assert!(writer.commit().await.is_err());
         assert_eq!(ids(&read(&path).await.unwrap()), vec![1, 2]);
     }
-    remove_tempdir(temp).await;
 }
 #[tokio::test]
 async fn ffi_ingests_urls_and_preserves_ownership_and_metadata() {
@@ -254,7 +248,6 @@ async fn ffi_ingests_urls_and_preserves_ownership_and_metadata() {
         rows,
         [(Some("keep"), Some(payload.as_slice())), (Some("me"), None)]
     );
-    remove_tempdir(temp).await;
 }
 #[tokio::test]
 async fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
@@ -363,7 +356,6 @@ async fn configured_thresholds_control_blob_layout() {
             assert_eq!(blob.read().await.unwrap().as_ref(), payload.as_bytes());
         }
     }
-    remove_tempdir(temp).await;
 }
 
 #[test]
@@ -467,5 +459,4 @@ async fn target_file_size_rotates_files_without_losing_rows() {
         expected.sort_unstable();
         assert_eq!(ids(&actual), expected);
     }
-    remove_tempdir(temp).await;
 }
