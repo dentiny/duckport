@@ -226,7 +226,9 @@ CSV/TSV expect headers. Text formats support outer compression. Binary mode buff
 the selected attachment into one BLOB; use a record format for large tabular files.
 `endpoint` defaults to `https://api.figshare.com`. No discovery pagination or whole-dataset download
 is implied. Unknown file names fail through the provider accessor.
-Scoped HTTP bearer tokens are used where the upstream service supports connection headers.
+A scoped HTTP secret stores the Figshare token in `BEARER_TOKEN`; DuckPort sends
+`Authorization: token <value>` as required by the Figshare API. Tokens stay on
+the API origin and are not forwarded to cross-origin attachment hosts.
 All reader options above are VARCHAR; `batch_size` remains BIGINT.
 
 ### InternetArchive

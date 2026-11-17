@@ -246,7 +246,8 @@ private:
 			std::lock_guard<std::mutex> guard(trace_mutex);
 			traces.push_back(std::move(trace));
 		}
-		if (origin == "api" && require_bearer && req.get_header_value("Authorization") != "Bearer fixture-key") {
+		const auto expected_token = provider == "figshare" ? "token fixture-key" : "Bearer fixture-key";
+		if (origin == "api" && require_bearer && req.get_header_value("Authorization") != expected_token) {
 			res.status = 401;
 			res.set_content("authentication required", "text/plain");
 			return;
