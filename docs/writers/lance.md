@@ -10,7 +10,8 @@ TO 'images.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('image'), OVERWRITE);
 ```
 
 Create fails if the dataset exists; APPEND requires an existing dataset; OVERWRITE
-replaces its rows. Empty input commits the selected schema. Row order is unspecified.
+replaces its rows. Empty input commits the selected schema. Row order is unspecified
+unless `PRESERVE_ORDER true` is requested; see [COPY ordering](README.md#copy-ordering).
 
 `BLOB_COLUMNS ('image', 'audio')` selects top-level text columns for download through
 DownloadBlobLayer. HTTP(S), file:// and enabled OpenDAL sources such as S3 are
@@ -22,7 +23,7 @@ Destinations support local paths, file:// and s3://. Scoped DuckDB secrets confi
 the destination; blob URL sources use the library's default credential resolution.
 External access must be enabled. COPY publishes on successful finalization;
 failed writes can leave uncommitted files. Partitioning, rotation, temporary-file
-publication and ordering options are unsupported.
+publication are unsupported.
 
 Compared with [duckdb_lance_conversion](https://github.com/dentiny/duckdb_lance_conversion),
 this sink exposes APPEND, OVERWRITE, BLOB_COLUMNS, byte-size and storage-version

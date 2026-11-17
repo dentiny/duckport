@@ -79,3 +79,12 @@ tokio = { version = "1", features = ["macros"] }
 
 [profile.dev]
 debug = 0
+
+# Lance ordering support: https://github.com/dentiny/open-arrow-sink/pull/197
+[patch.crates-io]
+open-arrow-sink-core = { git = "https://github.com/dentiny/open-arrow-sink", rev = "7830e4ccf861a323587deebe91c391974e30b93d" }
+open-arrow-sink-storage = { git = "https://github.com/dentiny/open-arrow-sink", rev = "7830e4ccf861a323587deebe91c391974e30b93d" }
+open-arrow-sink-layer = { git = "https://github.com/dentiny/open-arrow-sink", rev = "7830e4ccf861a323587deebe91c391974e30b93d" }
+open-arrow-sink-lance = { git = "https://github.com/dentiny/open-arrow-sink", rev = "7830e4ccf861a323587deebe91c391974e30b93d" }
+open-arrow-sink-parquet = { git = "https://github.com/dentiny/open-arrow-sink", rev = "7830e4ccf861a323587deebe91c391974e30b93d" }
+open-arrow-sink-iceberg = { git = "https://github.com/dentiny/open-arrow-sink", rev = "7830e4ccf861a323587deebe91c391974e30b93d" }

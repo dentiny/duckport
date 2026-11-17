@@ -4566,8 +4566,7 @@ dependencies = [
 [[package]]
 name = "open-arrow-sink-core"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0ae98c1b402443e4bf7b419cf8e5e0cf295185795c480b4715ded0c4f4ca014"
+source = "git+https://github.com/dentiny/open-arrow-sink?rev=7830e4ccf861a323587deebe91c391974e30b93d#7830e4ccf861a323587deebe91c391974e30b93d"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -4579,8 +4578,7 @@ dependencies = [
 [[package]]
 name = "open-arrow-sink-iceberg"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2276446c1274e02022832775c7e17cae7f1686a27af419e6a274c396226f5c2"
+source = "git+https://github.com/dentiny/open-arrow-sink?rev=7830e4ccf861a323587deebe91c391974e30b93d#7830e4ccf861a323587deebe91c391974e30b93d"
 dependencies = [
  "bytes",
  "futures",
@@ -4595,8 +4593,7 @@ dependencies = [
 [[package]]
 name = "open-arrow-sink-lance"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54f684a6d2d37c0533ece9e36f84e0fe37d8fefed88759be3b9db2c331e92a9e"
+source = "git+https://github.com/dentiny/open-arrow-sink?rev=7830e4ccf861a323587deebe91c391974e30b93d#7830e4ccf861a323587deebe91c391974e30b93d"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -4622,8 +4619,7 @@ dependencies = [
 [[package]]
 name = "open-arrow-sink-layer"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d27df01171305cde39ec62d9169152d2895a568b34e2c2069e40c7ff3c5c9e0"
+source = "git+https://github.com/dentiny/open-arrow-sink?rev=7830e4ccf861a323587deebe91c391974e30b93d#7830e4ccf861a323587deebe91c391974e30b93d"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -4635,8 +4631,7 @@ dependencies = [
 [[package]]
 name = "open-arrow-sink-parquet"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54cebf971671afe0c5869b5ffdb9487b01a44d3a762c0a83f118f7f480ee86a9"
+source = "git+https://github.com/dentiny/open-arrow-sink?rev=7830e4ccf861a323587deebe91c391974e30b93d#7830e4ccf861a323587deebe91c391974e30b93d"
 dependencies = [
  "bytes",
  "futures",
@@ -4649,8 +4644,7 @@ dependencies = [
 [[package]]
 name = "open-arrow-sink-storage"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "617e0810f6f0f6b03a7fd0bbce397fa5773071f730db8481b9ffdb21175531b6"
+source = "git+https://github.com/dentiny/open-arrow-sink?rev=7830e4ccf861a323587deebe91c391974e30b93d#7830e4ccf861a323587deebe91c391974e30b93d"
 dependencies = [
  "async-stream",
  "bytes",
@@ -5128,7 +5122,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6e4d69d0fa3e7f6f9cf6b53a0e83e4fc99ba3586f65ce166cff30bd13bb4ad2"
 dependencies = [
  "heck",
- "itertools 0.15.0",
+ "itertools 0.13.0",
  "log",
  "multimap",
  "petgraph",
@@ -5147,7 +5141,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ad9c5423459fa2f729b8d9235fab810aa29628b171467744fc86d21460ad70d"
 dependencies = [
  "anyhow",
- "itertools 0.15.0",
+ "itertools 0.13.0",
  "proc-macro2",
  "quote",
  "syn 2.0.119",

@@ -4,11 +4,14 @@
 #include "duckdb/common/arrow/arrow_converter.hpp"
 #include "duckdb/common/arrow/arrow_wrapper.hpp"
 #include "duckdb/common/arrow/schema_metadata.hpp"
+#include "duckdb/common/mutex.hpp"
 #include "duckdb/common/string_util.hpp"
+#include "duckdb/common/types/column/column_data_collection.hpp"
 #include "duckdb/function/copy_function.hpp"
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/main/query_result.hpp"
 #include "duckdb/main/settings.hpp"
+#include "duckdb/parallel/task_scheduler.hpp"
 #include "duckdb/parser/expression/star_expression.hpp"
 #include "duckdb/parser/parsed_data/sample_options.hpp"
 #include "duckdb/parser/parsed_expression_iterator.hpp"
@@ -67,6 +70,7 @@ struct CopyBindData : FunctionData {
 		return types == bind.types && names == bind.names && generated_expressions == bind.generated_expressions &&
 		       path == bind.path && options.mode == bind.options.mode &&
 		       options.blob_columns == bind.options.blob_columns &&
+		       options.write_options.preserve_order == bind.options.write_options.preserve_order &&
 		       options.write_options.blob_inline_size_threshold == bind.options.write_options.blob_inline_size_threshold &&
 		       options.write_options.blob_dedicated_size_threshold == bind.options.write_options.blob_dedicated_size_threshold &&
 		       options.write_options.target_file_size == bind.options.write_options.target_file_size &&
@@ -78,6 +82,7 @@ struct CopyBindData : FunctionData {
 	}
 };
 struct CopyGlobalState : GlobalFunctionData {
+	mutex lock;
 	unique_ptr<SinkWriter> writer;
 	ClientProperties properties;
 	bool terminal = false;
@@ -89,6 +94,9 @@ struct CopyGlobalState : GlobalFunctionData {
 	}
 };
 struct CopyLocalState : LocalFunctionData {};
+struct CopyPreparedBatch : PreparedBatchData {
+	unique_ptr<ColumnDataCollection> collection;
+};
 
 vector<string> ParseBlobColumns(const vector<Value> &values, const vector<Identifier> &names,
                                 const vector<LogicalType> &types) {
@@ -267,6 +275,14 @@ unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput 
 			result->options.blob_columns = ParseBlobColumns(entry.second, names, types);
 			continue;
 		}
+		if (entry.first == "preserve_order") {
+			if (entry.second.size() > 1 || (!entry.second.empty() && entry.second[0].IsNull())) {
+				throw BinderException("PRESERVE_ORDER requires a boolean");
+			}
+			result->options.write_options.preserve_order =
+			    entry.second.empty() || entry.second[0].CastAs(context, LogicalType::BOOLEAN).GetValue<bool>();
+			continue;
+		}
 		if (entry.first != "append" && entry.first != "overwrite") {
 			throw BinderException("Unsupported DuckPort COPY option: %s", entry.first);
 		}
@@ -307,23 +323,39 @@ unique_ptr<GlobalFunctionData> InitCopy(ClientContext &context, FunctionData &da
 		field.metadata = holder.metadata_info.back().get();
 	}
 	StorageParameters storage(context, bind.options.storage_root.empty() ? path : bind.options.storage_root, {});
-	state->writer = bind.info->Cast<WriterInfo>().open(path, storage.config, bind.options, schema.arrow_schema);
+	auto options = bind.options;
+	options.write_options.writer_count =
+	    options.write_options.preserve_order ? 1 : TaskScheduler::GetScheduler(context).NumberOfThreads();
+	state->writer = bind.info->Cast<WriterInfo>().open(path, storage.config, options, schema.arrow_schema);
 	if (!state->writer) {
 		throw InternalException("DuckPort sink opener returned no writer");
 	}
 	return std::move(state);
 }
-void SinkCopy(ExecutionContext &, FunctionData &, GlobalFunctionData &global, LocalFunctionData &, DataChunk &input) {
+void WriteChunk(CopyGlobalState &state, DataChunk &input) {
 	if (input.size() == 0) {
 		return;
 	}
-	auto &state = global.Cast<CopyGlobalState>();
 	ArrowArrayWrapper array;
 	ArrowConverter::ToArrowArray(input, &array.arrow_array, state.properties, {});
+	lock_guard<mutex> guard(state.lock);
 	state.writer->Write(array.arrow_array);
 }
+void SinkCopy(ExecutionContext &, FunctionData &, GlobalFunctionData &global, LocalFunctionData &, DataChunk &input) {
+	WriteChunk(global.Cast<CopyGlobalState>(), input);
+}
+unique_ptr<PreparedBatchData> PrepareCopyBatch(ClientContext &, FunctionData &, GlobalFunctionData &,
+                                               unique_ptr<ColumnDataCollection> collection) {
+	auto batch = make_uniq<CopyPreparedBatch>();
+	batch->collection = std::move(collection);
+	return std::move(batch);
+}
+void FlushCopyBatch(ClientContext &, FunctionData &, GlobalFunctionData &global, PreparedBatchData &prepared) {
+	for (auto &chunk : prepared.Cast<CopyPreparedBatch>().collection->Chunks()) {
+		WriteChunk(global.Cast<CopyGlobalState>(), chunk);
+	}
+}
 void CombineCopy(ExecutionContext &, FunctionData &, GlobalFunctionData &, LocalFunctionData &) {
-	// Batches are written immediately; no local buffers to drain yet.
 }
 void FinalizeCopy(ClientContext &, FunctionData &, GlobalFunctionData &global) {
 	auto &state = global.Cast<CopyGlobalState>();
@@ -499,6 +531,7 @@ BoundStatement PlanCopy(Binder &binder, CopyStatement &statement) {
 			expressions.emplace_back(column->ToString());
 		}
 	}
+	auto preserve_order = data->Cast<CopyBindData>().options.write_options.preserve_order;
 	auto copy = make_uniq<LogicalCopyToFile>(function, std::move(data), std::move(info), binder.GenerateTableIndex());
 	copy->file_path = statement.info->file_path;
 	copy->file_extension = function.extension;
@@ -508,7 +541,7 @@ BoundStatement PlanCopy(Binder &binder, CopyStatement &statement) {
 	copy->rotate = false;
 	copy->partition_output = false;
 	copy->write_partition_columns = false;
-	copy->preserve_order = PreserveOrderType::DONT_PRESERVE_ORDER;
+	copy->preserve_order = preserve_order ? PreserveOrderType::PRESERVE_ORDER : PreserveOrderType::DONT_PRESERVE_ORDER;
 	copy->return_type = CopyFunctionReturnType::CHANGED_ROWS;
 	copy->names = source.names;
 	copy->expected_types = source.types;
@@ -529,6 +562,7 @@ void CommonCopyOptions(ClientContext &, CopyOptionsInput &input) {
 	}
 	input.options["append"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
 	input.options["overwrite"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
+	input.options["preserve_order"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
 	// Preserve original values for validation.
 	for (const auto &option : {"target_file_size", "blob_inline_size_threshold", "blob_dedicated_size_threshold",
 	                           "sample_percent", "sample_rows", "column_compression", "column_compression_level",
@@ -550,8 +584,14 @@ void RegisterCopyFunction(ExtensionLoader &loader, const string &name, WriterOpe
 	function.copy_to_sink = SinkCopy;
 	function.copy_to_combine = CombineCopy;
 	function.copy_to_finalize = FinalizeCopy;
-	function.execution_mode = [](bool, bool) {
-		return CopyFunctionExecutionMode::REGULAR_COPY_TO_FILE;
+	function.prepare_batch = PrepareCopyBatch;
+	function.flush_batch = FlushCopyBatch;
+	function.execution_mode = [](bool preserve_order, bool supports_batch_index) {
+		if (!preserve_order) {
+			return CopyFunctionExecutionMode::PARALLEL_COPY_TO_FILE;
+		}
+		return supports_batch_index ? CopyFunctionExecutionMode::BATCH_COPY_TO_FILE
+		                            : CopyFunctionExecutionMode::REGULAR_COPY_TO_FILE;
 	};
 	function.plan = PlanCopy;
 	loader.RegisterFunction(function);

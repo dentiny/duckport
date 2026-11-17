@@ -44,6 +44,8 @@ struct DuckportWriteOptions {
 	size_t column_encoding_count;
 	const DuckportIndexOptions *indexes;
 	size_t index_count;
+	bool preserve_order;
+	size_t writer_count;
 };
 extern "C" {
 // Common FFI support

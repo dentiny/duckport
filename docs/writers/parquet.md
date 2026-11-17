@@ -13,7 +13,7 @@ Local paths, file:// and S3 use the existing storage resolver and scoped DuckDB 
 
 OVERWRITE and BLOB_COLUMNS are unsupported by this backend. Text URLs remain text;
 native BLOB values, NULLs and nested values retain their Arrow types. Row order is
-unspecified. Files can appear before commit; failures may leave incomplete files,
+unspecified; `PRESERVE_ORDER true` is rejected by the sink capability. Files can appear before commit; failures may leave incomplete files,
 and append does not provide a directory transaction. Use native `FORMAT PARQUET`
 when writing one file instead of a dataset directory.
 

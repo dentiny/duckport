@@ -27,7 +27,8 @@ OpenDAL operator handles data files, metadata, manifests and cleanup. Catalog-ve
 storage credentials are not used; configure storage credentials through DuckDB secrets.
 
 `APPEND` is required; create, overwrite, `BLOB_COLUMNS`, partitioned tables,
-DuckDB file-rotation options, temporary-file publication and ordering options are unsupported. Input
+DuckDB file-rotation options and temporary-file publication are unsupported.
+`PRESERVE_ORDER false` is supported; `true` is rejected by the sink capability. Input
 column names, order and types must match the catalog table. DuckPort attaches
 Iceberg field IDs from the catalog schema; NULLs in required columns fail COPY.
 Nested types must also match field names and nullability.

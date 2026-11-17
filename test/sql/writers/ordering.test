@@ -1,0 +1,51 @@
+# name: test/sql/writers/ordering.test
+# description: Ordered COPY preserves input sequence and unordered COPY retains all rows
+# group: [sql]
+
+require duckport
+
+require parquet
+
+statement ok
+SET threads = 4;
+
+statement ok
+COPY (SELECT i AS id FROM range(131072) t(i) ORDER BY i DESC)
+TO '{TEST_DIR}/ordered.lance' (FORMAT duckport_lance, PRESERVE_ORDER true, TARGET_FILE_SIZE 4096);
+
+statement ok
+COPY (SELECT -1::BIGINT AS id) TO '{TEST_DIR}/ordered.lance'
+(FORMAT duckport_lance, APPEND, PRESERVE_ORDER true);
+
+foreach sink lance parquet
+
+statement ok
+COPY (SELECT i AS id FROM range(131072) t(i))
+TO '{TEST_DIR}/unordered_${sink}' (FORMAT duckport_${sink}, PRESERVE_ORDER false);
+
+endloop
+
+query III
+SELECT count(*), count(DISTINCT id), sum(id) FROM read_parquet('{TEST_DIR}/unordered_parquet/*.parquet');
+----
+131072	131072	8589869056
+
+restart no_extension_load
+
+statement ok
+LOAD '{BUILD_DIRECTORY}/extension/lance/lance.duckdb_extension';
+
+# A single reader checks the stored sequence rather than parallel scan scheduling.
+statement ok
+SET threads = 1;
+
+query II
+SELECT count(*), count(*) FILTER (WHERE id != 131072 - position)
+FROM (SELECT id, row_number() OVER () AS position FROM '{TEST_DIR}/ordered.lance');
+----
+131073	0
+
+query III
+SELECT count(*), count(DISTINCT id), sum(id) FROM '{TEST_DIR}/unordered_lance';
+----
+131072	131072	8589869056

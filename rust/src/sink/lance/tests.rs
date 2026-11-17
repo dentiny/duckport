@@ -60,6 +60,7 @@ async fn open(
         columns.iter().map(|s| s.to_string()).collect(),
         &StorageConfig::default(),
         WriteOptions::default(),
+        1,
     )
     .await
 }

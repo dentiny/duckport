@@ -44,6 +44,8 @@ struct SinkWriteOptions {
 	    .column_encoding_count = 0,
 	    .indexes = nullptr,
 	    .index_count = 0,
+	    .preserve_order = false,
+	    .writer_count = 1,
 	};
 	string catalog_uri;
 	string warehouse;
