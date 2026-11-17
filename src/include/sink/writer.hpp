@@ -54,7 +54,6 @@ struct SinkWriteOptions {
 
 	DuckportWriteOptions ToFfi(vector<DuckportColumnEncoding> &encodings,
 	                           vector<DuckportIndexOptions> &index_options) const {
-		encodings.clear();
 		encodings.reserve(column_encodings.size());
 		for (const auto &entry : column_encodings) {
 			encodings.push_back(DuckportColumnEncoding {
@@ -65,7 +64,6 @@ struct SinkWriteOptions {
 			    .structural_encoding = entry.structural_encoding.empty() ? nullptr : entry.structural_encoding.c_str(),
 			});
 		}
-		index_options.clear();
 		index_options.reserve(indexes.size());
 		for (const auto &entry : indexes) {
 			index_options.push_back(DuckportIndexOptions {
