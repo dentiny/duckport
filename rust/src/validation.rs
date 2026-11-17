@@ -246,19 +246,24 @@ pub(crate) fn validate_iceberg_write_options(
     Ok(())
 }
 
+/// Validate a configured write size; only Blob inline thresholds accept zero.
+pub(crate) fn byte_size(name: &str, value: i64) -> Result<usize> {
+    let inline_size = name.eq_ignore_ascii_case("blob_inline_size_threshold");
+    if value < 0 || (!inline_size && value == 0) {
+        let requirement = if inline_size {
+            "non-negative"
+        } else {
+            "greater than zero"
+        };
+        return Err(format!("{name} must be {requirement}").into());
+    }
+    Ok(usize::try_from(value).map_err(|_| format!("{name} exceeds platform size"))?)
+}
+
 /// Validate an optional byte count; -1 preserves the backend default.
-pub(crate) fn optional_byte_size(
-    name: &str,
-    value: i64,
-    allow_zero: bool,
-) -> Result<Option<usize>> {
+pub(crate) fn optional_byte_size(name: &str, value: i64) -> Result<Option<usize>> {
     if value == -1 {
         return Ok(None);
     }
-    if value < 0 || (!allow_zero && value == 0) {
-        return Err(format!("{name} has an invalid byte size").into());
-    }
-    Ok(Some(
-        usize::try_from(value).map_err(|_| format!("{name} exceeds platform size"))?,
-    ))
+    byte_size(name, value).map(Some)
 }

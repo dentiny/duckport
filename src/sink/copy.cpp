@@ -131,9 +131,14 @@ bool ParseSizeOption(const Identifier &name, const vector<Value> &values, Duckpo
 		throw BinderException("%s requires one integer byte size", name);
 	}
 	auto value = values[0].DefaultTryCastAs(LogicalType::BIGINT);
-	bool inline_size = name == "blob_inline_size_threshold";
-	if (!value || value->GetValue<int64_t>() < (inline_size ? 0 : 1)) {
-		throw BinderException("%s must be %s", name, inline_size ? "non-negative" : "greater than zero");
+	if (!value) {
+		throw BinderException("%s requires an integer byte size that fits in BIGINT", name);
+	}
+	unique_ptr<char, decltype(&duckport_source_error_free)> error(
+	    duckport_validate_byte_size(name.GetIdentifierName().c_str(), value->GetValue<int64_t>()),
+	    duckport_source_error_free);
+	if (error) {
+		throw BinderException("%s", error.get());
 	}
 	*target = value->GetValue<int64_t>();
 	return true;

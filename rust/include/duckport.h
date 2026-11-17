@@ -32,6 +32,7 @@ struct DuckportWriteOptions {
 extern "C" {
 // Common FFI support
 void duckport_source_error_free(char *);
+char *duckport_validate_byte_size(const char *name, int64_t value);
 
 // Source functions
 char *duckport_source_get_schema(const DuckportSource *, ArrowSchema *);
