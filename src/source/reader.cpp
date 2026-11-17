@@ -35,7 +35,7 @@ unique_ptr<FunctionData> BindReader(ClientContext &context, TableFunctionBindInp
 		throw BinderException("source must have at least one column");
 	}
 	result->all_types = types;
-	result->projection_pushdown_enabled = false;
+	result->projection_pushdown_enabled = true;
 	return std::move(result);
 }
 unique_ptr<GlobalTableFunctionState> InitReader(ClientContext &context, TableFunctionInitInput &input) {
@@ -54,6 +54,7 @@ void RegisterReader(ExtensionLoader &loader, const string &name, ReaderBind open
 			add_reader_options(options);
 		}
 	});
+	function.projection_pushdown = true;
 	loader.RegisterFunction(function);
 }
 void RegisterReader(ExtensionLoader &loader, const string &name, ReaderOpen open,

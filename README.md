@@ -30,7 +30,16 @@ SELECT * FROM duckport_scan_parquet('s3://bucket/people.parquet');
 
 Local paths, `file://`, HTTP(S), and S3 use OpenDAL. S3 connection settings and credentials come from the matching DuckDB `CREATE SECRET`. HTTP bearer tokens use a scoped HTTP secret. Scan functions accept only scan options. `batch_size` defaults to 8192 and accepts 1–1,048,576 rows.
 
-Parquet page codecs: Snappy, Zstd, LZ4, gzip, Brotli. For standalone Parquet scans, archive members, directory/glob scans, HTTP query/signed URLs, and outer compression such as `.parquet.gz` are unsupported. Source projection/filter pushdown is not enabled.
+Parquet page codecs: Snappy, Zstd, LZ4, gzip, Brotli. For standalone Parquet scans, archive members, directory/glob scans, HTTP query/signed URLs, and outer compression such as `.parquet.gz` are unsupported.
+
+Top-level column projection is passed to readers at scan time. For example,
+`SELECT record_id FROM duckport_scan_warc(...)` excludes `body` from the Arrow
+output; `COUNT(*)` uses a zero-column scan that preserves row counts. Columns
+needed by filters are still requested, and filters execute in DuckDB. Nested-field
+and predicate pushdown are not enabled. Projection savings depend on the format:
+Parquet can skip unselected column data, while WARC must still parse and consume
+record bodies even when they are omitted from Arrow output. Schema binding may
+still inspect unselected fields.
 
 ## Write
 

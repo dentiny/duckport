@@ -1,0 +1,43 @@
+# name: test/sql/readers/projection.test
+# description: Project reader columns, retain filter inputs and count zero-column scans
+# group: [sql]
+
+require duckport
+
+query TT rowsort
+SELECT record_type, record_id
+FROM duckport_scan_warc('testdata/warc/good_resources.warc', batch_size := 1);
+----
+resource	<urn:test:a>
+resource	<urn:test:b>
+
+query T
+SELECT record_id FROM duckport_scan_warc('testdata/warc/good_resources.warc')
+WHERE decode(body) = '456';
+----
+<urn:test:b>
+
+query I
+SELECT count(*) FROM duckport_scan_warc('testdata/warc/good_resources.warc', batch_size := 1);
+----
+2
+
+query TI rowsort
+SELECT name, id FROM duckport_scan_parquet('testdata/parquet/people.parquet', batch_size := 2);
+----
+Alice	1
+Charlie	3
+NULL	2
+
+query I
+SELECT count(*) FROM duckport_scan_parquet('testdata/parquet/people.parquet');
+----
+3
+
+query II
+SELECT a.id, b.id
+FROM duckport_scan_parquet('testdata/parquet/people.parquet') a
+JOIN duckport_scan_parquet('testdata/parquet/people.parquet') b ON a.id = b.id
+WHERE a.name = 'Alice';
+----
+1	1

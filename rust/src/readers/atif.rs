@@ -1,11 +1,10 @@
+use crate::source::open_file_source;
 use crate::{
     ffi::source::{DuckportSource, open_reader},
     options::{DuckportScanOptions, DuckportStorageOptions},
     storage,
 };
-use open_arrow_access::{
-    OuterCompression, ReadRequest, file_format::atif::AtifFormat, open_file_source,
-};
+use open_arrow_access::{OuterCompression, ReadRequest, file_format::atif::AtifFormat};
 use std::ffi::c_char;
 
 /// # Safety
@@ -26,8 +25,7 @@ pub unsafe extern "C" fn duckport_atif_open(
             AtifFormat::Auto,
             OuterCompression::Auto,
         )
-        .await?
-        .into())
+        .await?)
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }

@@ -1,12 +1,11 @@
+use crate::source::open_file_source;
 use crate::{
     ffi::source::{DuckportSource, open_reader},
     options::{DuckportScanOptions, DuckportStorageOptions},
     storage,
     utils::optional_string,
 };
-use open_arrow_access::{
-    OuterCompression, ReadRequest, file_format::xml::XmlFormat, open_file_source,
-};
+use open_arrow_access::{OuterCompression, ReadRequest, file_format::xml::XmlFormat};
 use std::ffi::c_char;
 
 #[repr(C)]
@@ -39,8 +38,7 @@ pub unsafe extern "C" fn duckport_xml_open(
             format,
             OuterCompression::Auto,
         )
-        .await?
-        .into())
+        .await?)
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }
