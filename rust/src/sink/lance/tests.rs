@@ -61,6 +61,7 @@ async fn open(
         mode,
         columns.iter().map(|s| s.to_string()).collect(),
         &StorageConfig::default(),
+        &super::DuckportLanceWriteOptions::default(),
     )
     .await
 }
@@ -194,6 +195,11 @@ async fn ffi_ingests_urls_and_preserves_ownership_and_metadata() {
                 mode.as_ptr(),
                 [column.as_ptr()].as_ptr(),
                 1,
+                &super::DuckportLanceWriteOptions {
+                    blob_inline_size_threshold: 0,
+                    blob_dedicated_size_threshold: 1,
+                    target_file_size: 1,
+                },
                 &DuckportStorageOptions::default(),
                 &mut writer,
             ))
@@ -213,6 +219,27 @@ async fn ffi_ingests_urls_and_preserves_ownership_and_metadata() {
     .await
     .unwrap();
     tokio::fs::remove_file(source).await.unwrap();
+    let dataset = LanceDatasetSink::default()
+        .dataset_builder(Url::from_directory_path(&path).unwrap())
+        .unwrap()
+        .load()
+        .await
+        .unwrap();
+    let field = dataset.schema().field("blob").unwrap();
+    assert_eq!(
+        field
+            .metadata
+            .get("lance-encoding:blob-inline-size-threshold")
+            .map(String::as_str),
+        Some("0")
+    );
+    assert_eq!(
+        field
+            .metadata
+            .get("lance-encoding:blob-dedicated-size-threshold")
+            .map(String::as_str),
+        Some("1")
+    );
     let result = read(&path).await.unwrap();
     assert_eq!(
         result.schema().metadata().get("owner").map(String::as_str),
@@ -245,6 +272,7 @@ async fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
                     mode.as_ptr(),
                     ptr::null(),
                     0,
+                    &super::DuckportLanceWriteOptions::default(),
                     &options,
                     &mut output
                 ))
@@ -258,6 +286,7 @@ async fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
                     mode.as_ptr(),
                     ptr::null(),
                     1,
+                    &super::DuckportLanceWriteOptions::default(),
                     &options,
                     &mut output
                 ))
@@ -274,4 +303,164 @@ async fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
     })
     .await
     .unwrap();
+}
+
+#[tokio::test]
+async fn configured_thresholds_control_blob_layout() {
+    use lance::datatypes::BlobKind;
+    let temp = tempdir().await;
+    let options = super::DuckportLanceWriteOptions {
+        blob_inline_size_threshold: 1,
+        blob_dedicated_size_threshold: 2,
+        target_file_size: -1,
+    };
+    for (payload, kind) in [
+        ("x", BlobKind::Inline),
+        ("xx", BlobKind::Managed),
+        ("xxx", BlobKind::Managed),
+    ] {
+        let source = temp.path().join(format!("source-{}.bin", payload.len()));
+        tokio::fs::write(&source, payload).await.unwrap();
+        let batch = blob_input(Url::from_file_path(&source).unwrap().as_str());
+        let path = temp.path().join(format!("dataset-{}", payload.len()));
+        let mut writer = super::open(
+            path.to_str().unwrap(),
+            batch.schema(),
+            "create",
+            ["blob".to_string()].into(),
+            &StorageConfig::default(),
+            &options,
+        )
+        .await
+        .unwrap();
+        writer.write(batch.clone()).await.unwrap();
+        writer.write(batch).await.unwrap();
+        writer.commit().await.unwrap();
+        tokio::fs::remove_file(source).await.unwrap();
+        let dataset = LanceDatasetSink::default()
+            .dataset_builder(Url::from_directory_path(&path).unwrap())
+            .unwrap()
+            .load()
+            .await
+            .unwrap();
+        assert_eq!(dataset.count_rows(None).await.unwrap(), 4);
+        let blobs = Arc::new(dataset)
+            .take_blobs_by_indices(&[0, 1, 2, 3], "blob")
+            .await
+            .unwrap();
+        let present = blobs.iter().flatten().collect::<Vec<_>>();
+        assert_eq!(present.len(), 2);
+        if payload.len() == 2 {
+            assert_eq!(present[0].data_path(), present[1].data_path());
+        } else if payload.len() == 3 {
+            assert_ne!(present[0].data_path(), present[1].data_path());
+        }
+        for blob in present {
+            assert_eq!(blob.kind(), kind);
+            assert_eq!(blob.read().await.unwrap().as_ref(), payload.as_bytes());
+        }
+    }
+    remove_tempdir(temp).await;
+}
+
+#[test]
+fn size_options_validate_boundaries_and_preserve_defaults() {
+    let defaults = super::DuckportLanceWriteOptions::default();
+    let options = defaults.read().unwrap();
+    assert!(options.blob_handle.is_none());
+    assert!(options.target_file_size.is_none());
+    assert!(
+        super::DuckportLanceWriteOptions {
+            blob_inline_size_threshold: 0,
+            ..defaults
+        }
+        .read()
+        .is_ok()
+    );
+    for invalid in [
+        super::DuckportLanceWriteOptions {
+            blob_inline_size_threshold: -2,
+            ..defaults
+        },
+        super::DuckportLanceWriteOptions {
+            blob_dedicated_size_threshold: 0,
+            ..defaults
+        },
+        super::DuckportLanceWriteOptions {
+            target_file_size: 0,
+            ..defaults
+        },
+        super::DuckportLanceWriteOptions {
+            target_file_size: -2,
+            ..defaults
+        },
+    ] {
+        assert!(invalid.read().is_err());
+    }
+}
+
+#[tokio::test]
+async fn target_file_size_rotates_files_without_losing_rows() {
+    let temp = tempdir().await;
+    let batch = RecordBatch::try_from_iter([
+        (
+            "id",
+            Arc::new(Int64Array::from_iter_values(0..10240)) as ArrayRef,
+        ),
+        (
+            "text",
+            Arc::new(StringArray::from_iter_values(
+                (0..10240).map(|id| format!("{id}:{}", "payload ".repeat(256))),
+            )) as ArrayRef,
+        ),
+        (
+            "raw",
+            Arc::new(
+                arrow_array::FixedSizeBinaryArray::try_from_iter((0..10240).map(|id| {
+                    (0..1024)
+                        .map(|offset| ((id + offset) % 251) as u8)
+                        .collect::<Vec<_>>()
+                }))
+                .unwrap(),
+            ) as ArrayRef,
+        ),
+    ])
+    .unwrap();
+    for (label, target_file_size) in [("default", -1), ("small", 1)] {
+        let path = temp.path().join(label);
+        let options = super::DuckportLanceWriteOptions {
+            target_file_size,
+            ..Default::default()
+        };
+        let mut writer = super::open(
+            path.to_str().unwrap(),
+            batch.schema(),
+            "create",
+            Default::default(),
+            &StorageConfig::default(),
+            &options,
+        )
+        .await
+        .unwrap();
+        writer.write(batch.clone()).await.unwrap();
+        writer.write(batch.clone()).await.unwrap();
+        writer.commit().await.unwrap();
+        let dataset = LanceDatasetSink::default()
+            .dataset_builder(Url::from_directory_path(&path).unwrap())
+            .unwrap()
+            .load()
+            .await
+            .unwrap();
+        assert_eq!(dataset.count_rows(None).await.unwrap(), 20480);
+        if target_file_size == -1 {
+            assert_eq!(dataset.get_fragments().len(), 1);
+        } else {
+            assert!(dataset.get_fragments().len() > 1);
+        }
+        let actual = dataset.scan().try_into_batch().await.unwrap();
+        let mut expected = (0..10240).chain(0..10240).collect::<Vec<_>>();
+        expected.sort_unstable();
+        assert_eq!(ids(&actual), expected);
+    }
+    remove_tempdir(temp).await;
 }

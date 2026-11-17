@@ -22,9 +22,10 @@ void CheckWriteAccess(ClientContext &context) {
 	}
 }
 struct WriterInfo : CopyFunctionInfo {
-	explicit WriterInfo(WriterOpen open) : open(std::move(open)) {
+	WriterInfo(WriterOpen open, bool lance) : open(std::move(open)), lance(lance) {
 	}
 	WriterOpen open;
+	bool lance;
 };
 struct CopyBindData : FunctionData {
 	vector<LogicalType> types;
@@ -45,9 +46,12 @@ struct CopyBindData : FunctionData {
 	bool Equals(const FunctionData &other) const override {
 		auto &bind = other.Cast<CopyBindData>();
 		return types == bind.types && names == bind.names && path == bind.path && options.mode == bind.options.mode &&
-		       options.blob_columns == bind.options.blob_columns && options.catalog_uri == bind.options.catalog_uri &&
-		       options.warehouse == bind.options.warehouse && options.storage_root == bind.options.storage_root &&
-		       info == bind.info;
+		       options.blob_columns == bind.options.blob_columns &&
+		       options.lance.blob_inline_size_threshold == bind.options.lance.blob_inline_size_threshold &&
+		       options.lance.blob_dedicated_size_threshold == bind.options.lance.blob_dedicated_size_threshold &&
+		       options.lance.target_file_size == bind.options.lance.target_file_size &&
+		       options.catalog_uri == bind.options.catalog_uri && options.warehouse == bind.options.warehouse &&
+		       options.storage_root == bind.options.storage_root && info == bind.info;
 	}
 };
 struct CopyGlobalState : GlobalFunctionData {
@@ -94,7 +98,7 @@ vector<string> ParseBlobColumns(const vector<Value> &values, const vector<Identi
 	return selected;
 }
 
-bool ParseTextOption(const string &name, const vector<Value> &values, SinkWriteOptions &options) {
+bool ParseTextOption(const Identifier &name, const vector<Value> &values, SinkWriteOptions &options) {
 	string *target = nullptr;
 	if (name == "catalog_uri") {
 		target = &options.catalog_uri;
@@ -113,6 +117,29 @@ bool ParseTextOption(const string &name, const vector<Value> &values, SinkWriteO
 	return true;
 }
 
+bool ParseLanceSizeOption(const Identifier &name, const vector<Value> &values, DuckportLanceWriteOptions &options) {
+	int64_t *target = nullptr;
+	if (name == "blob_inline_size_threshold") {
+		target = &options.blob_inline_size_threshold;
+	} else if (name == "blob_dedicated_size_threshold") {
+		target = &options.blob_dedicated_size_threshold;
+	} else if (name == "target_file_size") {
+		target = &options.target_file_size;
+	} else {
+		return false;
+	}
+	if (values.size() != 1 || values[0].IsNull() || !values[0].type().IsIntegral()) {
+		throw BinderException("%s requires one integer byte size", name);
+	}
+	auto value = values[0].DefaultTryCastAs(LogicalType::BIGINT);
+	bool inline_size = name == "blob_inline_size_threshold";
+	if (!value || value->GetValue<int64_t>() < (inline_size ? 0 : 1)) {
+		throw BinderException("%s must be %s", name, inline_size ? "non-negative" : "greater than zero");
+	}
+	*target = value->GetValue<int64_t>();
+	return true;
+}
+
 unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput &input, const vector<Identifier> &names,
                                   const vector<LogicalType> &types) {
 	CheckWriteAccess(context);
@@ -126,6 +153,10 @@ unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput 
 	result->info = input.function_info;
 	bool has_mode = false;
 	for (auto &entry : input.info.options) {
+		if (result->info->Cast<WriterInfo>().lance &&
+		    ParseLanceSizeOption(entry.first, entry.second, result->options.lance)) {
+			continue;
+		}
 		if (ParseTextOption(entry.first, entry.second, result->options)) {
 			continue;
 		}
@@ -223,19 +254,30 @@ BoundStatement PlanCopy(Binder &binder, CopyStatement &statement) {
 	result.plan = std::move(copy);
 	return result;
 }
+void CommonCopyOptions(ClientContext &, CopyOptionsInput &input) {
+	for (const auto &name : {"catalog_uri", "warehouse", "storage_root"}) {
+		input.options[name] = CopyOption(LogicalType::VARCHAR, CopyOptionMode::WRITE_ONLY);
+	}
+	input.options["blob_columns"] = CopyOption(LogicalType::LIST(LogicalType::VARCHAR), CopyOptionMode::WRITE_ONLY);
+	input.options["append"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
+	input.options["overwrite"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
+}
 } // namespace
 
 void RegisterCopyFunction(ExtensionLoader &loader, const string &name, WriterOpen open) {
 	CopyFunction function {Identifier(name)};
-	function.function_info = make_shared_ptr<WriterInfo>(std::move(open));
-	function.copy_options = [](ClientContext &, CopyOptionsInput &input) {
-		for (const auto &name : {"catalog_uri", "warehouse", "storage_root"}) {
-			input.options[name] = CopyOption(LogicalType::VARCHAR, CopyOptionMode::WRITE_ONLY);
-		}
-		input.options["blob_columns"] = CopyOption(LogicalType::LIST(LogicalType::VARCHAR), CopyOptionMode::WRITE_ONLY);
-		input.options["append"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
-		input.options["overwrite"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
-	};
+	function.function_info = make_shared_ptr<WriterInfo>(std::move(open), name == "duckport_lance");
+	function.copy_options = CommonCopyOptions;
+	if (name == "duckport_lance") {
+		function.copy_options = [](ClientContext &context, CopyOptionsInput &input) {
+			CommonCopyOptions(context, input);
+			for (const auto &option :
+			     {"blob_inline_size_threshold", "blob_dedicated_size_threshold", "target_file_size"}) {
+				// Preserve the original value so validation rejects fractional byte sizes.
+				input.options[option] = CopyOption(LogicalType::ANY, CopyOptionMode::WRITE_ONLY);
+			}
+		};
+	}
 	function.copy_to_bind = BindCopy;
 	function.copy_to_initialize_global = InitCopy;
 	function.copy_to_initialize_local = [](ExecutionContext &, FunctionData &) -> unique_ptr<LocalFunctionData> {

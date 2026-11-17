@@ -23,6 +23,12 @@ struct DuckportScanOptions {
 	// Target rows per Arrow record batch; SQL default: 8192.
 	size_t batch_size;
 };
+// Byte sizes: -1 preserves the backend default; inline may be zero.
+struct DuckportLanceWriteOptions {
+	int64_t blob_inline_size_threshold;
+	int64_t blob_dedicated_size_threshold;
+	int64_t target_file_size;
+};
 extern "C" {
 // Common FFI support
 void duckport_source_error_free(char *);
@@ -38,7 +44,8 @@ char *duckport_parquet_source_open(const char *locator, const DuckportStorageOpt
 
 // Sink writer functions
 char *duckport_lance_open(const char *path, const ArrowSchema *, const char *mode, const char *const *blob_columns,
-                          size_t column_count, const DuckportStorageOptions *, DuckportSink **output);
+                          size_t column_count, const DuckportLanceWriteOptions *, const DuckportStorageOptions *,
+                          DuckportSink **output);
 char *duckport_iceberg_open(const char *identifier, const ArrowSchema *, const char *mode, size_t column_count,
                             const char *catalog_uri, const char *warehouse, const char *storage_root,
                             const DuckportStorageOptions *, DuckportSink **output);

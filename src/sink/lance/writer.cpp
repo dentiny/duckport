@@ -13,7 +13,8 @@ unique_ptr<SinkWriter> OpenLanceWriter(const string &path, const DuckportStorage
 		columns.push_back(column.c_str());
 	}
 	DuckportSink *raw = nullptr;
-	CheckError(duckport_lance_open(path.c_str(), &schema, mode, columns.data(), columns.size(), &storage, &raw));
+	CheckError(duckport_lance_open(path.c_str(), &schema, mode, columns.data(), columns.size(), &options.lance,
+	                               &storage, &raw));
 	return MakeSinkWriter(SinkPtr(raw, duckport_sink_destroy));
 }
 } // namespace duckdb

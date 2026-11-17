@@ -25,8 +25,32 @@ failed writes can leave uncommitted files. Partitioning, rotation, temporary-fil
 publication and ordering options are unsupported.
 
 Compared with [duckdb_lance_conversion](https://github.com/dentiny/duckdb_lance_conversion),
-this sink currently exposes APPEND, OVERWRITE and BLOB_COLUMNS. Blob column names
+this sink exposes APPEND, OVERWRITE, BLOB_COLUMNS and the byte-size options below. Blob column names
 follow DuckDB identifier matching; empty lists, duplicates and invalid columns fail
 at bind time. File URL sources require `file://`; bare local blob paths are not supported.
-Blob thresholds, target file size, storage version, column compression/encoding,
-indexes, sampling and generated-column options are not exposed yet.
+Storage version, column compression/encoding, indexes, sampling and generated-column
+options are not exposed yet.
+
+## Byte-size options
+
+All sizes are integer byte counts. Omitted options preserve the backend defaults.
+
+| COPY option | Accepted values | Effect |
+| --- | --- | --- |
+| `BLOB_INLINE_SIZE_THRESHOLD` | Non-negative integer | Maximum Blob size stored inline; zero disables inlining for nonempty blobs. |
+| `BLOB_DEDICATED_SIZE_THRESHOLD` | Positive integer | Blobs larger than this size use dedicated objects instead of packed storage. |
+| `TARGET_FILE_SIZE` | Positive integer | Soft target for data-file size; batches, pages and file overhead can exceed it. |
+
+```sql
+COPY input_table TO 'images.lance' (
+    FORMAT duckport_lance,
+    BLOB_COLUMNS ('image'),
+    BLOB_INLINE_SIZE_THRESHOLD 1048576,
+    BLOB_DEDICATED_SIZE_THRESHOLD 8388608,
+    TARGET_FILE_SIZE 268435456
+);
+```
+
+These options are specific to `duckport_lance`. Blob thresholds apply to logical
+Blob fields, including columns selected by `BLOB_COLUMNS`; ordinary binary columns
+are unaffected. They configure writes in create, append and overwrite modes.
