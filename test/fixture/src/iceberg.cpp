@@ -47,17 +47,12 @@ void Put(yyjson_mut_doc *doc, yyjson_mut_val *object, const char *key, yyjson_mu
 
 class IcebergFixture {
 public:
-	explicit IcebergFixture(const string &root, bool required_id = false) : metadata(nullptr, yyjson_mut_doc_free) {
+	explicit IcebergFixture(const string &root) : metadata(nullptr, yyjson_mut_doc_free) {
 		std::ifstream seed(string(DUCKPORT_TESTDATA_DIR) + "/iceberg/table.metadata.json");
 		if (!seed) {
 			throw IOException("Cannot open Iceberg metadata fixture");
 		}
 		metadata = Parse(string(std::istreambuf_iterator<char>(seed), {}));
-		if (required_id) {
-			auto schema = yyjson_mut_arr_get(yyjson_mut_obj_get(yyjson_mut_doc_get_root(metadata.get()), "schemas"), 0);
-			auto field = yyjson_mut_arr_get(yyjson_mut_obj_get(schema, "fields"), 0);
-			Put(metadata.get(), field, "required", yyjson_mut_bool(metadata.get(), true));
-		}
 		auto table_path = std::filesystem::absolute(std::filesystem::path(root) / "people");
 		std::filesystem::create_directories(table_path / "metadata");
 		metadata_file = (table_path / "metadata/current.metadata.json").generic_string();
@@ -168,12 +163,12 @@ string FixtureCommand(const string &root, const string &command) {
 		fixtures.erase(root);
 		return "stopped";
 	}
-	if (command != "start" && command != "start_required") {
+	if (command != "start") {
 		throw InvalidInputException("Unknown Iceberg fixture command: %s", command);
 	}
 	auto &fixture = fixtures[root];
 	if (!fixture) {
-		fixture = make_uniq<IcebergFixture>(root, command == "start_required");
+		fixture = make_uniq<IcebergFixture>(root);
 	}
 	return fixture->Endpoint();
 }
