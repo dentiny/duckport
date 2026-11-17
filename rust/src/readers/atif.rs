@@ -39,11 +39,10 @@ pub(crate) async fn open(
     )
     .await?;
     let document = if storage::is_local(locator) {
-        crate::utils::local_path(locator)?
-            .to_string_lossy()
-            .into_owned()
+        url::Url::from_file_path(crate::utils::local_path(locator)?)
+            .map_err(|_| "invalid ATIF document path")?
     } else {
-        locator.to_owned()
+        url::Url::parse(locator)?
     };
     Ok(source.with_atif(MediaResolver { document }))
 }

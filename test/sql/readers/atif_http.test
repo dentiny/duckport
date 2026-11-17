@@ -30,6 +30,12 @@ SELECT count(*) FROM duckport_fixture_requests('atif') WHERE target LIKE '%.png%
 ----
 0
 
+query I
+SELECT steps[1].message[2].source.path = getvariable('atif_endpoint') || '/media/atif-image.png'
+FROM duckport_scan_atif(getvariable('atif_endpoint') || '/runs/parent_media.json');
+----
+true
+
 foreach bad local origin scheme
 
 statement error

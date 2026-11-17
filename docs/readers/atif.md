@@ -9,9 +9,11 @@ Reads ATIF trajectories with the library's fixed schema. JSON objects are framed
 
 Image/audio `source.path` values in messages and observation results are normalized
 to absolute URI strings. Local references become percent-encoded `file://` URIs;
-HTTP(S) and S3 references resolve against the trajectory's directory. `data:` URIs
+Hierarchical remote references resolve against the trajectory's directory. `data:` URIs
 are retained. Remote media references must stay on the document's storage origin
-(scheme, host and port / S3 bucket). Subagent trajectories remain raw JSON.
+(canonical scheme and authority). URI normalization has no transport allowlist;
+the configured storage/backend determines which protocols COPY can read. Opaque
+non-data URIs and embedded credentials are rejected. Subagent trajectories remain raw JSON.
 
 Scanning does not download, open or decode media. Missing files and malformed data
 URI payloads therefore do not fail a scan. Content types, media attributes, text

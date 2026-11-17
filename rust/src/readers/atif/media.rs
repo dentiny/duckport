@@ -56,64 +56,59 @@ pub(crate) fn uri_schema(schema: &SchemaRef, document: &str) -> SchemaRef {
     Arc::new(schema)
 }
 
-/// Remote documents cannot cause local-file reads or forward S3 credentials to
-/// another bucket. Relative remote paths use URL resolution, not host paths.
-fn resolve_uri(document: &str, reference: &str) -> Result<String> {
-    if reference.starts_with("data:") {
+/// Resolve hierarchical URI references without deciding which transports exist.
+/// Storage/backends own protocol support. Local paths retain literal filesystem
+/// characters; remote references use URL resolution and stay on their origin.
+fn resolve_uri(document: &Url, reference: &str) -> Result<String> {
+    let local_reference = || -> Result<Url> {
+        let document = document
+            .to_file_path()
+            .map_err(|_| "invalid ATIF document file URI")?;
+        let path = document
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join(reference);
+        Url::from_file_path(path).map_err(|_| "invalid ATIF media path".into())
+    };
+    let target = if document.scheme() == "file" && Path::new(reference).is_absolute() {
+        local_reference()?
+    } else {
+        match Url::parse(reference) {
+            Ok(target) => target,
+            Err(url::ParseError::RelativeUrlWithoutBase) if document.scheme() == "file" => {
+                local_reference()?
+            }
+            Err(url::ParseError::RelativeUrlWithoutBase) => document.join(reference)?,
+            Err(error) => return Err(error.into()),
+        }
+    };
+    // Inline content is a representation, not a remote storage transport.
+    if target.scheme() == "data" {
         return Ok(reference.to_owned());
     }
-    if let Ok(base) = Url::parse(document)
-        && matches!(base.scheme(), "s3" | "http" | "https")
-    {
-        let target = base.join(reference)?;
-        if target.scheme() != base.scheme()
-            || target.host_str() != base.host_str()
-            || target.port_or_known_default() != base.port_or_known_default()
-            || !target.username().is_empty()
-            || target.password().is_some()
-        {
-            return Err(std::io::Error::other(
-                "ATIF remote media must use the trajectory's storage origin",
-            )
-            .into());
-        }
-        return Ok(target.to_string());
+    if target.cannot_be_a_base() {
+        return Err("ATIF media URI must be hierarchical".into());
     }
-    if Path::new(reference).is_absolute() {
-        return Ok(Url::from_file_path(reference)
-            .map_err(|_| "invalid ATIF media path")?
-            .to_string());
+    if !target.username().is_empty() || target.password().is_some() {
+        return Err("ATIF media URI must not contain embedded credentials".into());
     }
-    if let Ok(url) = Url::parse(reference) {
-        if url.scheme() == "file" {
-            url.to_file_path()
-                .map_err(|_| "invalid ATIF media file URI")?;
-            return Ok(url.to_string());
-        }
-        if matches!(url.scheme(), "s3" | "http" | "https") {
-            return Ok(url.to_string());
-        }
-        return Err(std::io::Error::other(format!(
-            "unsupported ATIF media scheme: {}",
-            url.scheme()
-        ))
-        .into());
+    if document.scheme() != "file" && !crate::storage::same_storage_origin(document, &target) {
+        return Err("ATIF remote media must use the trajectory's storage origin".into());
     }
-    let path = Path::new(document)
-        .parent()
-        .unwrap_or_else(|| Path::new("."))
-        .join(reference);
-    Ok(Url::from_file_path(path)
-        .map_err(|_| "invalid ATIF media path")?
-        .to_string())
+    if target.scheme() == "file" {
+        target
+            .to_file_path()
+            .map_err(|_| "invalid ATIF media file URI")?;
+    }
+    Ok(target.to_string())
 }
 
 pub(crate) struct MediaResolver {
-    pub document: String,
+    pub document: Url,
 }
 impl MediaResolver {
     pub(crate) fn schema(&self, schema: &SchemaRef) -> SchemaRef {
-        uri_schema(schema, &self.document)
+        uri_schema(schema, self.document.as_str())
     }
     pub(crate) fn reader(self: &Arc<Self>, reader: Box<dyn RecordReader>) -> Box<dyn RecordReader> {
         let capability = reader.capability();

@@ -28,11 +28,11 @@ impl Downloader for MediaDownloader {
             )));
         }
         let url = url::Url::parse(source).map_err(Error::backend)?;
-        if !self.origins.iter().any(|origin| {
-            origin.scheme() == url.scheme()
-                && origin.host_str() == url.host_str()
-                && origin.port_or_known_default() == url.port_or_known_default()
-        }) {
+        if !self
+            .origins
+            .iter()
+            .any(|origin| crate::storage::same_storage_origin(origin, &url))
+        {
             return self.fallback.open(source, context).await;
         }
         if matches!(url.scheme(), "http" | "https") {

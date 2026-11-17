@@ -23,6 +23,10 @@
     {
       "path": "/runs/bad_scheme_media.json",
       "file": "bad_scheme_media.json"
+    },
+    {
+      "path": "/runs/parent_media.json",
+      "file": "parent_media.json"
     }
   ],
   "auth": "authorization",

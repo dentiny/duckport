@@ -10,3 +10,5 @@ message and observation image/audio content, Unicode and storage metadata.
 `http.json` serves authenticated trajectories/media through the native loopback
 fixture. `bad_*_media.json` cover forbidden local-file, cross-origin and
 cross-scheme references in remote trajectories.
+
+`parent_media.json` checks URL-relative parent-directory resolution without fetching media.

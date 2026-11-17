@@ -65,6 +65,45 @@ SELECT count(*) FROM glob('{TEST_DIR}/bad_data.lance/_versions/*.manifest');
 ----
 0
 
+# URI normalization is independent of enabled storage transports.
+statement ok
+SELECT duckport_fixture_write('{TEST_DIR}/generic_uri.json', encode(replace(getvariable('atif_inline'),
+    'data:image/png;base64,AP8%3D', 'memory://media/run/image.bin')));
+
+query T
+SELECT steps[1].message[2].source.path FROM duckport_scan_atif('{TEST_DIR}/generic_uri.json');
+----
+memory://media/run/image.bin
+
+# Local relative paths retain literal filesystem #/% characters.
+statement ok
+SELECT duckport_fixture_write('{TEST_DIR}/literal_path.json', encode(replace(getvariable('atif_inline'),
+    'data:image/png;base64,AP8%3D', 'images/image #1%.png')));
+
+query I
+SELECT ends_with(steps[1].message[2].source.path, '/images/image%20%231%25.png')
+FROM duckport_scan_atif('{TEST_DIR}/literal_path.json');
+----
+true
+
+statement ok
+SELECT duckport_fixture_write('{TEST_DIR}/opaque_uri.json', encode(replace(getvariable('atif_inline'),
+    'data:image/png;base64,AP8%3D', 'mailto:media@example.test')));
+
+statement error
+SELECT steps FROM duckport_scan_atif('{TEST_DIR}/opaque_uri.json');
+----
+ATIF media URI must be hierarchical
+
+statement ok
+SELECT duckport_fixture_write('{TEST_DIR}/credential_uri.json', encode(replace(getvariable('atif_inline'),
+    'data:image/png;base64,AP8%3D', 'https://user:password@example.test/image.png')));
+
+statement error
+SELECT steps FROM duckport_scan_atif('{TEST_DIR}/credential_uri.json');
+----
+ATIF media URI must not contain embedded credentials
+
 restart no_extension_load
 
 statement ok
