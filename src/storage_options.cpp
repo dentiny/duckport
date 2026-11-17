@@ -89,16 +89,16 @@ StorageParameters::StorageParameters(ClientContext &context, const string &locat
 		const auto scope = StringUtil::StartsWith(locator, "hf://") ? locator : StringUtil::Format("hf://datasets/%s", locator);
 		info.file_path = scope;
 		KeyValueSecretReader reader(opener, &info, "huggingface");
-		reader.TryGetSecretKey("token", token);
+		security.has_token = reader.TryGetSecretKey("token", security.token);
 	} else if (secret_type == "internet_archive") {
 		KeyValueSecretReader reader(opener, &info, "s3");
-		reader.TryGetSecretKey("key_id", access_key_id);
-		reader.TryGetSecretKey("secret", secret_access_key);
+		reader.TryGetSecretKey("key_id", security.access_key_id);
+		reader.TryGetSecretKey("secret", security.secret_access_key);
 	} else if (StringUtil::StartsWith(locator, "s3://")) {
 		KeyValueSecretReader reader(opener, &info, "s3");
-		reader.TryGetSecretKey("key_id", access_key_id);
-		reader.TryGetSecretKey("secret", secret_access_key);
-		reader.TryGetSecretKey("session_token", session_token);
+		reader.TryGetSecretKey("key_id", security.access_key_id);
+		reader.TryGetSecretKey("secret", security.secret_access_key);
+		reader.TryGetSecretKey("session_token", security.session_token);
 		reader.TryGetSecretKey("endpoint", endpoint);
 		reader.TryGetSecretKey("region", region);
 		bool use_ssl = true;
@@ -112,28 +112,22 @@ StorageParameters::StorageParameters(ClientContext &context, const string &locat
 			throw InvalidConfigurationException("S3 secret url_style must be either 'path' or 'vhost'");
 		}
 		config.virtual_host_style = url_style == "vhost" ? 1 : 0;
-		config.allow_anonymous = access_key_id.empty() && secret_access_key.empty() && session_token.empty() ? 1 : 0;
+		security.allow_anonymous = security.access_key_id.empty() && security.secret_access_key.empty() && security.session_token.empty() ? 1 : 0;
 	} else if (StringUtil::StartsWith(locator, "http://") || StringUtil::StartsWith(locator, "https://")) {
 		KeyValueSecretReader reader(opener, &info, "http");
-		reader.TryGetSecretKey("bearer_token", token);
+		security.has_token = reader.TryGetSecretKey("bearer_token", security.token);
         Value extra;
         if (reader.TryGetSecretKey("extra_http_headers", extra) && !extra.IsNull()) {
             for (const auto &entry : MapValue::GetChildren(extra)) {
                 const auto &pair = StructValue::GetChildren(entry);
                 if (pair[0].IsNull() || pair[1].IsNull()) { throw InvalidInputException("HTTP header names and values must not be NULL"); }
-                header_names.push_back(pair[0].GetValue<string>());
-                header_values.push_back(pair[1].GetValue<string>());
+                security.header_names.push_back(pair[0].GetValue<string>());
+                security.header_values.push_back(pair[1].GetValue<string>());
             }
         }
 	}
 	config.endpoint = OptionalString(endpoint);
 	config.region = OptionalString(region);
-	config.access_key_id = OptionalString(access_key_id);
-	config.secret_access_key = OptionalString(secret_access_key);
-	config.session_token = OptionalString(session_token);
-	config.token = OptionalString(token);
-    for (idx_t i = 0; i < header_names.size(); i++) { headers.push_back({header_names[i].c_str(), header_values[i].c_str()}); }
-    config.http_headers = headers.data();
-    config.http_header_count = headers.size();
+    config.security = security.ToFfi(headers);
 }
 } // namespace duckdb

@@ -20,7 +20,8 @@ vector<BlobSecret> CaptureBlobSecrets(ClientContext &context) {
 		value.policy = policy;
 		Value token;
 		if (secret->TryGetValue("bearer_token", token) && !token.IsNull()) {
-			value.token = token.GetValue<string>();
+			value.security.token = token.GetValue<string>();
+            value.security.has_token = true;
 		}
 		Value headers;
 		if (secret->TryGetValue("extra_http_headers", headers) && !headers.IsNull()) {
@@ -29,8 +30,8 @@ vector<BlobSecret> CaptureBlobSecrets(ClientContext &context) {
 				if (pair[0].IsNull() || pair[1].IsNull()) {
 					throw InvalidInputException("HTTP header names and values must not be NULL");
 				}
-				value.header_names.push_back(pair[0].GetValue<string>());
-				value.header_values.push_back(pair[1].GetValue<string>());
+				value.security.header_names.push_back(pair[0].GetValue<string>());
+				value.security.header_values.push_back(pair[1].GetValue<string>());
 			}
 		}
 		const auto &scopes = secret->GetScope();

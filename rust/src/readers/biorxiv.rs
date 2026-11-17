@@ -50,7 +50,7 @@ pub unsafe extern "C" fn duckport_biorxiv_open(
         let server = crate::utils::biorxiv_server(&server)?;
         let connection =
             Connection::new(&endpoint)?.with_http_config(storage_options.policy.config()?)?;
-        let connection = if let Some(token) = storage_options.token {
+        let connection = if let Some(token) = storage_options.security.token {
             connection.with_header("authorization", &format!("Bearer {token}"))?
         } else {
             connection

@@ -3,6 +3,7 @@
 #include "duckdb/common/string.hpp"
 #include "duckdb/common/vector.hpp"
 #include "duckport.h"
+#include "security_options.hpp"
 
 namespace duckdb {
 class ClientContext;
@@ -21,12 +22,7 @@ class StorageParameters {
   private:
 	string endpoint;
 	string region;
-	string access_key_id;
-	string secret_access_key;
-	string session_token;
-	string token;
-    vector<string> header_names;
-    vector<string> header_values;
+    SecurityParameters security;
     vector<DuckportHttpHeader> headers;
 };
 } // namespace duckdb

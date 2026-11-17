@@ -8,15 +8,9 @@ use std::ffi::c_char;
 pub struct DuckportStorageOptions {
     pub endpoint: *const c_char,
     pub region: *const c_char,
-    pub access_key_id: *const c_char,
-    pub secret_access_key: *const c_char,
-    pub session_token: *const c_char,
-    pub token: *const c_char,
     pub virtual_host_style: i32,
-    pub allow_anonymous: i32,
     pub policy: DuckportStoragePolicy,
-    pub http_headers: *const crate::blob_auth::DuckportHttpHeader,
-    pub http_header_count: usize,
+    pub security: crate::security::DuckportSecurityOptions,
 }
 
 #[repr(C)]
@@ -27,46 +21,22 @@ pub struct DuckportScanOptions {
 
 #[derive(Default)]
 pub struct StorageConfig {
-    pub http_headers: Vec<(String, String)>,
     pub endpoint: Option<String>,
     pub region: Option<String>,
-    pub access_key_id: Option<String>,
-    pub secret_access_key: Option<String>,
-    pub session_token: Option<String>,
-    pub token: Option<String>,
     pub virtual_host_style: bool,
-    pub allow_anonymous: bool,
     pub policy: DuckportStoragePolicy,
+    pub security: crate::security::SecurityConfig,
 }
 
 impl DuckportStorageOptions {
     pub(crate) unsafe fn read(&self) -> Result<StorageConfig> {
         self.policy.config()?;
         Ok(StorageConfig {
-            http_headers: unsafe {
-                crate::utils::ffi_slice(
-                    self.http_headers,
-                    self.http_header_count,
-                    "null HTTP headers",
-                )
-            }?
-            .iter()
-            .map(|h| unsafe {
-                Ok((
-                    crate::utils::string(h.name)?,
-                    crate::utils::string(h.value)?,
-                ))
-            })
-            .collect::<Result<_>>()?,
             endpoint: unsafe { optional_string(self.endpoint) }?,
             region: unsafe { optional_string(self.region) }?,
-            access_key_id: unsafe { optional_string(self.access_key_id) }?,
-            secret_access_key: unsafe { optional_string(self.secret_access_key) }?,
-            session_token: unsafe { optional_string(self.session_token) }?,
-            token: unsafe { optional_string(self.token) }?,
             virtual_host_style: utils::boolean("virtual_host_style", self.virtual_host_style)?,
-            allow_anonymous: utils::boolean("allow_anonymous", self.allow_anonymous)?,
             policy: self.policy,
+            security: unsafe { self.security.read() }?,
         })
     }
 }

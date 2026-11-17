@@ -77,6 +77,67 @@ body after bytes have been delivered. Local filesystem operations, Iceberg REST
 catalog requests, and backend-owned `BLOB_COLUMNS` URL downloads retain their
 library defaults. Other DuckDB extensions use their own settings.
 
+## Authentication with DuckDB secrets
+
+Use DuckDB's existing `CREATE SECRET` system. Credentials are selected by the
+request/source URL's `SCOPE`; do not put tokens in scan/COPY options or URLs.
+Load `httpfs` to register its S3 and Hugging Face secret types.
+
+```sql
+LOAD httpfs;
+CREATE SECRET object_storage (
+    TYPE s3, KEY_ID 'access-key', SECRET 'secret-key',
+    SESSION_TOKEN 'optional-session-token', REGION 'us-east-1',
+    SCOPE 's3://private-bucket/'
+);
+CREATE SECRET private_hub (
+    TYPE huggingface, TOKEN 'hf-access-token',
+    SCOPE 'hf://datasets/owner/private-repo'
+);
+CREATE SECRET authenticated_http (
+    TYPE http, BEARER_TOKEN 'access-token',
+    SCOPE 'https://service.example.com/private/'
+);
+CREATE SECRET custom_http_auth (
+    TYPE http, EXTRA_HTTP_HEADERS MAP {'X-API-Key': 'api-key'},
+    SCOPE 'https://api.example.com/files/'
+);
+```
+
+| Backend/service | DuckDB secret type and authentication fields |
+| --- | --- |
+| S3-compatible storage | `TYPE s3`: `KEY_ID`, `SECRET`, optional `SESSION_TOKEN`; endpoint/region/addressing settings belong to the same secret. |
+| Hugging Face | `TYPE huggingface`: `TOKEN`, scoped to the logical `hf://datasets/...` path. |
+| HTTP files and HTTP Blob sources | `TYPE http`: `BEARER_TOKEN` or `EXTRA_HTTP_HEADERS` for API keys/custom Authorization. |
+| Zenodo, OpenStax, and bearer-enabled provider APIs | `TYPE http`: `BEARER_TOKEN`, scoped to the provider API endpoint. |
+| Figshare | `TYPE http`: raw token in `BEARER_TOKEN`; the adapter uses Figshare's `Authorization: token` scheme. |
+| Dataverse | `TYPE http`: `EXTRA_HTTP_HEADERS MAP {'X-Dataverse-key': 'api-token'}`; use `BEARER_TOKEN` for OIDC installations instead. |
+| Semantic Scholar, BHL, Regulations.gov, USPTO | `TYPE http`: API key stored in `BEARER_TOKEN`; the adapter maps it to the provider's required header/query field. |
+| Internet Archive | `TYPE s3`: `KEY_ID` and `SECRET`, scoped to its HTTP endpoint; the adapter uses LOW authentication. |
+| Iceberg REST catalog | `TYPE http`: `BEARER_TOKEN` scoped to `CATALOG_URI`, independently of the secret for `STORAGE_ROOT`. |
+
+For example, Dataverse API-key and Figshare secrets use the standard HTTP type:
+
+```sql
+CREATE SECRET dataverse_auth (
+    TYPE http, EXTRA_HTTP_HEADERS MAP {'X-Dataverse-key': 'dataverse-api-token'},
+    SCOPE 'https://dataverse.harvard.edu/'
+);
+CREATE SECRET figshare_auth (
+    TYPE http, BEARER_TOKEN 'figshare-personal-or-oauth-token',
+    SCOPE 'https://api.figshare.com/v2/articles/'
+);
+CREATE SECRET catalog_auth (
+    TYPE http, BEARER_TOKEN 'catalog-access-token',
+    SCOPE 'https://catalog.example.com'
+);
+```
+
+Use narrow scopes when different datasets/services have different identities.
+Provider credentials stay on their intended origin. COPY source credentials are
+resolved independently of the destination; an S3 destination key or catalog token
+is not a credential for an unrelated media URL.
+
 ## Write
 
 ```sql

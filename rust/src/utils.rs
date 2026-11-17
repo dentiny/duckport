@@ -152,9 +152,10 @@ pub(crate) fn sanitize_storage_root(mut root: Url) -> Url {
 pub(crate) fn internet_archive_credentials(config: &StorageConfig) -> Result<Option<(&str, &str)>> {
     validation::validate_internet_archive_credentials(config)?;
     Ok(config
+        .security
         .access_key_id
         .as_deref()
-        .zip(config.secret_access_key.as_deref()))
+        .zip(config.security.secret_access_key.as_deref()))
 }
 
 pub(crate) fn courtlistener_header(

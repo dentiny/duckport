@@ -110,7 +110,7 @@ pub(crate) fn validate_requester_pays(
     if enabled && !locator.starts_with("s3://") {
         return Err("requester_pays requires an S3 root".into());
     }
-    if enabled && (config.access_key_id.is_none() || config.secret_access_key.is_none()) {
+    if enabled && (config.security.access_key_id.is_none() || config.security.secret_access_key.is_none()) {
         return Err("requester_pays requires a scoped S3 secret with credentials".into());
     }
     Ok(())
@@ -163,7 +163,7 @@ pub(crate) fn validate_sink_scheme(url: &Url) -> Result<()> {
 }
 
 pub(crate) fn validate_internet_archive_credentials(config: &StorageConfig) -> Result<()> {
-    if config.access_key_id.is_some() != config.secret_access_key.is_some() {
+    if config.security.access_key_id.is_some() != config.security.secret_access_key.is_some() {
         return Err("Internet Archive requires both an access key and a secret key".into());
     }
     Ok(())

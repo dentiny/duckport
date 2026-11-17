@@ -39,7 +39,7 @@ pub unsafe extern "C" fn duckport_bhl_open(
         let connection =
             Connection::new(&endpoint)?.with_http_config(storage_options.policy.config()?)?;
         let token = crate::validation::nonempty(
-            storage_options.token,
+            storage_options.security.token,
             "a scoped HTTP bearer_token secret is required for this service",
         )?;
         let files = BhlService::with_services(

@@ -23,19 +23,23 @@ struct DuckportHttpHeader {
     const char *value;
 };
 
-// Optional strings are null when unset and borrowed only for the open call.
-struct DuckportStorageOptions {
-	const char *endpoint;
-	const char *region;
-	const char *access_key_id;
-	const char *secret_access_key;
-	const char *session_token;
-	const char *token;
-	int32_t virtual_host_style; // 0 or 1
-	int32_t allow_anonymous;    // 0 or 1
-	DuckportStoragePolicy policy;
+struct DuckportSecurityOptions {
+    const char *access_key_id;
+    const char *secret_access_key;
+    const char *session_token;
+    const char *token;
     const DuckportHttpHeader *http_headers;
     size_t http_header_count;
+    int32_t allow_anonymous;
+};
+
+// Optional strings are null when unset and borrowed only for the open call.
+struct DuckportStorageOptions {
+    const char *endpoint;
+    const char *region;
+    int32_t virtual_host_style;
+    DuckportStoragePolicy policy;
+    DuckportSecurityOptions security;
 };
 // Borrowed during open; Rust owns independent copies for asynchronous downloads.
 struct DuckportBlobSecret {

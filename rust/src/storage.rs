@@ -37,7 +37,7 @@ fn remote_operator(
         let mut builder = opendal::services::Http::default()
             .endpoint(url.as_str().trim_end_matches('/'))
             .root(root.unwrap_or("/"));
-        if let Some(token) = &config.token {
+        if let Some(token) = &config.security.token {
             builder = builder.token(token);
         }
         opendal::Operator::new(builder)?
@@ -54,13 +54,13 @@ fn remote_operator(
         if let Some(endpoint) = &config.endpoint {
             builder = builder.endpoint(endpoint);
         }
-        if let Some(key) = &config.access_key_id {
+        if let Some(key) = &config.security.access_key_id {
             builder = builder.access_key_id(key);
         }
-        if let Some(secret) = &config.secret_access_key {
+        if let Some(secret) = &config.security.secret_access_key {
             builder = builder.secret_access_key(secret);
         }
-        if let Some(token) = &config.session_token {
+        if let Some(token) = &config.security.session_token {
             builder = builder.session_token(token);
         }
         if requester_pays {
@@ -69,13 +69,13 @@ fn remote_operator(
         if config.virtual_host_style {
             builder = builder.enable_virtual_host_style();
         }
-        if config.allow_anonymous {
+        if config.security.allow_anonymous {
             builder = builder.skip_signature();
         }
         opendal::Operator::new(builder)?
     };
     let operator = if matches!(scheme.as_str(), "http" | "https")
-        && (!config.http_headers.is_empty() || config.token.is_some())
+        && (!config.security.http_headers.is_empty() || config.security.token.is_some())
     {
         let transport = crate::blob_auth::fixed_http_transport(locator, config)?;
         let context = operator.base_context().with_http_transport(transport);

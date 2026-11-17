@@ -58,7 +58,7 @@ pub unsafe extern "C" fn duckport_huggingface_open(
         if let Some(endpoint) = storage_options.endpoint {
             settings = settings.with_endpoint(endpoint);
         }
-        if let Some(token) = storage_options.token {
+        if let Some(token) = storage_options.security.token {
             settings = settings.with_token(token);
         }
         let service = HuggingFaceService::new(settings)

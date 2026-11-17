@@ -11,11 +11,7 @@ use opendal::{Buffer, HttpBody, HttpTransport, HttpTransporter};
 use std::{ffi::c_char, sync::Arc};
 use url::Url;
 
-#[repr(C)]
-pub struct DuckportHttpHeader {
-    pub name: *const c_char,
-    pub value: *const c_char,
-}
+
 #[repr(C)]
 pub struct DuckportBlobSecret {
     pub scope: *const c_char,
@@ -61,7 +57,7 @@ pub(crate) fn select<'a>(
 }
 fn headers(config: &StorageConfig) -> Result<HeaderMap> {
     let mut headers = HeaderMap::new();
-    for (name, value) in &config.http_headers {
+    for (name, value) in &config.security.http_headers {
         let name = HeaderName::from_bytes(name.as_bytes())
             .map_err(|_| "invalid HTTP credential header name")?;
         if matches!(
@@ -78,7 +74,7 @@ fn headers(config: &StorageConfig) -> Result<HeaderMap> {
         value.set_sensitive(true);
         headers.insert(name, value);
     }
-    if let Some(token) = &config.token {
+    if let Some(token) = &config.security.token {
         if headers.contains_key(http::header::AUTHORIZATION) {
             return Err("choose BEARER_TOKEN or an Authorization header".into());
         }
