@@ -9,43 +9,44 @@ use open_arrow_access::{RecordReader, map_record_reader};
 use std::sync::Arc;
 use url::Url;
 
-pub(crate) fn uri_schema(schema: &SchemaRef, document: &str) -> SchemaRef {
-    fn tag_field(field: &FieldRef, path: &str, document: &str) -> FieldRef {
-        let policy = match path {
-            "steps.message.text" | "steps.observation.results.content.text" => {
-                Some(StoragePolicy::Text)
-            }
-            "steps.message.source.path" | "steps.observation.results.content.source.path" => {
-                Some(StoragePolicy::Blob)
-            }
-            _ => None,
-        };
-        let data_type = match field.data_type() {
-            DataType::Struct(fields) => DataType::Struct(
-                fields
-                    .iter()
-                    .map(|child| tag_field(child, &format!("{path}.{}", child.name()), document))
-                    .collect(),
-            ),
-            DataType::List(item) => DataType::List(tag_field(item, path, document)),
-            other => other.clone(),
-        };
-        let mut field = field.as_ref().clone().with_data_type(data_type);
-        if let Some(policy) = policy {
-            field
-                .metadata_mut()
-                .insert(SOURCE_TYPE.into(), "atif".into());
-            field
-                .metadata_mut()
-                .insert(STORAGE_POLICY.into(), policy.as_str().into());
-            if policy == StoragePolicy::Blob {
-                field
-                    .metadata_mut()
-                    .insert("duckport:media_document".into(), document.into());
-            }
+fn tag_field(field: &FieldRef, path: &str, document: &str) -> FieldRef {
+    let policy = match path {
+        "steps.message.text" | "steps.observation.results.content.text" => {
+            Some(StoragePolicy::Text)
         }
-        Arc::new(field)
+        "steps.message.source.path" | "steps.observation.results.content.source.path" => {
+            Some(StoragePolicy::Blob)
+        }
+        _ => None,
+    };
+    let data_type = match field.data_type() {
+        DataType::Struct(fields) => DataType::Struct(
+            fields
+                .iter()
+                .map(|child| tag_field(child, &format!("{path}.{}", child.name()), document))
+                .collect(),
+        ),
+        DataType::List(item) => DataType::List(tag_field(item, path, document)),
+        other => other.clone(),
+    };
+    let mut field = field.as_ref().clone().with_data_type(data_type);
+    if let Some(policy) = policy {
+        field
+            .metadata_mut()
+            .insert(SOURCE_TYPE.into(), "atif".into());
+        field
+            .metadata_mut()
+            .insert(STORAGE_POLICY.into(), policy.as_str().into());
+        if policy == StoragePolicy::Blob {
+            field
+                .metadata_mut()
+                .insert("duckport:media_document".into(), document.into());
+        }
     }
+    Arc::new(field)
+}
+
+pub(crate) fn uri_schema(schema: &SchemaRef, document: &str) -> SchemaRef {
     let mut schema = schema.as_ref().clone();
     schema.fields = schema
         .fields
