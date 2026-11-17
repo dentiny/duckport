@@ -4,12 +4,13 @@ use std::path::Path;
 use std::sync::Arc;
 
 use arrow_array::{
-    Array, ArrayRef, RecordBatch, StructArray, builder::LargeBinaryBuilder, cast::AsArray,
-    make_array,
+    Array, ArrayRef, RecordBatch, RecordBatchOptions, StructArray, builder::LargeBinaryBuilder,
+    cast::AsArray, make_array,
 };
 use arrow_schema::{DataType, FieldRef, SchemaRef};
 use base64::{Engine, engine::general_purpose::STANDARD};
-use futures::future::BoxFuture;
+use futures::{StreamExt, future::BoxFuture};
+use open_arrow_access::{RecordReader, StreamReader, into_stream};
 use url::Url;
 
 use super::{ContentType, SOURCE_TYPE, STORAGE_POLICY, StoragePolicy};
@@ -140,6 +141,32 @@ pub(crate) struct MediaResolver {
 }
 
 impl MediaResolver {
+    /// Keep async materialization lazy while the library owns EOF/error cleanup
+    /// and attaches the trajectory source to errors. No prefetch queue is needed.
+    pub(crate) fn reader(self: &Arc<Self>, reader: Box<dyn RecordReader>) -> Box<dyn RecordReader> {
+        let capability = reader.capability();
+        let mut metadata = reader.metadata().clone();
+        metadata.schema = embedded_schema(&metadata.schema);
+        let schema = metadata.schema.clone();
+        let resolver = self.clone();
+        let batches = into_stream(reader).then(move |batch| {
+            let resolver = resolver.clone();
+            let schema = schema.clone();
+            async move {
+                resolver.resolve(batch?, schema).await.map_err(|error| {
+                    open_arrow_access::Error::new(
+                        open_arrow_access::ErrorKind::Decode,
+                        "ATIF media",
+                        error.to_string(),
+                    )
+                })
+            }
+        });
+        Box::new(StreamReader::records_with_capability(
+            batches, metadata, capability,
+        ))
+    }
+
     async fn read(&self, uri: &str) -> Result<Vec<u8>> {
         if uri.starts_with("data:") {
             return decode_data_uri(uri);
@@ -154,7 +181,11 @@ impl MediaResolver {
         for (array, field) in batch.columns().iter().zip(schema.fields()) {
             columns.push(self.resolve_array(array, field, None).await?);
         }
-        Ok(RecordBatch::try_new(schema, columns)?)
+        Ok(RecordBatch::try_new_with_options(
+            schema,
+            columns,
+            &RecordBatchOptions::new().with_row_count(Some(batch.num_rows())),
+        )?)
     }
 
     fn resolve_array<'a>(

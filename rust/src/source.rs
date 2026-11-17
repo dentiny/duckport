@@ -49,17 +49,9 @@ impl DuckportSource {
             Some(projection)
         };
         let reader = self.source.scan(options).await?;
-        if let Some(resolver) = &self.media {
-            let mut metadata = reader.metadata().clone();
-            metadata.schema = crate::readers::atif::embedded_schema(&metadata.schema);
-            Ok(Box::new(AtifReader {
-                inner: reader,
-                resolver: resolver.clone(),
-                metadata,
-                terminal: false,
-            }))
-        } else {
-            Ok(reader)
+        match &self.media {
+            Some(resolver) => Ok(resolver.reader(reader)),
+            None => Ok(reader),
         }
     }
 }
@@ -80,50 +72,5 @@ impl DuckportSource {
     pub(crate) fn with_atif(mut self, resolver: crate::readers::atif::MediaResolver) -> Self {
         self.media = Some(std::sync::Arc::new(resolver));
         self
-    }
-}
-
-struct AtifReader {
-    terminal: bool,
-    inner: Box<dyn RecordReader>,
-    resolver: std::sync::Arc<crate::readers::atif::MediaResolver>,
-    metadata: open_arrow_access::RecordMetadata,
-}
-
-#[open_arrow_access::async_trait]
-impl open_arrow_access::Reader for AtifReader {
-    type Item = arrow_array::RecordBatch;
-    type Metadata = open_arrow_access::RecordMetadata;
-    type Capability = open_arrow_access::RecordCapability;
-    fn capability(&self) -> Self::Capability {
-        self.inner.capability()
-    }
-    fn metadata(&self) -> &Self::Metadata {
-        &self.metadata
-    }
-    async fn next(&mut self) -> open_arrow_access::Result<Option<Self::Item>> {
-        if self.terminal {
-            return Ok(None);
-        }
-        let result = async {
-            match self.inner.next().await? {
-                None => Ok(None),
-                Some(batch) => self
-                    .resolver
-                    .resolve(batch, self.metadata.schema.clone())
-                    .await
-                    .map(Some)
-                    .map_err(|error| {
-                        open_arrow_access::Error::new(
-                            open_arrow_access::ErrorKind::Decode,
-                            "ATIF media",
-                            error.to_string(),
-                        )
-                    }),
-            }
-        }
-        .await;
-        self.terminal = !matches!(&result, Ok(Some(_)));
-        result
     }
 }

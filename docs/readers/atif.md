@@ -34,3 +34,8 @@ Explicit `COLUMN_COMPRESSION` settings override the text compression default.
 These defaults apply only to tagged ATIF fields, not arbitrary binary columns.
 When `steps` is read, each Arrow batch contains one trajectory to bound media
 buffering; `batch_size` is a target rather than a minimum.
+
+Projection pushdown is preserved: queries excluding `steps`, including `COUNT(*)`,
+do not read referenced media. Media transformation uses open-arrow-access's
+source-aware record stream adapter, retaining ordering/capabilities and releasing
+the input on EOF or errors without prefetching media.

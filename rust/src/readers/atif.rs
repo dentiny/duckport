@@ -36,7 +36,7 @@ pub(crate) async fn open(
         .as_ref()
         .is_none_or(|p| p.iter().any(|c| c == "steps"))
     {
-        scan_options.batch_size = std::num::NonZeroUsize::MIN;
+        scan_options = scan_options.with_batch_size(std::num::NonZeroUsize::MIN);
     }
     let (operator, path) = storage::operator(locator, &storage_options)?;
     let source = open_file_source(

@@ -123,3 +123,43 @@ async fn gzip_resolves_local_media_relative_to_compressed_document() {
         );
     }
 }
+
+#[tokio::test]
+async fn projections_skip_missing_media_and_keep_zero_column_row_counts() {
+    let temp = tempfile::tempdir().unwrap();
+    let document = std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/atif/trajectory_media.json"),
+    )
+    .unwrap();
+    // The relative media files deliberately do not exist in the new directory.
+    let path = temp.path().join("trajectories.jsonl");
+    std::fs::write(&path, format!("{document}\n{document}")).unwrap();
+    let source = open(
+        path.to_str().unwrap(),
+        StorageConfig::default(),
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    for projection in [vec!["trajectory_id".to_string()], vec![]] {
+        let mut reader = source.reader(projection.clone()).await.unwrap();
+        let mut rows = 0;
+        while let Some(batch) = reader.next().await.unwrap() {
+            assert_eq!(batch.num_columns(), projection.len());
+            rows += batch.num_rows();
+        }
+        assert_eq!(rows, 2);
+        assert!(reader.next().await.unwrap().is_none());
+    }
+    let mut reader = source.reader(vec!["steps".into()]).await.unwrap();
+    assert!(
+        reader
+            .next()
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("atif-image.png")
+    );
+    // The library stream adapter makes errors terminal and releases its input.
+    assert!(reader.next().await.unwrap().is_none());
+}
