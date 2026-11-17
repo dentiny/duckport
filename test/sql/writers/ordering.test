@@ -1,0 +1,86 @@
+# name: test/sql/writers/ordering.test
+# description: Ordered COPY preserves input sequence and unordered COPY retains all rows
+# group: [sql]
+
+require duckport
+
+require parquet
+
+require duckport_test_fixture
+
+statement ok
+SET threads = 4;
+
+foreach sink lance parquet
+
+statement ok
+COPY (SELECT i AS id FROM range(131072) t(i) ORDER BY i DESC)
+TO '{TEST_DIR}/ordered_${sink}' (FORMAT duckport_${sink}, PRESERVE_ORDER true, FILE_COUNT 1);
+
+statement ok
+COPY (SELECT i AS id FROM range(131072) t(i))
+TO '{TEST_DIR}/unordered_${sink}' (FORMAT duckport_${sink}, PRESERVE_ORDER false, FILE_COUNT 2);
+
+endloop
+
+statement ok
+COPY (SELECT -1::BIGINT AS id) TO '{TEST_DIR}/ordered_lance'
+(FORMAT duckport_lance, APPEND, PRESERVE_ORDER true);
+
+foreach mode,preserve_order,file_count ordered,true,1 unordered,false,2
+
+statement ok
+SET VARIABLE iceberg_catalog = duckport_iceberg_fixture('{TEST_DIR}/${mode}_iceberg', 'start');
+
+statement ok
+COPY (SELECT i::INTEGER AS id, i::VARCHAR AS name FROM range(131072) t(i) ORDER BY i DESC)
+TO 'tests.people' (FORMAT duckport_iceberg, APPEND, PRESERVE_ORDER ${preserve_order}, FILE_COUNT ${file_count},
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/${mode}_iceberg');
+
+statement ok
+SELECT duckport_iceberg_fixture('{TEST_DIR}/${mode}_iceberg', 'stop');
+
+endloop
+
+# Read single-writer files serially to check their stored row sequence.
+statement ok
+SET threads = 1;
+
+foreach path ordered_parquet ordered_iceberg/people/data
+
+query II
+SELECT count(*), count(*) FILTER (WHERE id != 131072 - position)
+FROM (SELECT id, row_number() OVER () AS position FROM read_parquet('{TEST_DIR}/${path}/*.parquet'));
+----
+131072	0
+
+endloop
+
+foreach path unordered_parquet unordered_iceberg/people/data
+
+query III
+SELECT count(*), count(DISTINCT id), sum(id) FROM read_parquet('{TEST_DIR}/${path}/*.parquet');
+----
+131072	131072	8589869056
+
+endloop
+
+restart no_extension_load
+
+statement ok
+LOAD '{BUILD_DIRECTORY}/extension/lance/lance.duckdb_extension';
+
+# A single reader checks the stored sequence rather than parallel scan scheduling.
+statement ok
+SET threads = 1;
+
+query II
+SELECT count(*), count(*) FILTER (WHERE id != 131072 - position)
+FROM (SELECT id, row_number() OVER () AS position FROM '{TEST_DIR}/ordered_lance');
+----
+131073	0
+
+query III
+SELECT count(*), count(DISTINCT id), sum(id) FROM '{TEST_DIR}/unordered_lance';
+----
+131072	131072	8589869056

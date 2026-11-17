@@ -1,12 +1,15 @@
 //! REST catalog setup and the Iceberg adapter for the shared COPY writer.
 use crate::{
-    error::Result, options::StorageConfig, sink::DuckportSink, storage, utils, validation,
+    error::Result,
+    options::StorageConfig,
+    sink::{DuckportSink, open_writer},
+    storage, utils, validation,
 };
 use arrow_schema::SchemaRef;
 use iceberg_catalog_rest::{
     REST_CATALOG_PROP_URI, REST_CATALOG_PROP_WAREHOUSE, RestCatalogBuilder,
 };
-use open_arrow_sink_core::{Ordering, Sink, WriteMode, WriteOptions};
+use open_arrow_sink_core::{Sink, WriteMode, WriteOptions};
 use open_arrow_sink_iceberg::{
     IcebergTableSink, OpenDalStorageFactory,
     iceberg::{self, Catalog, CatalogBuilder, TableIdent},
@@ -21,6 +24,7 @@ pub(crate) async fn open(
     storage_root: &str,
     config: &StorageConfig,
     options: WriteOptions,
+    writer_count: usize,
 ) -> Result<DuckportSink> {
     let uri = url::Url::parse(catalog_uri)?;
     validation::validate_iceberg_catalog_uri(&uri)?;
@@ -41,7 +45,7 @@ pub(crate) async fn open(
         .with_storage_factory(Arc::new(factory))
         .load("duckport", props)
         .await?;
-    open_catalog(Arc::new(catalog), identifier, schema, options).await
+    open_catalog(Arc::new(catalog), identifier, schema, options, writer_count).await
 }
 
 pub(crate) async fn open_catalog(
@@ -49,10 +53,9 @@ pub(crate) async fn open_catalog(
     identifier: TableIdent,
     schema: SchemaRef,
     options: WriteOptions,
+    writer_count: usize,
 ) -> Result<DuckportSink> {
-    let options = options
-        .with_mode(WriteMode::Append)
-        .with_ordering(Ordering::Unordered);
+    let options = options.with_mode(WriteMode::Append);
     let sink = IcebergTableSink::new(catalog.clone());
     open_arrow_sink_core::validation::validate_options(&schema, &options, sink.capability())?;
     let table = catalog.load_table(&identifier).await?;
@@ -63,9 +66,14 @@ pub(crate) async fn open_catalog(
     // DuckDB does not export Iceberg field IDs. Match names and types first,
     // then attach the catalog schema, including IDs and requiredness.
     validation::validate_iceberg_schema(&schema, &output_schema)?;
-    let writer = sink
-        .open(identifier, output_schema.clone(), options)
-        .await?;
+    let writer = open_writer(
+        sink,
+        identifier,
+        output_schema.clone(),
+        options,
+        writer_count,
+    )
+    .await?;
     Ok(DuckportSink {
         writer: Some(writer),
         schema,

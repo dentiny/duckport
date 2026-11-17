@@ -28,6 +28,11 @@ pub unsafe extern "C" fn duckport_validate_byte_size(
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn duckport_validate_file_count(value: i64, preserve_order: bool) -> *mut c_char {
+    call(|| validation::validate_file_count(value, preserve_order))
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn duckport_validate_sample_percent(value: f64) -> *mut c_char {
     call(|| validation::sample_percent(value))
 }
@@ -64,6 +69,7 @@ pub struct DuckportWriteOptions {
     pub column_encoding_count: usize,
     pub indexes: *const DuckportIndexOptions,
     pub index_count: usize,
+    pub writer_count: usize,
 }
 
 impl Default for DuckportWriteOptions {
@@ -77,6 +83,7 @@ impl Default for DuckportWriteOptions {
             column_encoding_count: 0,
             indexes: std::ptr::null(),
             index_count: 0,
+            writer_count: 1,
         }
     }
 }

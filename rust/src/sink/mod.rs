@@ -6,7 +6,30 @@ mod parquet;
 use crate::{error::Result, validation};
 use arrow_array::RecordBatch;
 use arrow_schema::SchemaRef;
-use open_arrow_sink_core::Writer;
+use open_arrow_sink_core::{ParallelSink, Sink, SinkExt, WriteOptions, Writer};
+use open_arrow_sink_layer::UnorderedWriteLayer;
+use std::num::NonZeroUsize;
+
+pub(crate) async fn open_writer<S: ParallelSink>(
+    sink: S,
+    request: S::Request,
+    schema: SchemaRef,
+    options: WriteOptions,
+    writer_count: usize,
+) -> Result<Box<dyn Writer>> {
+    // DuckDB delivers batches serially; one writer retains their input sequence.
+    if writer_count == 1 {
+        return Ok(sink.open(request, schema, options).await?);
+    }
+    let count = validation::required(
+        NonZeroUsize::new(writer_count),
+        "writer count must be positive",
+    )?;
+    Ok(sink
+        .layer(UnorderedWriteLayer::new(count))
+        .open(request, schema, options)
+        .await?)
+}
 
 pub struct DuckportSink {
     pub(crate) writer: Option<Box<dyn Writer>>,

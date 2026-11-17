@@ -9,6 +9,7 @@
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/main/query_result.hpp"
 #include "duckdb/main/settings.hpp"
+#include "duckdb/parallel/task_scheduler.hpp"
 #include "duckdb/parser/expression/star_expression.hpp"
 #include "duckdb/parser/parsed_data/sample_options.hpp"
 #include "duckdb/parser/parsed_expression_iterator.hpp"
@@ -67,6 +68,7 @@ struct CopyBindData : FunctionData {
 		return types == bind.types && names == bind.names && generated_expressions == bind.generated_expressions &&
 		       path == bind.path && options.mode == bind.options.mode &&
 		       options.blob_columns == bind.options.blob_columns &&
+		       options.preserve_order == bind.options.preserve_order && options.file_count == bind.options.file_count &&
 		       options.write_options.blob_inline_size_threshold == bind.options.write_options.blob_inline_size_threshold &&
 		       options.write_options.blob_dedicated_size_threshold == bind.options.write_options.blob_dedicated_size_threshold &&
 		       options.write_options.target_file_size == bind.options.write_options.target_file_size &&
@@ -238,6 +240,24 @@ bool ParseIndexOption(const Identifier &name, const vector<Value> &values, SinkW
 	return true;
 }
 
+int64_t ParseFileCount(const vector<Value> &values) {
+	if (values.size() != 1 || values[0].IsNull() || !values[0].type().IsIntegral()) {
+		throw BinderException("FILE_COUNT requires one integer");
+	}
+	auto value = values[0].DefaultTryCastAs(LogicalType::BIGINT);
+	if (!value) {
+		throw BinderException("FILE_COUNT requires an integer that fits in BIGINT");
+	}
+	return value->GetValue<int64_t>();
+}
+
+bool ParsePreserveOrder(ClientContext &context, const vector<Value> &values) {
+	if (values.size() > 1 || (!values.empty() && values[0].IsNull())) {
+		throw BinderException("PRESERVE_ORDER requires a boolean");
+	}
+	return values.empty() || values[0].CastAs(context, LogicalType::BOOLEAN).GetValue<bool>();
+}
+
 unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput &input, const vector<Identifier> &names,
                                   const vector<LogicalType> &types) {
 	CheckWriteAccess(context);
@@ -267,6 +287,14 @@ unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput 
 			result->options.blob_columns = ParseBlobColumns(entry.second, names, types);
 			continue;
 		}
+		if (entry.first == "file_count") {
+			result->options.file_count = ParseFileCount(entry.second);
+			continue;
+		}
+		if (entry.first == "preserve_order") {
+			result->options.preserve_order = ParsePreserveOrder(context, entry.second);
+			continue;
+		}
 		if (entry.first != "append" && entry.first != "overwrite") {
 			throw BinderException("Unsupported DuckPort COPY option: %s", entry.first);
 		}
@@ -280,6 +308,14 @@ unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput 
 		bool enabled = entry.second.empty() || entry.second[0].CastAs(context, LogicalType::BOOLEAN).GetValue<bool>();
 		if (enabled) {
 			result->options.mode = entry.first == "append" ? SinkWriteMode::APPEND : SinkWriteMode::OVERWRITE;
+		}
+	}
+	if (result->options.file_count) {
+		unique_ptr<char, decltype(&duckport_source_error_free)> error(
+		    duckport_validate_file_count(*result->options.file_count, result->options.preserve_order),
+		    duckport_source_error_free);
+		if (error) {
+			throw BinderException("%s", error.get());
 		}
 	}
 	return std::move(result);
@@ -307,7 +343,10 @@ unique_ptr<GlobalFunctionData> InitCopy(ClientContext &context, FunctionData &da
 		field.metadata = holder.metadata_info.back().get();
 	}
 	StorageParameters storage(context, bind.options.storage_root.empty() ? path : bind.options.storage_root, {});
-	state->writer = bind.info->Cast<WriterInfo>().open(path, storage.config, bind.options, schema.arrow_schema);
+	auto options = bind.options;
+	options.write_options.writer_count = options.file_count.value_or(
+	    options.preserve_order ? 1 : TaskScheduler::GetScheduler(context).NumberOfThreads());
+	state->writer = bind.info->Cast<WriterInfo>().open(path, storage.config, options, schema.arrow_schema);
 	if (!state->writer) {
 		throw InternalException("DuckPort sink opener returned no writer");
 	}
@@ -323,7 +362,6 @@ void SinkCopy(ExecutionContext &, FunctionData &, GlobalFunctionData &global, Lo
 	state.writer->Write(array.arrow_array);
 }
 void CombineCopy(ExecutionContext &, FunctionData &, GlobalFunctionData &, LocalFunctionData &) {
-	// Batches are written immediately; no local buffers to drain yet.
 }
 void FinalizeCopy(ClientContext &, FunctionData &, GlobalFunctionData &global) {
 	auto &state = global.Cast<CopyGlobalState>();
@@ -499,6 +537,7 @@ BoundStatement PlanCopy(Binder &binder, CopyStatement &statement) {
 			expressions.emplace_back(column->ToString());
 		}
 	}
+	auto preserve_order = data->Cast<CopyBindData>().options.preserve_order;
 	auto copy = make_uniq<LogicalCopyToFile>(function, std::move(data), std::move(info), binder.GenerateTableIndex());
 	copy->file_path = statement.info->file_path;
 	copy->file_extension = function.extension;
@@ -508,7 +547,7 @@ BoundStatement PlanCopy(Binder &binder, CopyStatement &statement) {
 	copy->rotate = false;
 	copy->partition_output = false;
 	copy->write_partition_columns = false;
-	copy->preserve_order = PreserveOrderType::DONT_PRESERVE_ORDER;
+	copy->preserve_order = preserve_order ? PreserveOrderType::PRESERVE_ORDER : PreserveOrderType::DONT_PRESERVE_ORDER;
 	copy->return_type = CopyFunctionReturnType::CHANGED_ROWS;
 	copy->names = source.names;
 	copy->expected_types = source.types;
@@ -529,10 +568,11 @@ void CommonCopyOptions(ClientContext &, CopyOptionsInput &input) {
 	}
 	input.options["append"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
 	input.options["overwrite"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
+	input.options["preserve_order"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
 	// Preserve original values for validation.
-	for (const auto &option : {"target_file_size", "blob_inline_size_threshold", "blob_dedicated_size_threshold",
-	                           "sample_percent", "sample_rows", "column_compression", "column_compression_level",
-	                           "column_structural_encoding", "generated_columns"}) {
+	for (const auto &option : {"file_count", "target_file_size", "blob_inline_size_threshold",
+	                           "blob_dedicated_size_threshold", "sample_percent", "sample_rows", "column_compression",
+	                           "column_compression_level", "column_structural_encoding", "generated_columns"}) {
 		input.options[option] = CopyOption(LogicalType::ANY, CopyOptionMode::WRITE_ONLY);
 	}
 }

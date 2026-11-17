@@ -27,6 +27,45 @@ C++ adapters live in `src/sink/<backend>/writer.cpp`. Shared COPY binding stays 
 Use the same directories for additional backends. SQL round-trip tests live in
 `test/sql/writers/` and `test/integration/`.
 
+# COPY ordering
+
+`PRESERVE_ORDER` selects one of two modes. It defaults to `false`:
+
+```sql
+COPY (SELECT * FROM input_table ORDER BY id)
+TO 'ordered.lance' (FORMAT duckport_lance, PRESERVE_ORDER true);
+COPY input_table TO 'output_dataset'
+(FORMAT duckport_parquet, PRESERVE_ORDER false, FILE_COUNT 4);
+```
+
+All three sinks (Lance, Parquet and Iceberg) support both modes.
+
+DuckDB uses a serial COPY sink in both modes and passes batches to Rust. Writer
+concurrency is managed entirely on the Rust side.
+
+With `true`, Rust uses a single backend writer and retains the incoming batch
+and row sequence as data is written into files. This does not sort the source:
+use `ORDER BY` in the source query for a specific sort order.
+
+With `false`, Rust uses a bounded pool of independent backend writers.
+`FILE_COUNT` sets the writer count; when omitted it defaults to DuckDB's `threads`
+setting. Writers share one publication session. The library overlaps I/O;
+Parquet and Iceberg encoding runs in the calling task, while Lance also uses
+background workers.
+Rows may be reordered but are neither dropped nor duplicated by this mode.
+
+`FILE_COUNT` accepts a positive integer and applies to every sink. With
+`PRESERVE_ORDER true`, it defaults to 1 and only 1 is accepted. It controls writer
+streams, rather than an exact final file count: `TARGET_FILE_SIZE` or backend
+limits can roll each stream into several data files, and idle writers may produce
+none. Blob objects and metadata files are not counted.
+
+This option controls write scheduling, not a reader's dataset scan order.
+Parquet directory listing, Iceberg scan planning and parallel readers can choose
+a different file or row sequence. Use an explicit query `ORDER BY` when results
+must be sorted. Write scheduling belongs to the DuckPort adapter; it does not
+request the sink library's separate `Ordering::PreserveInput` scan-order guarantee.
+
 # COPY sampling
 
 `SAMPLE_PERCENT` and `SAMPLE_ROWS` apply to all DuckPort sinks. Sampling happens
