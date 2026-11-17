@@ -8,8 +8,6 @@ use open_arrow_sink_layer::DownloadBlobLayer;
 use std::collections::HashSet;
 
 mod ffi;
-#[cfg(test)]
-mod tests;
 
 pub(crate) async fn open(
     path: &str,

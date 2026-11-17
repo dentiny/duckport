@@ -1,0 +1,35 @@
+# name: test/sql/writers/iceberg_required.test
+# description: Required Iceberg fields reject NULL without publishing a snapshot
+# group: [sql]
+
+require duckport
+
+require duckport_test_fixture
+
+require iceberg
+
+statement ok
+SET VARIABLE required_catalog = duckport_iceberg_fixture('{TEST_DIR}/required', 'start_required');
+
+statement error
+COPY (SELECT * FROM (VALUES (1::INTEGER, 'valid'), (NULL::INTEGER, 'invalid')) t(id, name))
+TO 'tests.people' (FORMAT duckport_iceberg, APPEND,
+    CATALOG_URI getvariable('required_catalog'), STORAGE_ROOT '{TEST_DIR}/required');
+
+query I
+SELECT json_array_length(content, '$.snapshots') FROM read_text('{TEST_DIR}/required/people/metadata/current.metadata.json');
+----
+0
+
+statement ok
+COPY (SELECT 2::INTEGER id, 'after failure' name)
+TO 'tests.people' (FORMAT duckport_iceberg, APPEND,
+    CATALOG_URI getvariable('required_catalog'), STORAGE_ROOT '{TEST_DIR}/required');
+
+query IT
+SELECT id, name FROM iceberg_scan('{TEST_DIR}/required/people/metadata/current.metadata.json');
+----
+2	after failure
+
+statement ok
+SELECT duckport_iceberg_fixture('{TEST_DIR}/required', 'stop');
