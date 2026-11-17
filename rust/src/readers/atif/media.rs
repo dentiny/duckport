@@ -97,6 +97,8 @@ impl MediaResolver {
             },
         ))
     }
+    // Resolve media references in each projected column using the tagged schema.
+    // Preserve the row count explicitly for zero-column scans such as COUNT(*).
     fn resolve(&self, batch: RecordBatch, schema: SchemaRef) -> Result<RecordBatch> {
         let columns = batch
             .columns()
@@ -110,6 +112,9 @@ impl MediaResolver {
             &RecordBatchOptions::new().with_row_count(Some(batch.num_rows())),
         )?)
     }
+    // Normalize tagged media paths to absolute URI strings without fetching payloads.
+    // Recurse through structs/lists, retaining their offsets and null buffers;
+    // reuse untagged leaf arrays and preserve null media paths.
     fn resolve_array(&self, array: &ArrayRef, field: &FieldRef) -> Result<ArrayRef> {
         if field
             .metadata()
