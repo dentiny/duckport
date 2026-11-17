@@ -1,0 +1,35 @@
+# name: test/sql/writers/parquet.test
+# description: COPY to Parquet directories and validate with DuckDB's native reader
+# group: [sql]
+
+require duckport
+
+require parquet
+
+statement ok
+COPY (
+    SELECT id::BIGINT AS id, name, [id::BIGINT, NULL] AS numbers,
+           CASE id WHEN 1 THEN unhex('00FF0102') WHEN 2 THEN ''::BLOB END AS bytes
+    FROM duckport_scan_parquet('testdata/parquet/people.parquet', batch_size := 1)
+) TO '{TEST_DIR}/output' (FORMAT duckport_parquet);
+
+statement ok
+COPY (SELECT 4::BIGINT AS id, 'appended' AS name, [4::BIGINT, NULL] AS numbers, NULL::BLOB AS bytes)
+TO '{TEST_DIR}/output' (FORMAT duckport_parquet, APPEND);
+
+query ITIT
+SELECT id, name, numbers IS NOT DISTINCT FROM [id, NULL], hex(bytes)
+FROM read_parquet('{TEST_DIR}/output/*.parquet') ORDER BY id;
+----
+1	Alice	true	00FF0102
+2	NULL	true	(empty)
+3	Charlie	true	NULL
+4	appended	true	NULL
+
+statement ok
+COPY (SELECT 1 AS id WHERE false) TO '{TEST_DIR}/empty' (FORMAT duckport_parquet);
+
+query I
+SELECT count(*) FROM read_parquet('{TEST_DIR}/empty/*.parquet');
+----
+0

@@ -30,7 +30,7 @@ impl Drop for DuckportSource {
 /// Locator and optional strings are NUL-terminated UTF-8. Option structs are valid for
 /// this call; output points to writable source-pointer storage. No inputs are retained.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn duckport_parquet_open(
+pub unsafe extern "C" fn duckport_parquet_source_open(
     locator: *const c_char,
     storage_options: &DuckportStorageOptions,
     scan_options: &DuckportScanOptions,

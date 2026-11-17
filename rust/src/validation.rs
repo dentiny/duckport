@@ -117,9 +117,9 @@ pub(crate) fn validate_boolean(name: &str, value: i32) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn validate_lance_scheme(url: &Url) -> Result<()> {
+pub(crate) fn validate_sink_scheme(url: &Url) -> Result<()> {
     if !matches!(url.scheme(), "file" | "s3") {
-        return Err("Lance destination must be a local path, file:// URI, or s3:// URI".into());
+        return Err("sink destination must be a local path, file:// URI, or s3:// URI".into());
     }
     Ok(())
 }

@@ -157,7 +157,7 @@ void LoadInternal(ExtensionLoader &loader) {
 	RegisterReader(loader, "duckport_scan_pmc", duckport_pmc_open);
 	RegisterReader(loader, "duckport_scan_pmc_inventory", duckport_pmc_inventory_open);
 	RegisterReader(loader, "duckport_scan_gutenberg", duckport_gutenberg_open);
-	RegisterReader(loader, "duckport_scan_parquet", duckport_parquet_open);
+	RegisterReader(loader, "duckport_scan_parquet", duckport_parquet_source_open);
 	RegisterReader(loader, "duckport_scan_warc", duckport_warc_open);
 	RegisterReader(loader, "duckport_scan_commoncrawl", duckport_commoncrawl_open);
 	RegisterReader(loader, "duckport_scan_commoncrawl_segment", duckport_commoncrawl_segment_open);
