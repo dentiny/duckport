@@ -19,11 +19,11 @@ COPY (SELECT 1 AS id) TO '__TEST_DIR__/copy_stub' (FORMAT duckport_lance);
 ----
 1
 
-# An empty query must still open a sink and fail rather than report false success.
+# Empty input must still reject unsupported sink options.
 statement error
-COPY (SELECT 1 AS id WHERE false) TO '__TEST_DIR__/copy_stub' (FORMAT duckport_parquet);
+COPY (SELECT 1 AS id WHERE false) TO '__TEST_DIR__/copy_stub' (FORMAT duckport_iceberg);
 ----
-DuckPort parquet sink is not implemented yet
+Iceberg COPY requires APPEND
 
 statement error
 COPY (SELECT 1 AS id) TO '__TEST_DIR__/copy_stub' (FORMAT duckport_iceberg);

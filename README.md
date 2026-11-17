@@ -40,9 +40,10 @@ TO 'images.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('image'));
 ```
 
 The [Lance sink](docs/writers/lance.md) supports create, APPEND and OVERWRITE,
-including URL blob ingestion. Builds require `protoc`.
+including URL blob ingestion. The [Parquet sink](docs/writers/parquet.md) writes
+dataset directories with create and APPEND. Builds require `protoc`.
 The [Iceberg sink](docs/writers/iceberg.md) appends to existing tables through a REST catalog.
-The `duckport_parquet` backend remains a stub; native `FORMAT PARQUET` is available.
+Native `FORMAT PARQUET` writes individual files.
 
 [Tests](test/README.md) · [Development](docs/UPDATING.md)
 

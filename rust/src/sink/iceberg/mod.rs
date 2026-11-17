@@ -26,7 +26,7 @@ pub(crate) async fn open(
     let identifier = identifier.split('.').collect::<Vec<_>>();
     validation::validate_iceberg_identifier(&identifier)?;
     let identifier = TableIdent::from_strs(identifier)?;
-    let root = utils::lance_url(storage_root)?;
+    let root = utils::sink_url(storage_root)?;
     validation::validate_iceberg_storage_root(&root)?;
     // A trailing slash selects the directory itself as the operator namespace.
     let operator = if root.scheme() == "file" {

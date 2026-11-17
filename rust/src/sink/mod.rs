@@ -1,6 +1,7 @@
 //! Backend modules and the shared fixed-schema COPY writer lifecycle.
 mod iceberg;
 mod lance;
+mod parquet;
 
 use crate::{error::Result, validation};
 use arrow_array::RecordBatch;

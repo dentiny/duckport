@@ -268,13 +268,7 @@ void RegisterCopyFunction(ExtensionLoader &loader, const string &name, WriterOpe
 
 void RegisterCopyFunctions(ExtensionLoader &loader) {
 	RegisterCopyFunction(loader, "duckport_lance", OpenLanceWriter);
+	RegisterCopyFunction(loader, "duckport_parquet", OpenParquetWriter);
 	RegisterCopyFunction(loader, "duckport_iceberg", OpenIcebergWriter, true);
-	for (const auto &format : {"parquet"}) {
-		RegisterCopyFunction(loader, string("duckport_") + format,
-		                     [format](const string &, const DuckportStorageOptions &, const SinkWriteOptions &,
-		                              ArrowSchema &) -> unique_ptr<SinkWriter> {
-			                     throw NotImplementedException("DuckPort %s sink is not implemented yet", format);
-		                     });
-	}
 }
 } // namespace duckdb

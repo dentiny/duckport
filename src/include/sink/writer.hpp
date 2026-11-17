@@ -30,6 +30,9 @@ public:
 	virtual void Abort() noexcept = 0;
 };
 
+using SinkPtr = unique_ptr<DuckportSink, decltype(&duckport_sink_destroy)>;
+unique_ptr<SinkWriter> MakeSinkWriter(SinkPtr writer);
+
 // Inputs (including schema/credentials) are borrowed only during open. The
 // backend must copy what it needs before returning its independently owned
 // writer.
