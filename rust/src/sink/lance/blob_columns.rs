@@ -28,12 +28,7 @@ pub(super) fn parse(
         )?;
         validation::validate_blob_column(field, &name)?;
         roots.insert(path[0].clone());
-        if path.len() == 1
-            && matches!(
-                field.data_type(),
-                DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View
-            )
-        {
+        if path.len() == 1 && field.data_type().is_string() {
             top_level.insert(path[0].clone());
         } else if !paths.insert(path) {
             return Err(format!("Duplicate BLOB_COLUMNS path: {name}").into());
@@ -105,10 +100,7 @@ fn transform(array: ArrayRef, target: &DataType) -> Result<ArrayRef> {
     if array.data_type() == target {
         return Ok(array);
     }
-    if matches!(
-        array.data_type(),
-        DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View
-    ) {
+    if array.data_type().is_string() {
         return blob_uris(array, target);
     }
     let fields: &[Arc<Field>] = match target {

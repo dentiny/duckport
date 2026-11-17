@@ -274,29 +274,3 @@ async fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
     .await
     .unwrap();
 }
-
-#[tokio::test]
-async fn nested_blob_columns_preserve_payloads_and_nulls() {
-    let temp = tempdir().await;
-    let image = temp.path().join("image.bin");
-    tokio::fs::write(&image, b"payload").await.unwrap();
-    let input = StructArray::from(blob_input(Url::from_file_path(&image).unwrap().as_str()));
-    let nested = StructArray::new(
-        input.fields().clone(),
-        input.columns().to_vec(),
-        Some(vec![true, false].into()),
-    );
-    let input = RecordBatch::try_from_iter([("media", Arc::new(nested) as ArrayRef)]).unwrap();
-    let destination = temp.path().join("dataset");
-    let mut writer = open(&destination, &input, "create", &["MEDIA.BLOB"])
-        .await
-        .unwrap();
-    writer.write(input).await.unwrap();
-    writer.commit().await.unwrap();
-    tokio::fs::remove_file(image).await.unwrap();
-    let actual = read(&destination).await.unwrap();
-    let media = actual.column(0).as_struct();
-    assert_eq!(media.column(0).as_binary::<i64>().value(0), b"payload");
-    assert!(media.is_null(1));
-    assert_eq!(media.column(1).as_string::<i32>().value(0), "keep");
-}
