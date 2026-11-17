@@ -194,6 +194,8 @@ async fn ffi_ingests_urls_and_preserves_ownership_and_metadata() {
                 1,
                 &DuckportWriteOptions::default(),
                 &DuckportStorageOptions::default(),
+                ptr::null(),
+                /*source_count=*/0,
                 &mut writer,
             ))
             .unwrap();
@@ -245,6 +247,8 @@ async fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
                     0,
                     &DuckportWriteOptions::default(),
                     &options,
+                    ptr::null(),
+                    /*source_count=*/0,
                     &mut output
                 ))
                 .is_err()
@@ -259,6 +263,8 @@ async fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
                     1,
                     &DuckportWriteOptions::default(),
                     &options,
+                    ptr::null(),
+                    /*source_count=*/0,
                     &mut output
                 ))
                 .is_err()

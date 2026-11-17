@@ -1,9 +1,16 @@
 //! Lance Arrow C ABI opener.
 use super::super::DuckportSink;
 use crate::ffi::sink::DuckportWriteOptions;
+use crate::options::DuckportStorageOptions;
 use crate::{error::call, ffi::common::RUNTIME, utils, utils::string, validation};
 use arrow_schema::{Schema, ffi::FFI_ArrowSchema};
 use std::{ffi::c_char, ptr, sync::Arc};
+
+#[repr(C)]
+pub struct DuckportSourceStorage {
+    pub locator: *const c_char,
+    pub storage: DuckportStorageOptions,
+}
 
 /// # Safety
 /// Strings are NUL-terminated UTF-8; schema and storage are live and borrowed.
@@ -19,7 +26,9 @@ pub unsafe extern "C" fn duckport_lance_open(
     columns: *const *const c_char,
     column_count: usize,
     options: *const DuckportWriteOptions,
-    storage: *const crate::options::DuckportStorageOptions,
+    storage: *const DuckportStorageOptions,
+    sources: *const DuckportSourceStorage,
+    source_count: usize,
     output: *mut *mut DuckportSink,
 ) -> *mut c_char {
     call(|| unsafe {
@@ -36,17 +45,13 @@ pub unsafe extern "C" fn duckport_lance_open(
         let schema = Arc::new(Schema::try_from(schema)?);
         let write_options = options.convert(column_count, &schema)?;
         validation::validate_blob_indexes(&write_options.indexes, &columns)?;
-        let sources = utils::ffi_slice(
-            options.blob_sources,
-            options.blob_source_count,
-            "null Blob sources",
-        )?
-        .iter()
-        .map(|source| {
-            let root = utils::source_url(&string(source.locator)?)?.join("/")?;
-            crate::storage::sink_storage_from_root(root, &source.storage.read()?)
-        })
-        .collect::<crate::error::Result<Vec<_>>>()?;
+        let sources = utils::ffi_slice(sources, source_count, "null source storage")?
+            .iter()
+            .map(|source| {
+                let root = utils::source_url(&string(source.locator)?)?.join("/")?;
+                crate::storage::sink_storage_from_root(root, &source.storage.read()?)
+            })
+            .collect::<crate::error::Result<Vec<_>>>()?;
         let sink = RUNTIME.block_on(super::open(
             &string(path)?,
             schema,

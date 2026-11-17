@@ -347,21 +347,23 @@ unique_ptr<GlobalFunctionData> InitCopy(ClientContext &context, FunctionData &da
 	StorageParameters storage(context, bind.options.storage_root.empty() ? path : bind.options.storage_root, {});
 	auto locations = SourceLocations(schema.arrow_schema);
 	vector<unique_ptr<StorageParameters>> source_storage;
-	vector<DuckportBlobSource> sources;
+	vector<DuckportSourceStorage> sources;
 	sources.reserve(locations.size());
 	for (const auto &location : locations) {
 		source_storage.push_back(make_uniq<StorageParameters>(context, location, string()));
-		sources.push_back(DuckportBlobSource {
+		sources.push_back(DuckportSourceStorage {
 		    .locator = location.c_str(),
 		    .storage = source_storage.back()->config,
 		});
 	}
 	auto options = bind.options;
-	options.write_options.blob_sources = sources.data();
-	options.write_options.blob_source_count = sources.size();
+	SinkStorageOptions storage_options {
+	    .destination = storage.config,
+	    .sources = std::move(sources),
+	};
 	options.write_options.writer_count = options.file_count.value_or(
 	    options.preserve_order ? 1 : TaskScheduler::GetScheduler(context).NumberOfThreads());
-	state->writer = bind.info->Cast<WriterInfo>().open(path, storage.config, options, schema.arrow_schema);
+	state->writer = bind.info->Cast<WriterInfo>().open(path, storage_options, options, schema.arrow_schema);
 	if (!state->writer) {
 		throw InternalException("DuckPort sink opener returned no writer");
 	}

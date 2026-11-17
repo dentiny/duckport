@@ -33,6 +33,11 @@ struct IndexOptions {
 	}
 };
 
+struct SinkStorageOptions {
+	DuckportStorageOptions destination;
+	vector<DuckportSourceStorage> sources;
+};
+
 struct SinkWriteOptions {
 	SinkWriteMode mode = SinkWriteMode::CREATE;
 	bool preserve_order = false;
@@ -48,8 +53,6 @@ struct SinkWriteOptions {
 	    .indexes = nullptr,
 	    .index_count = 0,
 	    .writer_count = 1,
-	    .blob_sources = nullptr,
-	    .blob_source_count = 0,
 	};
 	string catalog_uri;
 	string warehouse;
@@ -107,6 +110,6 @@ unique_ptr<SinkWriter> MakeSinkWriter(SinkPtr writer);
 // Inputs (including schema/credentials) are borrowed only during open. The
 // backend must copy what it needs before returning its independently owned
 // writer.
-using WriterOpen = std::function<unique_ptr<SinkWriter>(const string &path, const DuckportStorageOptions &storage,
+using WriterOpen = std::function<unique_ptr<SinkWriter>(const string &path, const SinkStorageOptions &storage,
                                                         const SinkWriteOptions &options, ArrowSchema &schema)>;
 } // namespace duckdb

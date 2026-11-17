@@ -43,12 +43,6 @@ pub extern "C" fn duckport_validate_sample_rows(value: i64, max_rows: u64) -> *m
 }
 
 #[repr(C)]
-pub struct DuckportBlobSource {
-    pub locator: *const c_char,
-    pub storage: crate::options::DuckportStorageOptions,
-}
-
-#[repr(C)]
 pub struct DuckportColumnEncoding {
     pub column: *const c_char,
     pub compression: *const c_char,
@@ -76,8 +70,6 @@ pub struct DuckportWriteOptions {
     pub indexes: *const DuckportIndexOptions,
     pub index_count: usize,
     pub writer_count: usize,
-    pub blob_sources: *const DuckportBlobSource,
-    pub blob_source_count: usize,
 }
 
 impl Default for DuckportWriteOptions {
@@ -92,8 +84,6 @@ impl Default for DuckportWriteOptions {
             indexes: std::ptr::null(),
             index_count: 0,
             writer_count: 1,
-            blob_sources: std::ptr::null(),
-            blob_source_count: 0,
         }
     }
 }

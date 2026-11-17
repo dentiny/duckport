@@ -2,7 +2,7 @@
 #include "error.hpp"
 
 namespace duckdb {
-unique_ptr<SinkWriter> OpenLanceWriter(const string &path, const DuckportStorageOptions &storage,
+unique_ptr<SinkWriter> OpenLanceWriter(const string &path, const SinkStorageOptions &storage,
                                        const SinkWriteOptions &options, ArrowSchema &schema) {
 	const char *mode = options.mode == SinkWriteMode::APPEND      ? "append"
 	                   : options.mode == SinkWriteMode::OVERWRITE ? "overwrite"
@@ -17,7 +17,7 @@ unique_ptr<SinkWriter> OpenLanceWriter(const string &path, const DuckportStorage
 	auto write_options = options.ToFfi(encodings, indexes);
 	DuckportSink *raw = nullptr;
 	CheckError(duckport_lance_open(path.c_str(), &schema, mode, columns.data(), columns.size(), &write_options,
-	                               &storage, &raw));
+	                               &storage.destination, storage.sources.data(), storage.sources.size(), &raw));
 	return MakeSinkWriter(SinkPtr(raw, duckport_sink_destroy));
 }
 } // namespace duckdb
