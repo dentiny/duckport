@@ -19,10 +19,14 @@ pub(crate) async fn open(
     config: &StorageConfig,
 ) -> Result<DuckportSink> {
     let mode = utils::sink_mode(mode)?;
-    let (url, storage) = storage::sink_storage(path, config)?;
-    let sink = LanceDatasetSink::new(storage).layer(DownloadBlobLayer::new(columns));
+    let destination = storage::sink_storage(path, config)?;
+    let sink = LanceDatasetSink::new(destination.storage).layer(DownloadBlobLayer::new(columns));
     let writer = sink
-        .open(url, schema.clone(), WriteOptions::default().with_mode(mode))
+        .open(
+            destination.url,
+            schema.clone(),
+            WriteOptions::default().with_mode(mode),
+        )
         .await?;
     Ok(DuckportSink {
         writer: Some(writer),

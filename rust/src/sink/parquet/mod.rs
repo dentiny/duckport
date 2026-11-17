@@ -14,9 +14,13 @@ pub(crate) async fn open(
     config: &StorageConfig,
 ) -> Result<DuckportSink> {
     let mode = utils::sink_mode(mode)?;
-    let (url, storage) = storage::sink_storage(path, config)?;
-    let writer = ParquetDirectorySink::new(storage)
-        .open(url, schema.clone(), WriteOptions::default().with_mode(mode))
+    let destination = storage::sink_storage(path, config)?;
+    let writer = ParquetDirectorySink::new(destination.storage)
+        .open(
+            destination.url,
+            schema.clone(),
+            WriteOptions::default().with_mode(mode),
+        )
         .await?;
     Ok(DuckportSink {
         writer: Some(writer),
