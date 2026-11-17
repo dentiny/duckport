@@ -25,6 +25,7 @@ fn field(input: &FieldRef, path: &str, urls: &mut HashSet<String>) -> Result<Fie
         }
         Some("text") if matches!(input.data_type(), DataType::Binary | DataType::LargeBinary) => {
             output = output.with_data_type(DataType::LargeBinary);
+            // Default ATIF text compression to lz4, preserving any existing codec.
             output
                 .metadata_mut()
                 .entry("lance-encoding:compression".into())
