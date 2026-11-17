@@ -282,7 +282,7 @@ async fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
 }
 
 #[tokio::test]
-async fn atif_media_defaults_survive_source_deletion_and_wide_sliced_batches() {
+async fn atif_inline_packed_dedicated_survive_source_deletion_and_wide_slices() {
     use arrow_schema::{DataType, Field, Schema};
     fn wide(field: &Field) -> Arc<Field> {
         let ty = match field.data_type() {
@@ -296,7 +296,7 @@ async fn atif_media_defaults_survive_source_deletion_and_wide_sliced_batches() {
     let temp = tempdir().await;
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/atif");
     let document = std::fs::read_to_string(fixtures.join("trajectory_media.json")).unwrap();
-    // Exercise out-of-line media with a multi-MB payload.
+    // The same multi-MB payload must exercise all three physical layouts.
     let image = vec![42; 2 * 1024 * 1024 + 1];
     let audio = std::fs::read(fixtures.join("atif-audio.wav")).unwrap();
     std::fs::write(temp.path().join("atif-image.png"), &image).unwrap();
@@ -340,42 +340,109 @@ async fn atif_media_defaults_survive_source_deletion_and_wide_sliced_batches() {
     let batch = RecordBatch::try_new(schema, columns).unwrap();
     // Nonzero offsets in the outer trajectory list and every nested struct.
     let batch = arrow_select_for_test(&batch);
-    let output = temp.path().join("atif.lance");
-    let mut writer = open(&output, &batch, "create", &[]).await.unwrap();
-    writer.write(batch).await.unwrap();
-    writer.commit().await.unwrap();
+    use lance::datatypes::BlobKind;
+    use open_arrow_sink_core::BlobHandleConfig;
+    use std::num::NonZeroUsize;
+    // Equality at both boundaries is intentional: size == inline stays inline;
+    // size == dedicated stays packed. Dedicated storage requires size > threshold.
+    let cases = [
+        ("inline", image.len(), image.len() + 1, BlobKind::Inline),
+        ("packed", 0, image.len(), BlobKind::Packed),
+        ("dedicated", 0, 1, BlobKind::Dedicated),
+    ];
+    let mut outputs = Vec::new();
+    for (name, inline, dedicated, kind) in cases {
+        let output = temp.path().join(format!("{name}.lance"));
+        let options = WriteOptions {
+            blob_handle: Some(BlobHandleConfig {
+                inline_size_threshold: Some(inline),
+                dedicated_size_threshold: NonZeroUsize::new(dedicated),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let mut writer = super::open(
+            output.to_str().unwrap(),
+            batch.schema(),
+            "create",
+            Default::default(),
+            &StorageConfig::default(),
+            options,
+            1,
+        )
+        .await
+        .unwrap();
+        writer.write(batch.clone()).await.unwrap();
+        writer.commit().await.unwrap();
+        outputs.push((output, kind));
+    }
     for file in ["trajectory.json", "atif-image.png", "atif-audio.wav"] {
         std::fs::remove_file(temp.path().join(file)).unwrap();
     }
-    let dataset = LanceDatasetSink::default()
-        .dataset_builder(Url::from_directory_path(&output).unwrap())
-        .unwrap()
-        .load()
-        .await
-        .unwrap();
-    let text = dataset
-        .schema()
-        .field("steps.item.message.item.text")
-        .unwrap();
-    assert_eq!(text.metadata["duckport:storage_policy"], "text");
-    assert_eq!(text.metadata["lance-encoding:compression"], "lz4");
-    assert!(!text.metadata.contains_key("ARROW:extension:name"));
-    let media = dataset
-        .schema()
-        .field("steps.item.message.item.source.path")
-        .unwrap();
-    assert_eq!(media.metadata["ARROW:extension:name"], "lance.blob.v2");
-    let batch = read(&output).await.unwrap();
+    for (output, expected_kind) in outputs {
+        let dataset = LanceDatasetSink::default()
+            .dataset_builder(Url::from_directory_path(&output).unwrap())
+            .unwrap()
+            .load()
+            .await
+            .unwrap();
+        let text = dataset
+            .schema()
+            .field("steps.item.message.item.text")
+            .unwrap();
+        assert_eq!(text.metadata["duckport:storage_policy"], "text");
+        assert_eq!(text.metadata["lance-encoding:compression"], "lz4");
+        assert!(!text.metadata.contains_key("ARROW:extension:name"));
+        for field_path in [
+            "steps.item.message.item.source.path",
+            "steps.item.observation.results.item.content.item.source.path",
+        ] {
+            let media = dataset.schema().field(field_path).unwrap();
+            assert_eq!(media.metadata["ARROW:extension:name"], "lance.blob.v2");
+        }
+        // Read real descriptors from persisted files; byte roundtrips alone cannot
+        // distinguish inline, packed, dedicated or external-reference storage.
+        let mut scanner = dataset.scan();
+        scanner.blob_handling(lance::datatypes::BlobHandling::BlobsDescriptions);
+        let descriptions = scanner.try_into_batch().await.unwrap();
+        for parts in atif_wide_content(&descriptions) {
+            let parts = parts.as_struct();
+            assert!(parts["source"].is_null(0));
+            let paths = parts["source"].as_struct()["path"].as_struct();
+            let kinds = paths["kind"].as_primitive::<arrow_array::types::UInt8Type>();
+            for index in [1, 2] {
+                assert!(paths.is_valid(index));
+                assert_eq!(
+                    BlobKind::try_from(kinds.value(index)).unwrap(),
+                    expected_kind,
+                    "{} content {index}",
+                    output.display()
+                );
+            }
+        }
+        // Payload reads occur only after both original media files were deleted.
+        let materialized = read(&output).await.unwrap();
+        for (parts, text) in atif_wide_content(&materialized)
+            .into_iter()
+            .zip(["hello 你好🙂", "RGB pattern and a 440 Hz tone."])
+        {
+            let parts = parts.as_struct();
+            let paths = parts["source"].as_struct()["path"].as_binary::<i64>();
+            assert_eq!(paths.value(1), image);
+            assert_eq!(paths.value(2), audio);
+            assert_eq!(parts["text"].as_binary::<i64>().value(0), text.as_bytes());
+        }
+    }
+}
+
+fn atif_wide_content(batch: &RecordBatch) -> [ArrayRef; 2] {
     let steps = batch["steps"].as_list::<i64>().value(0);
-    let parts = steps.as_struct()["message"].as_list::<i64>().value(0);
-    let parts = parts.as_struct();
-    let paths = parts["source"].as_struct()["path"].as_binary::<i64>();
-    assert_eq!(paths.value(1), image);
-    assert_eq!(paths.value(2), audio);
-    assert_eq!(
-        parts["text"].as_binary::<i64>().value(0),
-        "hello 你好🙂".as_bytes()
-    );
+    let message = steps.as_struct()["message"].as_list::<i64>().value(0);
+    let results = steps.as_struct()["observation"].as_struct()["results"]
+        .as_list::<i64>()
+        .value(1);
+    let observation = results.as_struct()["content"].as_list::<i64>().value(0);
+    [message, observation]
 }
 
 fn arrow_select_for_test(batch: &RecordBatch) -> RecordBatch {

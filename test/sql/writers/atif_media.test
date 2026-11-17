@@ -14,6 +14,16 @@ COPY atif_media TO '{TEST_DIR}/atif_media.lance' (FORMAT duckport_lance);
 statement ok
 COPY atif_media TO '{TEST_DIR}/atif_media_zstd.lance' (FORMAT duckport_lance, COLUMN_COMPRESSION {'renamed_steps.message.text': 'zstd'});
 
+# Force each layout through SQL's FFI options, with both media fields selected automatically.
+statement ok
+COPY atif_media TO '{TEST_DIR}/atif_inline.lance' (FORMAT duckport_lance, BLOB_INLINE_SIZE_THRESHOLD 8192, BLOB_DEDICATED_SIZE_THRESHOLD 16384);
+
+statement ok
+COPY atif_media TO '{TEST_DIR}/atif_packed.lance' (FORMAT duckport_lance, BLOB_INLINE_SIZE_THRESHOLD 0, BLOB_DEDICATED_SIZE_THRESHOLD 8192);
+
+statement ok
+COPY atif_media TO '{TEST_DIR}/atif_dedicated.lance' (FORMAT duckport_lance, BLOB_INLINE_SIZE_THRESHOLD 0, BLOB_DEDICATED_SIZE_THRESHOLD 1);
+
 restart no_extension_load
 
 statement ok
@@ -32,3 +42,23 @@ query T
 SELECT decode(renamed_steps[1].message[1].text) FROM '{TEST_DIR}/atif_media_zstd.lance';
 ----
 hello 你好🙂
+
+query TII rowsort
+SELECT 'inline',
+       renamed_steps[1].message[2].source.path = (SELECT content FROM read_blob('testdata/atif/atif-image.png')),
+       renamed_steps[2].observation.results[1].content[3].source.path = (SELECT content FROM read_blob('testdata/atif/atif-audio.wav'))
+FROM '{TEST_DIR}/atif_inline.lance'
+UNION ALL
+SELECT 'packed',
+       renamed_steps[1].message[2].source.path = (SELECT content FROM read_blob('testdata/atif/atif-image.png')),
+       renamed_steps[2].observation.results[1].content[3].source.path = (SELECT content FROM read_blob('testdata/atif/atif-audio.wav'))
+FROM '{TEST_DIR}/atif_packed.lance'
+UNION ALL
+SELECT 'dedicated',
+       renamed_steps[1].message[2].source.path = (SELECT content FROM read_blob('testdata/atif/atif-image.png')),
+       renamed_steps[2].observation.results[1].content[3].source.path = (SELECT content FROM read_blob('testdata/atif/atif-audio.wav'))
+FROM '{TEST_DIR}/atif_dedicated.lance';
+----
+dedicated	true	true
+inline	true	true
+packed	true	true
