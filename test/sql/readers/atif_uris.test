@@ -75,14 +75,26 @@ SELECT steps[1].message[2].source.path FROM duckport_scan_atif('{TEST_DIR}/gener
 ----
 memory://media/run/image.bin
 
-# Local relative paths retain literal filesystem #/% characters.
+# Media references follow URI escaping rules for every backend.
 statement ok
 SELECT duckport_fixture_write('{TEST_DIR}/literal_path.json', encode(replace(getvariable('atif_inline'),
-    'data:image/png;base64,AP8%3D', 'images/image #1%.png')));
+    'data:image/png;base64,AP8%3D', 'images/image%20%231%25.png')));
 
 query I
 SELECT ends_with(steps[1].message[2].source.path, '/images/image%20%231%25.png')
 FROM duckport_scan_atif('{TEST_DIR}/literal_path.json');
+----
+true
+
+# An absolute-path URI reference is also resolved by URL rules, without Path APIs.
+statement ok
+SELECT duckport_fixture_write('{TEST_DIR}/absolute_reference.json', encode(replace(getvariable('atif_inline'),
+    'data:image/png;base64,AP8%3D', '/media/image.png')));
+
+query I
+SELECT starts_with(steps[1].message[2].source.path, 'file://')
+   AND ends_with(steps[1].message[2].source.path, '/media/image.png')
+FROM duckport_scan_atif('{TEST_DIR}/absolute_reference.json');
 ----
 true
 

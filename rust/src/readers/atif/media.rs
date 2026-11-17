@@ -6,7 +6,7 @@ use arrow_array::{
 };
 use arrow_schema::{DataType, FieldRef, SchemaRef};
 use open_arrow_access::{RecordReader, map_record_reader};
-use std::{path::Path, sync::Arc};
+use std::sync::Arc;
 use url::Url;
 
 pub(crate) fn uri_schema(schema: &SchemaRef, document: &str) -> SchemaRef {
@@ -56,32 +56,10 @@ pub(crate) fn uri_schema(schema: &SchemaRef, document: &str) -> SchemaRef {
     Arc::new(schema)
 }
 
-/// Resolve hierarchical URI references without deciding which transports exist.
-/// Storage/backends own protocol support. Local paths retain literal filesystem
-/// characters; remote references use URL resolution and stay on their origin.
+/// Interpret media references uniformly as URI references. Filesystem access and
+/// transport support belong to storage/backends, not the ATIF format adapter.
 fn resolve_uri(document: &Url, reference: &str) -> Result<String> {
-    let local_reference = || -> Result<Url> {
-        let document = document
-            .to_file_path()
-            .map_err(|_| "invalid ATIF document file URI")?;
-        let path = document
-            .parent()
-            .unwrap_or_else(|| Path::new("."))
-            .join(reference);
-        Url::from_file_path(path).map_err(|_| "invalid ATIF media path".into())
-    };
-    let target = if document.scheme() == "file" && Path::new(reference).is_absolute() {
-        local_reference()?
-    } else {
-        match Url::parse(reference) {
-            Ok(target) => target,
-            Err(url::ParseError::RelativeUrlWithoutBase) if document.scheme() == "file" => {
-                local_reference()?
-            }
-            Err(url::ParseError::RelativeUrlWithoutBase) => document.join(reference)?,
-            Err(error) => return Err(error.into()),
-        }
-    };
+    let target = document.join(reference)?;
     // Inline content is a representation, not a remote storage transport.
     if target.scheme() == "data" {
         return Ok(reference.to_owned());
@@ -94,11 +72,6 @@ fn resolve_uri(document: &Url, reference: &str) -> Result<String> {
     }
     if document.scheme() != "file" && !crate::storage::same_storage_origin(document, &target) {
         return Err("ATIF remote media must use the trajectory's storage origin".into());
-    }
-    if target.scheme() == "file" {
-        target
-            .to_file_path()
-            .map_err(|_| "invalid ATIF media file URI")?;
     }
     Ok(target.to_string())
 }

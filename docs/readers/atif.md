@@ -8,8 +8,11 @@ SELECT * FROM duckport_scan_atif('testdata/atif/trajectories.jsonl', batch_size 
 Reads ATIF trajectories with the library's fixed schema. JSON objects are framed automatically from their contents, accepting pretty-printed JSON and JSONL without inspecting filenames or selecting a layout.
 
 Image/audio `source.path` values in messages and observation results are normalized
-to absolute URI strings. Local references become percent-encoded `file://` URIs;
-Hierarchical remote references resolve against the trajectory's directory. `data:` URIs
+to absolute URI strings using the document URI as the base. All media references,
+including file references, follow URI resolution rules; ATIF does not interpret
+references as filesystem paths. Encode reserved filename characters in references
+(for example, `image%20%231%25.png` for `image #1%.png`). Relative references resolve
+against the document's directory. `data:` URIs
 are retained. Remote media references must stay on the document's storage origin
 (canonical scheme and authority). URI normalization has no transport allowlist;
 the configured storage/backend determines which protocols COPY can read. Opaque
