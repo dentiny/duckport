@@ -1,0 +1,50 @@
+# name: test/sql/writers/atif_non_lance.test
+# description: Parquet/Iceberg retain ATIF media URI strings and never ingest missing payloads
+# group: [sql]
+
+require duckport
+
+require duckport_test_fixture
+
+require parquet
+
+require iceberg
+
+# No media files are created beside this document. An ingestion attempt would fail.
+statement ok
+SELECT duckport_fixture_write('{TEST_DIR}/input/trajectory.json',
+    encode((SELECT content FROM read_text('testdata/atif/trajectory_media.json'))));
+
+statement ok
+CREATE TABLE atif_passthrough AS SELECT * FROM duckport_scan_atif('{TEST_DIR}/input/trajectory.json');
+
+statement ok
+COPY atif_passthrough TO '{TEST_DIR}/parquet' (FORMAT duckport_parquet);
+
+query IIIT
+SELECT typeof(steps[1].message[2].source.path) = 'VARCHAR',
+       steps[1].message[2].source.path = (SELECT steps[1].message[2].source.path FROM atif_passthrough),
+       steps[2].observation.results[1].content[3].source.path = (SELECT steps[2].observation.results[1].content[3].source.path FROM atif_passthrough),
+       decode(steps[1].message[1].text)
+FROM read_parquet('{TEST_DIR}/parquet/*.parquet');
+----
+true	true	true	hello 你好🙂
+
+statement ok
+SET VARIABLE passthrough_catalog = duckport_iceberg_fixture('{TEST_DIR}/iceberg', 'start');
+
+# The catalog has id/name columns. Project the tagged media URI into its string field.
+statement ok
+COPY (SELECT 1::INTEGER id, steps[1].message[2].source.path AS name FROM atif_passthrough)
+TO 'tests.people' (FORMAT duckport_iceberg, APPEND,
+    CATALOG_URI getvariable('passthrough_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg');
+
+query III
+SELECT id, typeof(name) = 'VARCHAR',
+       name = (SELECT steps[1].message[2].source.path FROM atif_passthrough)
+FROM iceberg_scan('{TEST_DIR}/iceberg/people/metadata/current.metadata.json');
+----
+1	true	true
+
+statement ok
+SELECT duckport_iceberg_fixture('{TEST_DIR}/iceberg', 'stop');

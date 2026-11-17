@@ -38,8 +38,6 @@ struct SinkWriteOptions {
 	bool preserve_order = false;
 	optional<int64_t> file_count;
 	vector<string> blob_columns;
-	// Borrowed only during writer open; resolved using each media document scope.
-	vector<DuckportBlobSource> blob_sources;
 	DuckportWriteOptions write_options {
 	    .blob_inline_size_threshold = -1,
 	    .blob_dedicated_size_threshold = -1,
@@ -106,7 +104,8 @@ unique_ptr<SinkWriter> MakeSinkWriter(SinkPtr writer);
 
 // Inputs (including schema/credentials) are borrowed only during open. The
 // backend must copy what it needs before returning its independently owned
-// writer.
-using WriterOpen = std::function<unique_ptr<SinkWriter>(const string &path, const DuckportStorageOptions &storage,
+// writer. Context is borrowed for backend-specific source secret resolution.
+using WriterOpen = std::function<unique_ptr<SinkWriter>(ClientContext &context, const string &path,
+                                                        const DuckportStorageOptions &storage,
                                                         const SinkWriteOptions &options, ArrowSchema &schema)>;
 } // namespace duckdb

@@ -46,3 +46,8 @@ Absolute remote references from local documents use the sink library's default
 source resolution.
 
 See [shared settings](../../README.md#read) and [test instructions](../../test/README.md).
+
+URL downloading, Blob v2 conversion and ATIF text compression defaults apply only
+to `duckport_lance`. `duckport_parquet` preserves the Arrow media URI/string and
+text/binary fields. `duckport_iceberg` also preserves their values, with only the
+existing catalog schema/field-ID/nullability alignment; neither sink fetches media.

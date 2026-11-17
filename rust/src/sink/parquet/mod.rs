@@ -17,6 +17,7 @@ pub(crate) async fn open(
 ) -> Result<DuckportSink> {
     let mode = utils::sink_mode(mode)?;
     let destination = storage::sink_storage(path, config)?;
+    // Pass Arrow fields through; URL ingestion and ATIF storage defaults are Lance-only.
     let writer = open_writer(
         ParquetDirectorySink::new(destination.storage),
         destination.url,

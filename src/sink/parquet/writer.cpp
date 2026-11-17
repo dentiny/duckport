@@ -1,8 +1,8 @@
-#include "sink/copy.hpp"
 #include "error.hpp"
+#include "sink/copy.hpp"
 
 namespace duckdb {
-unique_ptr<SinkWriter> OpenParquetWriter(const string &path, const DuckportStorageOptions &storage,
+unique_ptr<SinkWriter> OpenParquetWriter(ClientContext &, const string &path, const DuckportStorageOptions &storage,
                                          const SinkWriteOptions &options, ArrowSchema &schema) {
 	const char *mode = options.mode == SinkWriteMode::APPEND      ? "append"
 	                   : options.mode == SinkWriteMode::OVERWRITE ? "overwrite"

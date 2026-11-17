@@ -3,11 +3,14 @@
 
 namespace duckdb {
 void RegisterCopyFunction(ExtensionLoader &loader, const string &name, WriterOpen open);
-unique_ptr<SinkWriter> OpenLanceWriter(const string &path, const DuckportStorageOptions &storage,
-                                       const SinkWriteOptions &options, ArrowSchema &schema);
-unique_ptr<SinkWriter> OpenIcebergWriter(const string &path, const DuckportStorageOptions &storage,
-                                         const SinkWriteOptions &options, ArrowSchema &schema);
-unique_ptr<SinkWriter> OpenParquetWriter(const string &path, const DuckportStorageOptions &storage,
-                                         const SinkWriteOptions &options, ArrowSchema &schema);
+unique_ptr<SinkWriter> OpenLanceWriter(ClientContext &context, const string &path,
+                                       const DuckportStorageOptions &storage, const SinkWriteOptions &options,
+                                       ArrowSchema &schema);
+unique_ptr<SinkWriter> OpenIcebergWriter(ClientContext &context, const string &path,
+                                         const DuckportStorageOptions &storage, const SinkWriteOptions &options,
+                                         ArrowSchema &schema);
+unique_ptr<SinkWriter> OpenParquetWriter(ClientContext &context, const string &path,
+                                         const DuckportStorageOptions &storage, const SinkWriteOptions &options,
+                                         ArrowSchema &schema);
 void RegisterCopyFunctions(ExtensionLoader &loader);
 } // namespace duckdb
