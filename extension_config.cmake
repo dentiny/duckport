@@ -20,6 +20,7 @@ endif()
 
 # Independent readers for COPY round-trip tests; excluded from production builds.
 if(BUILD_UNITTESTS)
+    include("${CMAKE_CURRENT_LIST_DIR}/duckdb/.github/config/extensions/iceberg.cmake")
     duckdb_extension_load(parquet)
     duckdb_extension_load(lance
         GIT_URL https://github.com/lance-format/lance-duckdb.git

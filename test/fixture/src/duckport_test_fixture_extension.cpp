@@ -1,5 +1,6 @@
 #define DUCKDB_EXTENSION_MAIN
 #include "duckport_test_fixture_extension.hpp"
+#include "iceberg.hpp"
 #include "duckdb/common/unique_ptr.hpp"
 #include "duckdb/common/vector_operations/binary_executor.hpp"
 #include "duckdb/common/vector_operations/unary_executor.hpp"
@@ -404,6 +405,7 @@ void RequestsScan(ClientContext &, TableFunctionInput &input, DataChunk &output)
 }
 
 void LoadInternal(ExtensionLoader &loader) {
+	RegisterIcebergFixture(loader);
 	ScalarFunction command(
 	    "duckport_fixture", {LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::VARCHAR,
 	    [](DataChunk &args, ExpressionState &, Vector &result) {

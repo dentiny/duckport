@@ -1,0 +1,211 @@
+# name: test/sql/writers/iceberg_roundtrip.test
+# description: COPY through DuckPort and read committed snapshots with DuckDB Iceberg
+# group: [sql]
+
+require duckport
+
+require duckport_test_fixture
+
+require iceberg
+
+statement ok
+SET VARIABLE iceberg_catalog = duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'start');
+
+statement ok
+COPY (SELECT * FROM (VALUES (1, 'Alice'), (2, NULL), (3, 'Charlie'), (NULL, 'missing-id')) AS t(id, name))
+TO 'tests.people' (FORMAT duckport_iceberg,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse', APPEND);
+
+statement ok
+SET VARIABLE iceberg_metadata = duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'metadata');
+
+query IT
+SELECT id, name FROM iceberg_scan(getvariable('iceberg_metadata')) ORDER BY id NULLS LAST;
+----
+1	Alice
+2	NULL
+3	Charlie
+NULL	missing-id
+
+statement ok
+COPY (SELECT * FROM (VALUES (4, 'Δuck'), (5, '')) AS t(id, name))
+TO 'tests.people' (FORMAT duckport_iceberg,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse', APPEND);
+
+statement ok
+SET VARIABLE iceberg_metadata = duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'metadata');
+
+query IT
+SELECT id, name FROM iceberg_scan(getvariable('iceberg_metadata')) ORDER BY id NULLS LAST;
+----
+1	Alice
+2	NULL
+3	Charlie
+4	Δuck
+5	(empty)
+NULL	missing-id
+
+statement ok
+SET VARIABLE committed_metadata = duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'metadata');
+
+statement error
+COPY (SELECT 6 AS id, 'invalid-mode' AS name)
+TO 'tests.people' (FORMAT duckport_iceberg,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse');
+----
+Iceberg COPY requires APPEND
+
+query II
+SELECT duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'metadata') = getvariable('committed_metadata'),
+       duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'commits')::INTEGER;
+----
+true	2
+
+statement ok
+SET VARIABLE iceberg_metadata = duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'metadata');
+
+query IT
+SELECT id, name FROM iceberg_scan(getvariable('iceberg_metadata')) ORDER BY id NULLS LAST;
+----
+1	Alice
+2	NULL
+3	Charlie
+4	Δuck
+5	(empty)
+NULL	missing-id
+
+statement error
+COPY (SELECT 6 AS id, 'invalid-mode' AS name)
+TO 'tests.people' (FORMAT duckport_iceberg,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse', OVERWRITE);
+----
+Iceberg COPY requires APPEND
+
+query II
+SELECT duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'metadata') = getvariable('committed_metadata'),
+       duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'commits')::INTEGER;
+----
+true	2
+
+statement ok
+SET VARIABLE iceberg_metadata = duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'metadata');
+
+query IT
+SELECT id, name FROM iceberg_scan(getvariable('iceberg_metadata')) ORDER BY id NULLS LAST;
+----
+1	Alice
+2	NULL
+3	Charlie
+4	Δuck
+5	(empty)
+NULL	missing-id
+
+statement error
+COPY (SELECT 6 AS id, 'invalid-blob' AS name)
+TO 'tests.people' (FORMAT duckport_iceberg,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse', APPEND, BLOB_COLUMNS ('name'));
+----
+Iceberg COPY does not support BLOB_COLUMNS
+
+query II
+SELECT duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'metadata') = getvariable('committed_metadata'),
+       duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'commits')::INTEGER;
+----
+true	2
+
+statement ok
+SET VARIABLE iceberg_metadata = duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'metadata');
+
+query IT
+SELECT id, name FROM iceberg_scan(getvariable('iceberg_metadata')) ORDER BY id NULLS LAST;
+----
+1	Alice
+2	NULL
+3	Charlie
+4	Δuck
+5	(empty)
+NULL	missing-id
+
+statement ok
+COPY (SELECT 6 AS id, 'empty' AS name WHERE false)
+TO 'tests.people' (FORMAT duckport_iceberg,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse', APPEND);
+
+query II
+SELECT duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'metadata') = getvariable('committed_metadata'),
+       duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'commits')::INTEGER;
+----
+true	2
+
+statement ok
+SET VARIABLE iceberg_metadata = duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'metadata');
+
+query IT
+SELECT id, name FROM iceberg_scan(getvariable('iceberg_metadata')) ORDER BY id NULLS LAST;
+----
+1	Alice
+2	NULL
+3	Charlie
+4	Δuck
+5	(empty)
+NULL	missing-id
+
+statement error
+COPY (SELECT 'wrong type' AS id, 'invalid' AS name)
+TO 'tests.people' (FORMAT duckport_iceberg,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse', APPEND);
+----
+Iceberg input column names
+
+query II
+SELECT duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'metadata') = getvariable('committed_metadata'),
+       duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'commits')::INTEGER;
+----
+true	2
+
+statement ok
+SET VARIABLE iceberg_metadata = duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'metadata');
+
+query IT
+SELECT id, name FROM iceberg_scan(getvariable('iceberg_metadata')) ORDER BY id NULLS LAST;
+----
+1	Alice
+2	NULL
+3	Charlie
+4	Δuck
+5	(empty)
+NULL	missing-id
+
+statement ok
+SET VARIABLE reject_commits = duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'reject_commits');
+
+statement error
+COPY (SELECT 6 AS id, 'not-published' AS name)
+TO 'tests.people' (FORMAT duckport_iceberg,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse', APPEND);
+----
+CatalogCommitConflicts
+
+query II
+SELECT duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'metadata') = getvariable('committed_metadata'),
+       duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'commits')::INTEGER;
+----
+true	2
+
+statement ok
+SET VARIABLE iceberg_metadata = duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'metadata');
+
+query IT
+SELECT id, name FROM iceberg_scan(getvariable('iceberg_metadata')) ORDER BY id NULLS LAST;
+----
+1	Alice
+2	NULL
+3	Charlie
+4	Δuck
+5	(empty)
+NULL	missing-id
+
+query T
+SELECT duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'stop');
+----
+stopped
