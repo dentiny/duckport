@@ -19,9 +19,14 @@
 #include "duckdb/planner/operator/logical_copy_to_file.hpp"
 #include "storage_options.hpp"
 #include <algorithm>
+#include <iterator>
 
 namespace duckdb {
 namespace {
+constexpr const char *INDEX_OPTIONS[] = {
+    "scalar_index_columns", "vector_index_columns", "text_index_columns", "bloom_filter_index_columns",
+};
+
 void CheckWriteAccess(ClientContext &context) {
 	if (!Settings::Get<EnableExternalAccessSetting>(context)) {
 		throw PermissionException("DuckPort COPY requires enable_external_access");
@@ -58,7 +63,8 @@ struct CopyBindData : FunctionData {
 		       options.catalog_uri == bind.options.catalog_uri && options.warehouse == bind.options.warehouse &&
 		       options.storage_root == bind.options.storage_root &&
 		       options.storage_version == bind.options.storage_version &&
-		       options.column_encodings == bind.options.column_encodings && info == bind.info;
+		       options.column_encodings == bind.options.column_encodings && options.indexes == bind.options.indexes &&
+		       info == bind.info;
 	}
 };
 struct CopyGlobalState : GlobalFunctionData {
@@ -198,6 +204,30 @@ bool ParseColumnOption(const Identifier &name, const vector<Value> &values, Sink
 	return true;
 }
 
+bool ParseIndexOption(const Identifier &name, const vector<Value> &values, SinkWriteOptions &options) {
+	if (std::none_of(std::begin(INDEX_OPTIONS), std::end(INDEX_OPTIONS),
+	                 [&](const char *option) { return name == option; })) {
+		return false;
+	}
+	const auto &columns = values.size() == 1 && !values[0].IsNull() && values[0].type().id() == LogicalTypeId::LIST
+	                          ? ListValue::GetChildren(values[0])
+	                          : values;
+	if (columns.empty()) {
+		throw BinderException("%s requires at least one column", name);
+	}
+	for (const auto &column : columns) {
+		if (column.IsNull() || column.type().id() != LogicalTypeId::VARCHAR || StringValue::Get(column).empty() ||
+		    StringValue::Get(column).find('\0') != string::npos) {
+			throw BinderException("%s requires nonempty text column names without NUL bytes", name);
+		}
+		options.indexes.push_back(IndexOptions {
+		    .column = StringValue::Get(column),
+		    .option = name.GetIdentifierName(),
+		});
+	}
+	return true;
+}
+
 unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput &input, const vector<Identifier> &names,
                                   const vector<LogicalType> &types) {
 	CheckWriteAccess(context);
@@ -212,6 +242,9 @@ unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput 
 	bool has_mode = false;
 	for (auto &entry : input.info.options) {
 		if (ParseSizeOption(entry.first, entry.second, result->options.write_options)) {
+			continue;
+		}
+		if (ParseIndexOption(entry.first, entry.second, result->options)) {
 			continue;
 		}
 		if (ParseColumnOption(entry.first, entry.second, result->options)) {
@@ -360,6 +393,9 @@ void CommonCopyOptions(ClientContext &, CopyOptionsInput &input) {
 		input.options[name] = CopyOption(LogicalType::VARCHAR, CopyOptionMode::WRITE_ONLY);
 	}
 	input.options["blob_columns"] = CopyOption(LogicalType::LIST(LogicalType::VARCHAR), CopyOptionMode::WRITE_ONLY);
+	for (const auto &option : INDEX_OPTIONS) {
+		input.options[option] = CopyOption(LogicalType::LIST(LogicalType::VARCHAR), CopyOptionMode::WRITE_ONLY);
+	}
 	input.options["append"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
 	input.options["overwrite"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
 	// Preserve original values for validation.

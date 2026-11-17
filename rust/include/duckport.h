@@ -30,6 +30,10 @@ struct DuckportColumnEncoding {
 	int32_t compression_level;
 	const char *structural_encoding;
 };
+struct DuckportIndexOptions {
+	const char *column;
+	const char *option;
+};
 // Byte sizes: -1 preserves the backend default; inline may be zero.
 struct DuckportWriteOptions {
 	int64_t blob_inline_size_threshold;
@@ -38,6 +42,8 @@ struct DuckportWriteOptions {
 	const char *storage_version; // null when unset; borrowed during open
 	const DuckportColumnEncoding *column_encodings;
 	size_t column_encoding_count;
+	const DuckportIndexOptions *indexes;
+	size_t index_count;
 };
 extern "C" {
 // Common FFI support

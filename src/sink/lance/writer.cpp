@@ -13,7 +13,8 @@ unique_ptr<SinkWriter> OpenLanceWriter(const string &path, const DuckportStorage
 		columns.push_back(column.c_str());
 	}
 	vector<DuckportColumnEncoding> encodings;
-	auto write_options = options.ToFfi(encodings);
+	vector<DuckportIndexOptions> indexes;
+	auto write_options = options.ToFfi(encodings, indexes);
 	DuckportSink *raw = nullptr;
 	CheckError(duckport_lance_open(path.c_str(), &schema, mode, columns.data(), columns.size(), &write_options,
 	                               &storage, &raw));

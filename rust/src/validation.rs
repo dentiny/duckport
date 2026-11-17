@@ -372,3 +372,41 @@ pub(crate) fn column_structural_encoding(
         }
     }
 }
+
+pub(crate) fn index_spec(
+    schema: &arrow_schema::Schema,
+    column: &str,
+    option: &str,
+) -> Result<open_arrow_sink_core::IndexSpec> {
+    use open_arrow_sink_core::{IndexSpec, IndexType};
+    let field = schema
+        .fields()
+        .iter()
+        .find(|field| field.name().eq_ignore_ascii_case(column))
+        .ok_or_else(|| format!("{option} column not found: {column}"))?;
+    let index_type = match option.to_ascii_lowercase().as_str() {
+        "scalar_index_columns" => IndexType::Scalar,
+        "vector_index_columns" => IndexType::Vector,
+        "text_index_columns" => IndexType::Text,
+        "bloom_filter_index_columns" => IndexType::BloomFilter,
+        _ => return Err(format!("Unknown index option: {option}").into()),
+    };
+    Ok(IndexSpec::new(field.name().clone(), index_type))
+}
+
+pub(crate) fn validate_blob_indexes(
+    indexes: &[open_arrow_sink_core::IndexSpec],
+    blob_columns: &std::collections::HashSet<String>,
+) -> Result<()> {
+    if let Some(index) = indexes
+        .iter()
+        .find(|index| blob_columns.contains(&index.column))
+    {
+        return Err(format!(
+            "BLOB_COLUMNS column cannot also be indexed: {}",
+            index.column
+        )
+        .into());
+    }
+    Ok(())
+}

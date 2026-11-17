@@ -46,6 +46,12 @@ pub struct DuckportColumnEncoding {
     pub structural_encoding: *const c_char,
 }
 
+#[repr(C)]
+pub struct DuckportIndexOptions {
+    pub column: *const c_char,
+    pub option: *const c_char,
+}
+
 /// Shared C ABI write options. -1 byte sizes and a null version preserve backend defaults.
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -56,6 +62,8 @@ pub struct DuckportWriteOptions {
     pub storage_version: *const c_char,
     pub column_encodings: *const DuckportColumnEncoding,
     pub column_encoding_count: usize,
+    pub indexes: *const DuckportIndexOptions,
+    pub index_count: usize,
 }
 
 impl Default for DuckportWriteOptions {
@@ -67,6 +75,8 @@ impl Default for DuckportWriteOptions {
             storage_version: std::ptr::null(),
             column_encodings: std::ptr::null(),
             column_encoding_count: 0,
+            indexes: std::ptr::null(),
+            index_count: 0,
         }
     }
 }
@@ -74,8 +84,8 @@ impl Default for DuckportWriteOptions {
 impl DuckportWriteOptions {
     // Selecting URL columns requests blob support even without explicit layout overrides.
     /// # Safety
-    /// Strings are null or borrowed NUL-terminated UTF-8. The column encoding array
-    /// contains column_encoding_count live records, or is null when the count is zero.
+    /// Strings are null or borrowed NUL-terminated UTF-8. Encoding and index arrays
+    /// contain the declared number of live records, or are null for zero records.
     pub(crate) unsafe fn convert(
         &self,
         blob_column_count: usize,
@@ -135,6 +145,16 @@ impl DuckportWriteOptions {
                     .insert(path[0].clone(), encoding);
             }
         }
+        for entry in
+            unsafe { utils::ffi_slice(self.indexes, self.index_count, "null index options") }?
+        {
+            options.indexes.push(validation::index_spec(
+                schema,
+                &unsafe { string(entry.column) }?,
+                &unsafe { string(entry.option) }?,
+            )?);
+        }
+        open_arrow_sink_core::validation::validate_indexes(schema, &options.indexes)?;
         Ok(options)
     }
 }
