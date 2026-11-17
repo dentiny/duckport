@@ -44,7 +44,12 @@ pub unsafe extern "C" fn duckport_lance_open(
         let write_options = options.convert(column_count, &schema)?;
         let sources = utils::ffi_slice(sources, source_count, "null blob sources")?
             .iter()
-            .map(|source| Ok((string(source.document)?, source.storage.read()?)))
+            .map(|source| {
+                Ok(super::BlobSource {
+                    document: string(source.document)?,
+                    storage: source.storage.read()?,
+                })
+            })
             .collect::<crate::error::Result<Vec<_>>>()?;
         let sink = RUNTIME.block_on(super::open_with_sources(
             &string(path)?,

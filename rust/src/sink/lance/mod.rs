@@ -11,6 +11,12 @@ use std::sync::Arc;
 
 mod atif;
 mod ffi;
+
+struct BlobSource {
+    document: String,
+    storage: StorageConfig,
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn open_with_sources(
     path: &str,
@@ -20,7 +26,7 @@ async fn open_with_sources(
     config: &StorageConfig,
     options: WriteOptions,
     writer_count: usize,
-    sources: Vec<(String, StorageConfig)>,
+    sources: Vec<BlobSource>,
 ) -> Result<DuckportSink> {
     let options = options.with_mode(utils::sink_mode(mode)?);
     let paths = columns
@@ -40,9 +46,9 @@ async fn open_with_sources(
     let columns = paths.into_iter().map(|path| path.join(".")).collect();
     let destination = storage::sink_storage(path, config)?;
     let mut resolver = StorageResolver::default();
-    for (document, config) in sources {
-        let root = url::Url::parse(&document)?.join("/")?;
-        resolver = resolver.with_storage(storage::sink_storage_from_root(root, &config)?);
+    for source in sources {
+        let root = url::Url::parse(&source.document)?.join("/")?;
+        resolver = resolver.with_storage(storage::sink_storage_from_root(root, &source.storage)?);
     }
     let remaps = schema
         .fields()
