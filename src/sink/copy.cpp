@@ -222,13 +222,8 @@ void RegisterCopyFunction(ExtensionLoader &loader, const string &name, WriterOpe
 }
 
 void RegisterCopyFunctions(ExtensionLoader &loader) {
-	for (const auto &format : {"lance", "parquet"}) {
-		RegisterCopyFunction(loader, string("duckport_") + format,
-		                     [format](const string &path, const DuckportStorageOptions &storage,
-		                              const SinkWriteOptions &options, ArrowSchema &schema) {
-			                     return OpenSinkWriter(format, path, storage, options, schema);
-		                     });
-	}
+	RegisterCopyFunction(loader, "duckport_lance", OpenLanceWriter);
+	RegisterCopyFunction(loader, "duckport_parquet", OpenParquetWriter);
 	RegisterCopyFunction(loader, "duckport_iceberg",
 	                     [](const string &, const DuckportStorageOptions &, const SinkWriteOptions &,
 	                        ArrowSchema &) -> unique_ptr<SinkWriter> {

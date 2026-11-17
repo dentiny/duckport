@@ -37,9 +37,10 @@ char *duckport_parquet_open(const char *locator, const DuckportStorageOptions &s
                             const DuckportScanOptions &scan_options, DuckportSource **output);
 
 // Sink writer functions
-char *duckport_sink_open(const char *format, const char *path, const ArrowSchema *, const char *mode,
-                         const char *const *blob_columns, size_t column_count, const DuckportStorageOptions *,
-                         DuckportSink **output);
+char *duckport_lance_open(const char *path, const ArrowSchema *, const char *mode, const char *const *blob_columns,
+                          size_t column_count, const DuckportStorageOptions *, DuckportSink **output);
+char *duckport_parquet_sink_open(const char *path, const ArrowSchema *, const char *mode,
+                                const DuckportStorageOptions *, DuckportSink **output);
 char *duckport_sink_write(DuckportSink *, ArrowArray *);
 char *duckport_sink_commit(DuckportSink *);
 void duckport_sink_destroy(DuckportSink *);

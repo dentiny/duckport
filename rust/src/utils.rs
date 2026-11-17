@@ -74,18 +74,6 @@ pub(crate) fn boolean(name: &str, value: i32) -> Result<bool> {
     Ok(value == 1)
 }
 
-pub(crate) fn sink_format(value: &str) -> Result<crate::options::SinkFormat> {
-    use crate::options::SinkFormat;
-    validation::required(
-        match value {
-            "lance" => Some(SinkFormat::Lance),
-            "parquet" => Some(SinkFormat::Parquet),
-            _ => None,
-        },
-        "sink format must be lance or parquet",
-    )
-}
-
 pub(crate) fn sink_mode(value: &str) -> Result<open_arrow_sink_core::WriteMode> {
     use open_arrow_sink_core::WriteMode;
     validation::required(

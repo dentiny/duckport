@@ -2,11 +2,6 @@ use crate::{error::Result, utils, utils::optional_string};
 use open_arrow_access::ReadOptions;
 use std::ffi::c_char;
 
-pub(crate) enum SinkFormat {
-    Lance,
-    Parquet,
-}
-
 #[repr(C)]
 #[derive(Default)]
 pub struct DuckportStorageOptions {
