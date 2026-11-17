@@ -52,6 +52,8 @@ string Property(const LogicalType &type, const char *key) {
 }
 
 void StoreMetadata(ArrowSchema &schema, ArrowSchemaMetadata &metadata, DuckDBArrowSchemaHolder &holder) {
+	// ArrowSchema::metadata is a borrowed pointer. Keep its backing bytes in the
+	// schema owner so they remain valid until the Arrow schema is released.
 	holder.metadata_info.emplace_back(metadata.SerializeMetadata());
 	schema.metadata = holder.metadata_info.back().get();
 }
