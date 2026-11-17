@@ -2036,7 +2036,6 @@ dependencies = [
  "csv-async",
  "futures",
  "iceberg-catalog-rest",
- "lance",
  "open-arrow-access",
  "open-arrow-sink-core",
  "open-arrow-sink-iceberg",
@@ -2046,7 +2045,6 @@ dependencies = [
  "open-arrow-sink-storage",
  "opendal",
  "percent-encoding",
- "tempfile",
  "tokio",
  "url",
 ]

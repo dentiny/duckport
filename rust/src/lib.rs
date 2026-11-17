@@ -10,3 +10,6 @@ mod utils;
 mod validation;
 
 mod sink;
+
+#[cfg(feature = "test-fixtures")]
+mod fixture;

@@ -33,17 +33,3 @@ pub unsafe extern "C" fn duckport_source_error_free(error: *mut c_char) {
         }
     }
 }
-
-#[cfg(test)]
-pub(crate) unsafe fn ffi_result(error: *mut c_char) -> std::result::Result<(), String> {
-    if error.is_null() {
-        return Ok(());
-    }
-    let message = unsafe { std::ffi::CStr::from_ptr(error) }
-        .to_string_lossy()
-        .into_owned();
-    unsafe {
-        duckport_source_error_free(error);
-    }
-    Err(message)
-}

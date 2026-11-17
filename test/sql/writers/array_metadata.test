@@ -1,0 +1,38 @@
+# name: test/sql/writers/array_metadata.test
+# description: Fixed-size array elements retain source metadata through scan, projection and COPY
+# group: [sql]
+
+require duckport
+
+require parquet
+
+query TTII
+SELECT typeof(values), typeof(records), len(values), len(records)
+FROM duckport_scan_parquet('testdata/parquet/array_metadata.parquet');
+----
+VARCHAR[2]	STRUCT(payload VARCHAR)[2]	2	2
+
+statement ok
+COPY (
+    SELECT values[1] AS renamed_value, records[1].payload AS renamed_payload
+    FROM duckport_scan_parquet('testdata/parquet/array_metadata.parquet')
+) TO '{TEST_DIR}/array_metadata.parquet' (FORMAT duckport_parquet);
+
+query TT
+SELECT renamed_value, renamed_payload FROM read_parquet('{TEST_DIR}/array_metadata.parquet');
+----
+first	nested
+
+# Arrow schema metadata is base64 encoded in the Parquet footer. Check both
+# fields' distinct values so losing either array's child metadata fails the test.
+query IIIIII
+SELECT contains(hex(from_base64(decode(value))), hex('duckport:storage_policy'::BLOB)),
+       contains(hex(from_base64(decode(value))), hex('duckport:media_document'::BLOB)),
+       contains(hex(from_base64(decode(value))), hex('external'::BLOB)),
+       contains(hex(from_base64(decode(value))), hex('inline'::BLOB)),
+       contains(hex(from_base64(decode(value))), hex('file:///array.json'::BLOB)),
+       contains(hex(from_base64(decode(value))), hex('file:///nested-array.json'::BLOB))
+FROM parquet_kv_metadata('{TEST_DIR}/array_metadata.parquet')
+WHERE decode(key) = 'ARROW:schema';
+----
+true	true	true	true	true	true
