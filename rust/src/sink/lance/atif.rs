@@ -3,6 +3,9 @@ use crate::{error::Result, readers::atif::STORAGE_POLICY};
 use arrow_schema::{DataType, FieldRef, Schema, SchemaRef};
 use std::{collections::HashSet, sync::Arc};
 
+// Apply ATIF storage hints recursively, collecting tagged string paths for download
+// and promoting tagged binary text to large binary with lz4 as the default codec.
+// List elements keep their parent's path because sink paths omit list item names.
 fn field(input: &FieldRef, path: &str, urls: &mut HashSet<String>) -> Result<FieldRef> {
     let data_type = match input.data_type() {
         DataType::Struct(fields) => DataType::Struct(
@@ -33,6 +36,8 @@ fn field(input: &FieldRef, path: &str, urls: &mut HashSet<String>) -> Result<Fie
     Ok(Arc::new(output))
 }
 
+// Return the target schema for schema evolution and media paths for DownloadBlobLayer.
+// Preserve schema metadata; the sink layers perform the actual casts and downloads.
 pub(super) fn configure(schema: &SchemaRef) -> Result<(SchemaRef, HashSet<String>)> {
     let mut urls = HashSet::new();
     let fields = schema
