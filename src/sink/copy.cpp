@@ -1,16 +1,16 @@
 #include "sink/copy.hpp"
-#include "duckdb/common/arrow/arrow_converter.hpp"
 #include "duckdb/catalog/catalog.hpp"
 #include "duckdb/catalog/catalog_entry/copy_function_catalog_entry.hpp"
-#include "duckdb/main/query_result.hpp"
-#include "duckdb/planner/operator/logical_copy_to_file.hpp"
+#include "duckdb/common/arrow/arrow_converter.hpp"
 #include "duckdb/common/arrow/arrow_wrapper.hpp"
 #include "duckdb/function/copy_function.hpp"
 #include "duckdb/main/client_context.hpp"
+#include "duckdb/main/query_result.hpp"
 #include "duckdb/main/settings.hpp"
 #include "duckdb/planner/binder.hpp"
 #include "duckdb/planner/bound_statement.hpp"
 #include "duckdb/planner/logical_operator.hpp"
+#include "duckdb/planner/operator/logical_copy_to_file.hpp"
 #include "storage_options.hpp"
 #include <algorithm>
 
@@ -22,9 +22,10 @@ void CheckWriteAccess(ClientContext &context) {
 	}
 }
 struct WriterInfo : CopyFunctionInfo {
-	explicit WriterInfo(WriterOpen open) : open(std::move(open)) {
+	WriterInfo(WriterOpen open, bool iceberg) : open(std::move(open)), iceberg(iceberg) {
 	}
 	WriterOpen open;
+	bool iceberg;
 };
 struct CopyBindData : FunctionData {
 	vector<LogicalType> types;
@@ -45,7 +46,9 @@ struct CopyBindData : FunctionData {
 	bool Equals(const FunctionData &other) const override {
 		auto &bind = other.Cast<CopyBindData>();
 		return types == bind.types && names == bind.names && path == bind.path && options.mode == bind.options.mode &&
-		       options.blob_columns == bind.options.blob_columns && info == bind.info;
+		       options.blob_columns == bind.options.blob_columns && options.catalog_uri == bind.options.catalog_uri &&
+		       options.warehouse == bind.options.warehouse && options.storage_root == bind.options.storage_root &&
+		       info == bind.info;
 	}
 };
 struct CopyGlobalState : GlobalFunctionData {
@@ -63,9 +66,8 @@ struct CopyLocalState : LocalFunctionData {};
 
 vector<string> ParseBlobColumns(const vector<Value> &values, const vector<Identifier> &names,
                                 const vector<LogicalType> &types) {
-	const auto &columns = values.size() == 1 && values[0].type().id() == LogicalTypeId::LIST
-	                          ? ListValue::GetChildren(values[0])
-	                          : values;
+	const auto &columns =
+	    values.size() == 1 && values[0].type().id() == LogicalTypeId::LIST ? ListValue::GetChildren(values[0]) : values;
 	if (columns.empty()) {
 		throw BinderException("BLOB_COLUMNS requires at least one column");
 	}
@@ -101,9 +103,29 @@ unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput 
 	result->types = types;
 	result->path = input.info.file_path;
 	result->info = input.function_info;
+	bool iceberg = result->info->Cast<WriterInfo>().iceberg;
 	bool has_mode = false;
 	for (auto &entry : input.info.options) {
+		if (iceberg && (entry.first == "catalog_uri" || entry.first == "warehouse" || entry.first == "storage_root")) {
+			if (entry.second.size() != 1 || entry.second[0].IsNull() ||
+			    entry.second[0].type().id() != LogicalTypeId::VARCHAR || StringValue::Get(entry.second[0]).empty() ||
+			    StringValue::Get(entry.second[0]).find('\0') != string::npos) {
+				throw BinderException("%s requires nonempty text without NUL bytes", entry.first);
+			}
+			auto value = StringValue::Get(entry.second[0]);
+			if (entry.first == "catalog_uri") {
+				result->options.catalog_uri = value;
+			} else if (entry.first == "warehouse") {
+				result->options.warehouse = value;
+			} else {
+				result->options.storage_root = value;
+			}
+			continue;
+		}
 		if (entry.first == "blob_columns") {
+			if (iceberg) {
+				throw BinderException("Iceberg COPY does not support BLOB_COLUMNS");
+			}
 			result->options.blob_columns = ParseBlobColumns(entry.second, names, types);
 			continue;
 		}
@@ -122,19 +144,33 @@ unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput 
 			result->options.mode = entry.first == "append" ? SinkWriteMode::APPEND : SinkWriteMode::OVERWRITE;
 		}
 	}
+	if (iceberg) {
+		if (result->options.mode != SinkWriteMode::APPEND) {
+			throw BinderException("Iceberg COPY requires APPEND to an existing "
+			                      "table; create and overwrite are unsupported");
+		}
+		if (result->options.catalog_uri.empty() || result->options.storage_root.empty()) {
+			throw BinderException("Iceberg COPY requires CATALOG_URI and STORAGE_ROOT");
+		}
+		if (result->path.find('.') == string::npos || result->path.front() == '.' || result->path.back() == '.' ||
+		    result->path.find("..") != string::npos || result->path.find('\0') != string::npos) {
+			throw BinderException("Iceberg destination must be namespace.table");
+		}
+	}
 	return std::move(result);
 }
 unique_ptr<GlobalFunctionData> InitCopy(ClientContext &context, FunctionData &data, const string &path) {
 	CheckWriteAccess(context);
 	auto &bind = data.Cast<CopyBindData>();
 	if (path != bind.path) {
-		throw NotImplementedException("DuckPort COPY does not support temporary, partitioned, or per-thread output");
+		throw NotImplementedException("DuckPort COPY does not support temporary, "
+		                              "partitioned, or per-thread output");
 	}
 	auto state = make_uniq<CopyGlobalState>();
 	state->properties = context.GetClientProperties();
 	ArrowSchemaWrapper schema;
 	ArrowConverter::ToArrowSchema(&schema.arrow_schema, bind.types, bind.names, state->properties);
-	StorageParameters storage(context, path, {});
+	StorageParameters storage(context, bind.options.storage_root.empty() ? path : bind.options.storage_root, {});
 	state->writer = bind.info->Cast<WriterInfo>().open(path, storage.config, bind.options, schema.arrow_schema);
 	if (!state->writer) {
 		throw InternalException("DuckPort sink opener returned no writer");
@@ -198,14 +234,23 @@ BoundStatement PlanCopy(Binder &binder, CopyStatement &statement) {
 }
 } // namespace
 
-void RegisterCopyFunction(ExtensionLoader &loader, const string &name, WriterOpen open) {
+void RegisterCopyFunction(ExtensionLoader &loader, const string &name, WriterOpen open, bool iceberg) {
 	CopyFunction function {Identifier(name)};
-	function.function_info = make_shared_ptr<WriterInfo>(std::move(open));
+	function.function_info = make_shared_ptr<WriterInfo>(std::move(open), iceberg);
 	function.copy_options = [](ClientContext &, CopyOptionsInput &input) {
 		input.options["blob_columns"] = CopyOption(LogicalType::LIST(LogicalType::VARCHAR), CopyOptionMode::WRITE_ONLY);
 		input.options["append"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
 		input.options["overwrite"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
 	};
+	if (iceberg) {
+		function.copy_options = [](ClientContext &, CopyOptionsInput &input) {
+			for (const auto &name : {"catalog_uri", "warehouse", "storage_root"}) {
+				input.options[name] = CopyOption(LogicalType::VARCHAR, CopyOptionMode::WRITE_ONLY);
+			}
+			input.options["append"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
+			input.options["overwrite"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
+		};
+	}
 	function.copy_to_bind = BindCopy;
 	function.copy_to_initialize_global = InitCopy;
 	function.copy_to_initialize_local = [](ExecutionContext &, FunctionData &) -> unique_ptr<LocalFunctionData> {
@@ -223,7 +268,8 @@ void RegisterCopyFunction(ExtensionLoader &loader, const string &name, WriterOpe
 
 void RegisterCopyFunctions(ExtensionLoader &loader) {
 	RegisterCopyFunction(loader, "duckport_lance", OpenLanceWriter);
-	for (const auto &format : {"parquet", "iceberg"}) {
+	RegisterCopyFunction(loader, "duckport_iceberg", OpenIcebergWriter, true);
+	for (const auto &format : {"parquet"}) {
 		RegisterCopyFunction(loader, string("duckport_") + format,
 		                     [format](const string &, const DuckportStorageOptions &, const SinkWriteOptions &,
 		                              ArrowSchema &) -> unique_ptr<SinkWriter> {

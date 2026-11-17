@@ -12,7 +12,7 @@ statement ok
 EXPLAIN COPY (SELECT 1 AS id) TO '__TEST_DIR__/copy_stub' (FORMAT duckport_parquet, APPEND);
 
 statement ok
-EXPLAIN COPY (SELECT 1 AS id) TO '__TEST_DIR__/copy_stub' (FORMAT duckport_iceberg, OVERWRITE);
+EXPLAIN COPY (SELECT 1 AS id) TO 'tests.numbers' (FORMAT duckport_iceberg, APPEND, CATALOG_URI 'http://127.0.0.1:8181', STORAGE_ROOT '__TEST_DIR__/warehouse');
 
 query I
 COPY (SELECT 1 AS id) TO '__TEST_DIR__/copy_stub' (FORMAT duckport_lance);
@@ -28,7 +28,7 @@ DuckPort parquet sink is not implemented yet
 statement error
 COPY (SELECT 1 AS id) TO '__TEST_DIR__/copy_stub' (FORMAT duckport_iceberg);
 ----
-DuckPort iceberg sink is not implemented yet
+Iceberg COPY requires APPEND
 
 statement error
 EXPLAIN COPY (SELECT 1 AS id) TO '__TEST_DIR__/copy_stub' (FORMAT duckport_lance, APPEND, OVERWRITE);

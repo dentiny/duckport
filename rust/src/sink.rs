@@ -7,8 +7,9 @@ use open_arrow_sink_layer::DownloadBlobLayer;
 use std::collections::HashSet;
 
 pub struct DuckportSink {
-    writer: Option<Box<dyn Writer>>,
+    pub(crate) writer: Option<Box<dyn Writer>>,
     pub(crate) schema: SchemaRef,
+    pub(crate) output_schema: Option<SchemaRef>,
 }
 impl DuckportSink {
     pub(crate) async fn new(
@@ -34,11 +35,30 @@ impl DuckportSink {
         Ok(Self {
             writer: Some(writer),
             schema,
+            output_schema: None,
         })
     }
     pub(crate) async fn write(&mut self, batch: RecordBatch) -> Result<()> {
-        let writer = validation::required(self.writer.as_mut(), "Lance writer is closed")?;
-        let result = writer.write(batch).await;
+        let writer = validation::required(self.writer.as_mut(), "sink writer is closed")?;
+        let result = async {
+            if batch.schema() != self.schema {
+                return Err("sink batch schema does not match the opened schema".into());
+            }
+            let batch = if let Some(schema) = &self.output_schema {
+                let columns = batch
+                    .columns()
+                    .iter()
+                    .zip(schema.fields())
+                    .map(|(array, field)| arrow_cast::cast(array, field.data_type()))
+                    .collect::<std::result::Result<Vec<_>, _>>()?;
+                RecordBatch::try_new(schema.clone(), columns)?
+            } else {
+                batch
+            };
+            writer.write(batch).await?;
+            Ok::<_, Box<dyn std::error::Error + Send + Sync>>(())
+        }
+        .await;
         if result.is_err()
             && let Some(writer) = self.writer.take()
         {
@@ -47,7 +67,7 @@ impl DuckportSink {
         Ok(result?)
     }
     pub(crate) async fn commit(&mut self) -> Result<()> {
-        let writer = validation::required(self.writer.take(), "Lance writer is closed")?;
+        let writer = validation::required(self.writer.take(), "sink writer is closed")?;
         Ok(writer.commit().await?)
     }
 }

@@ -1,0 +1,43 @@
+# name: test/sql/writers/iceberg.test
+# description: Iceberg COPY rejects unsupported modes/options at bind time
+# group: [sql]
+
+require duckport
+
+statement ok
+EXPLAIN COPY (SELECT 1 AS id) TO 'tests.numbers' (FORMAT duckport_iceberg, APPEND, CATALOG_URI 'http://127.0.0.1:1', STORAGE_ROOT '__TEST_DIR__/warehouse', WAREHOUSE 'test');
+
+statement error
+EXPLAIN COPY (SELECT 1 AS id) TO 'tests.numbers' (FORMAT duckport_iceberg, OVERWRITE);
+----
+Iceberg COPY requires APPEND
+
+statement error
+COPY (SELECT 1 AS id WHERE false) TO 'tests.numbers' (FORMAT duckport_iceberg, APPEND);
+----
+Iceberg COPY requires CATALOG_URI and STORAGE_ROOT
+
+statement error
+EXPLAIN COPY (SELECT 1 AS id) TO 'invalid' (FORMAT duckport_iceberg, APPEND, CATALOG_URI 'http://127.0.0.1:1', STORAGE_ROOT '__TEST_DIR__/warehouse');
+----
+Iceberg destination must be namespace.table
+
+statement error
+EXPLAIN COPY (SELECT 1 AS id) TO 'tests.numbers' (FORMAT duckport_iceberg, APPEND, CATALOG_URI NULL, STORAGE_ROOT '__TEST_DIR__/warehouse');
+----
+NULL is not supported as a valid option for COPY option
+
+statement error
+EXPLAIN COPY (SELECT 'https://example.com' AS payload) TO 'tests.numbers' (FORMAT duckport_iceberg, APPEND, BLOB_COLUMNS ('payload'));
+----
+Unrecognized option "blob_columns" for duckport_iceberg
+
+statement error
+EXPLAIN COPY (SELECT 1 AS id) TO '__TEST_DIR__/lance' (FORMAT duckport_lance, CATALOG_URI 'http://127.0.0.1:1');
+----
+Unrecognized option "catalog_uri" for duckport_lance
+
+statement error
+COPY (SELECT 1 AS id) TO 'tests.numbers' (FORMAT duckport_iceberg, APPEND, CATALOG_URI 'file:///tmp/catalog', STORAGE_ROOT '__TEST_DIR__/warehouse');
+----
+CATALOG_URI must use http:// or https://
