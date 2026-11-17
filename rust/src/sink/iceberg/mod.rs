@@ -20,6 +20,7 @@ pub(crate) async fn open(
     identifier: &str,
     schema: SchemaRef,
     catalog_uri: &str,
+    catalog_security: &crate::security::SecurityConfig,
     warehouse: &str,
     storage_root: &str,
     config: &StorageConfig,
@@ -34,11 +35,21 @@ pub(crate) async fn open(
     let root = utils::sink_url(storage_root)?;
     validation::validate_iceberg_storage_root(&root)?;
     let factory = OpenDalStorageFactory::new(storage::sink_storage_from_root(root, config)?);
-    let mut props = HashMap::from([(REST_CATALOG_PROP_URI.into(), uri.to_string())]);
+    let mut props = HashMap::from([(
+        REST_CATALOG_PROP_URI.into(),
+        uri.as_str().trim_end_matches('/').to_owned(),
+    )]);
     if !warehouse.is_empty() {
         props.insert(REST_CATALOG_PROP_WAREHOUSE.into(), warehouse.into());
     }
-    if let Ok(token) = std::env::var("DUCKPORT_ICEBERG_TOKEN") {
+    if catalog_security.token.as_deref() == Some("") {
+        return Err("Iceberg catalog BEARER_TOKEN must not be empty".into());
+    }
+    if let Some(token) = catalog_security
+        .token
+        .clone()
+        .or_else(|| std::env::var("DUCKPORT_ICEBERG_TOKEN").ok())
+    {
         props.insert("token".into(), token);
     }
     let catalog = RestCatalogBuilder::default()

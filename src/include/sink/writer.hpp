@@ -9,6 +9,8 @@
 #include <tuple>
 
 namespace duckdb {
+class StorageParameters;
+
 enum class SinkWriteMode : uint8_t { CREATE, APPEND, OVERWRITE };
 
 struct ColumnEncodingOptions {
@@ -51,6 +53,7 @@ struct SinkWriteOptions {
 	    .writer_count = 1,
 	};
 	string catalog_uri;
+    shared_ptr<StorageParameters> catalog_security; // resolved at writer open, never stored in the COPY plan
 	string warehouse;
 	string storage_root;
 	string storage_version;

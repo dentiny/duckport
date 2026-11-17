@@ -42,3 +42,21 @@ External access must be enabled.
 `TARGET_FILE_SIZE` accepts a positive integer byte count and sets a soft target
 for data-file size; batches, row groups and file overhead can exceed it. Omit it
 to preserve the backend default. This option is supported by all DuckPort sinks.
+
+## Catalog authentication
+
+Catalog requests use the best matching DuckDB HTTP secret for `CATALOG_URI`:
+
+```sql
+CREATE SECRET catalog_auth (
+    TYPE http, BEARER_TOKEN 'catalog-access-token',
+    SCOPE 'https://catalog.example.com'
+);
+```
+
+This credential is independent of the storage secret selected by `STORAGE_ROOT`.
+It covers catalog configuration, table loading and commits, not data/blob storage.
+A scoped catalog token takes precedence over `DUCKPORT_ICEBERG_TOKEN`; the environment
+variable remains a compatibility fallback when no matching token is configured.
+An explicitly empty catalog token is rejected instead of falling back to an
+ambient identity. Tokens are resolved at writer open and are not COPY options.

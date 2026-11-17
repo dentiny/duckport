@@ -15,6 +15,7 @@ pub unsafe extern "C" fn duckport_iceberg_open(
     mode: *const c_char,
     column_count: usize,
     catalog_uri: *const c_char,
+    catalog_security: *const crate::security::DuckportSecurityOptions,
     warehouse: *const c_char,
     storage_root: *const c_char,
     options: *const DuckportWriteOptions,
@@ -33,10 +34,14 @@ pub unsafe extern "C" fn duckport_iceberg_open(
         let options = validation::required(options.as_ref(), "null sink write options")?;
         let schema = Arc::new(Schema::try_from(schema)?);
         let write_options = options.convert(column_count, &schema)?;
+        let catalog_security =
+            validation::required(catalog_security.as_ref(), "null catalog security options")?
+                .read()?;
         let sink = RUNTIME.block_on(super::open(
             &string(identifier)?,
             schema,
             &catalog_uri,
+            &catalog_security,
             &string(warehouse)?,
             &storage_root,
             &storage.read()?,

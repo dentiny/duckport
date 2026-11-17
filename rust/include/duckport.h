@@ -99,7 +99,7 @@ char *duckport_lance_open(const char *path, const ArrowSchema *, const char *mod
                           size_t column_count, const DuckportWriteOptions *, const DuckportBlobSecret *, size_t secret_count, const DuckportStorageOptions *,
                           DuckportSink **output);
 char *duckport_iceberg_open(const char *identifier, const ArrowSchema *, const char *mode, size_t column_count,
-                            const char *catalog_uri, const char *warehouse, const char *storage_root,
+                            const char *catalog_uri, const DuckportSecurityOptions *catalog_security, const char *warehouse, const char *storage_root,
                             const DuckportWriteOptions *, const DuckportStorageOptions *, DuckportSink **output);
 char *duckport_parquet_open(const char *path, const ArrowSchema *, const char *mode, size_t column_count,
                             const DuckportWriteOptions *, const DuckportStorageOptions *, DuckportSink **output);

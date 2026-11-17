@@ -1,3 +1,4 @@
+#include "storage_options.hpp"
 #include "sink/copy.hpp"
 #include "error.hpp"
 
@@ -12,7 +13,9 @@ unique_ptr<SinkWriter> OpenIcebergWriter(const string &path, const DuckportStora
 	auto write_options = options.ToFfi(encodings, indexes);
 	DuckportSink *raw = nullptr;
 	CheckError(duckport_iceberg_open(path.c_str(), &schema, mode, options.blob_columns.size(),
-	                                 options.catalog_uri.c_str(), options.warehouse.c_str(),
+	                                 options.catalog_uri.c_str(),
+                                     options.catalog_security ? &options.catalog_security->config.security : nullptr,
+                                     options.warehouse.c_str(),
 	                                 options.storage_root.c_str(), &write_options, &storage, &raw));
 	return MakeSinkWriter(SinkPtr(raw, duckport_sink_destroy));
 }
