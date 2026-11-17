@@ -52,7 +52,7 @@ async fn open_with_sources(
     let downloader = downloader.with_downloader(Arc::new(download::MediaDownloader {
         max_data_bytes,
         origins,
-        fallback: open_arrow_sink_storage::OpenDalDownloader::new(Default::default())?,
+        downloader: open_arrow_sink_storage::OpenDalDownloader::new(Default::default())?,
     }));
     let remaps = schema
         .fields()

@@ -6,7 +6,7 @@ use open_arrow_sink_storage::{DownloadContext, DownloadStream, Downloader, OpenD
 pub(super) struct MediaDownloader {
     pub max_data_bytes: usize,
     pub origins: Vec<url::Url>,
-    pub fallback: OpenDalDownloader,
+    pub downloader: OpenDalDownloader,
 }
 
 #[async_trait]
@@ -33,7 +33,7 @@ impl Downloader for MediaDownloader {
             .iter()
             .any(|origin| crate::storage::same_storage_origin(origin, &url))
         {
-            return self.fallback.open(source, context).await;
+            return self.downloader.open(source, context).await;
         }
         if matches!(url.scheme(), "http" | "https") {
             let mut scope = url.clone();
@@ -45,7 +45,7 @@ impl Downloader for MediaDownloader {
                 .open(url.as_str(), context)
                 .await;
         }
-        self.fallback.open(source, context).await
+        self.downloader.open(source, context).await
     }
 }
 
