@@ -1,0 +1,31 @@
+# name: test/sql/writers/indexes.test
+# description: COPY creates all requested index kinds in the published Lance dataset
+# group: [sql]
+
+require duckport
+
+statement ok
+COPY (
+    SELECT i::BIGINT AS id, [i::FLOAT, (i + 1)::FLOAT]::FLOAT[2] AS embedding,
+           'document ' || i::VARCHAR AS description, i::BIGINT AS event_id
+    FROM range(128) t(i)
+) TO '{TEST_DIR}/indexed.lance' (
+    FORMAT duckport_lance,
+    SCALAR_INDEX_COLUMNS (ID),
+    VECTOR_INDEX_COLUMNS (embedding),
+    TEXT_INDEX_COLUMNS (description),
+    BLOOM_FILTER_INDEX_COLUMNS (event_id)
+);
+
+restart no_extension_load
+
+statement ok
+LOAD '{BUILD_DIRECTORY}/extension/lance/lance.duckdb_extension';
+
+query TTTIT rowsort
+SHOW INDEXES ON '{TEST_DIR}/indexed.lance';
+----
+<REGEX>:oas_bloom_.*	<REGEX>:.*	event_id	128	<REGEX>:.*
+<REGEX>:oas_btree_.*	<REGEX>:.*	id	128	<REGEX>:.*
+<REGEX>:oas_ivf_flat_.*	<REGEX>:.*	embedding	128	<REGEX>:.*
+<REGEX>:oas_text_.*	<REGEX>:.*	description	128	<REGEX>:.*

@@ -8,7 +8,8 @@ unique_ptr<SinkWriter> OpenIcebergWriter(const string &path, const DuckportStora
 	                   : options.mode == SinkWriteMode::OVERWRITE ? "overwrite"
 	                                                              : "create";
 	vector<DuckportColumnEncoding> encodings;
-	auto write_options = options.ToFfi(encodings);
+	vector<DuckportIndexOptions> indexes;
+	auto write_options = options.ToFfi(encodings, indexes);
 	DuckportSink *raw = nullptr;
 	CheckError(duckport_iceberg_open(path.c_str(), &schema, mode, options.blob_columns.size(),
 	                                 options.catalog_uri.c_str(), options.warehouse.c_str(),

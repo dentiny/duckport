@@ -74,3 +74,29 @@ and both structural encodings. Parquet supports top-level codec overrides, inclu
 `snappy` and `gzip` when enabled, but rejects nested paths and structural encodings.
 The current Iceberg sink rejects per-column compression and structural encoding.
 These restrictions come from sink capabilities, rather than format-name checks.
+
+# COPY indexes
+
+Index requests use the same column-list options as `duckdb_lance_conversion`:
+
+```sql
+COPY input_table TO 'output.lance' (
+    FORMAT duckport_lance,
+    SCALAR_INDEX_COLUMNS (id, category),
+    VECTOR_INDEX_COLUMNS (embedding),
+    TEXT_INDEX_COLUMNS (description),
+    BLOOM_FILTER_INDEX_COLUMNS (event_id)
+);
+```
+
+The native Lance sink builds BTree, IVF_FLAT with L2 distance, Inverted full-text,
+and Bloom filter indexes respectively. It publishes data and requested indexes
+together when COPY succeeds. Column names use DuckDB identifier matching and must
+identify top-level columns. Each column may have only one index per COPY;
+`BLOB_COLUMNS` columns cannot also be indexed. Vector indexes require a fixed-size
+floating-point ARRAY, such as `FLOAT[128]`; the backend validates index-specific types.
+
+Index support is checked against the sink capability. The current Parquet and
+Iceberg sinks reject these options. An APPEND that explicitly requests an already
+existing generated index fails; this interface uses the backend's default policy
+and does not expose index keep/rebuild controls.
