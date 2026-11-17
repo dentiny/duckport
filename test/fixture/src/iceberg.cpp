@@ -1,5 +1,8 @@
 #include "iceberg.hpp"
 #include "duckdb/common/exception.hpp"
+#include "duckdb/common/helper.hpp"
+#include "duckdb/common/unique_ptr.hpp"
+#include "duckdb/common/unordered_map.hpp"
 #include "duckdb/common/mutex.hpp"
 #include "duckdb/common/vector_operations/binary_executor.hpp"
 #include "duckdb/function/scalar_function.hpp"
@@ -10,14 +13,12 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
-#include <memory>
 #include <thread>
-#include <unordered_map>
 
 namespace duckdb {
 namespace {
 using namespace duckdb_yyjson;
-using Document = std::unique_ptr<yyjson_mut_doc, decltype(&yyjson_mut_doc_free)>;
+using Document = unique_ptr<yyjson_mut_doc, decltype(&yyjson_mut_doc_free)>;
 
 Document Parse(const string &text) {
 	auto input = yyjson_read(text.data(), text.size(), 0);
@@ -156,7 +157,7 @@ private:
 
 string FixtureCommand(const string &root, const string &command) {
 	static annotated_mutex mutex;
-	static std::unordered_map<string, std::unique_ptr<IcebergFixture>> fixtures DUCKDB_GUARDED_BY(mutex);
+	static unordered_map<string, unique_ptr<IcebergFixture>> fixtures DUCKDB_GUARDED_BY(mutex);
 	annotated_lock_guard<annotated_mutex> guard(mutex);
 	if (command == "stop") {
 		fixtures.erase(root);
@@ -167,7 +168,7 @@ string FixtureCommand(const string &root, const string &command) {
 	}
 	auto &fixture = fixtures[root];
 	if (!fixture) {
-		fixture = std::make_unique<IcebergFixture>(root);
+		fixture = make_uniq<IcebergFixture>(root);
 	}
 	return fixture->Endpoint();
 }

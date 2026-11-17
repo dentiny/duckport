@@ -1,7 +1,12 @@
 #define DUCKDB_EXTENSION_MAIN
 #include "duckport_test_fixture_extension.hpp"
 #include "iceberg.hpp"
+#include "duckdb/common/helper.hpp"
+#include "duckdb/common/map.hpp"
+#include "duckdb/common/shared_ptr.hpp"
+#include "duckdb/common/string.hpp"
 #include "duckdb/common/unique_ptr.hpp"
+#include "duckdb/common/vector.hpp"
 #include "duckdb/common/vector_operations/binary_executor.hpp"
 #include "duckdb/common/vector_operations/unary_executor.hpp"
 #include "duckdb/function/scalar_function.hpp"
@@ -13,8 +18,6 @@
 #include <cctype>
 #include <fstream>
 #include <iterator>
-#include <map>
-#include <memory>
 #include <mutex>
 #include <thread>
 
@@ -22,23 +25,23 @@ namespace duckdb {
 namespace {
 using namespace duckdb_yyjson;
 
-std::string ReadFile(const std::string &provider, const std::string &name) {
-	std::ifstream file(std::string(DUCKPORT_TESTDATA_DIR) + "/" + provider + "/" + name, std::ios::binary);
+string ReadFile(const string &provider, const string &name) {
+	std::ifstream file(string(DUCKPORT_TESTDATA_DIR) + "/" + provider + "/" + name, std::ios::binary);
 	if (!file) {
 		throw IOException("Cannot open %s fixture: %s", provider, name);
 	}
-	return std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+	return string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
 }
 
-void ReplaceAll(std::string &value, const std::string &from, const std::string &to) {
+void ReplaceAll(string &value, const string &from, const string &to) {
 	size_t position = 0;
-	while ((position = value.find(from, position)) != std::string::npos) {
+	while ((position = value.find(from, position)) != string::npos) {
 		value.replace(position, from.size(), to);
 		position += to.size();
 	}
 }
 
-std::string JsonString(yyjson_val *object, const char *key, const std::string &fallback = "") {
+string JsonString(yyjson_val *object, const char *key, const string &fallback = "") {
 	auto value = yyjson_obj_get(object, key);
 	if (!value) {
 		return fallback;
@@ -46,25 +49,25 @@ std::string JsonString(yyjson_val *object, const char *key, const std::string &f
 	if (!yyjson_is_str(value)) {
 		throw InvalidInputException("Fixture property must be a string: %s", key);
 	}
-	return std::string(yyjson_get_str(value), yyjson_get_len(value));
+	return string(yyjson_get_str(value), yyjson_get_len(value));
 }
 
 struct Route {
-	std::string path;
-	std::string file;
-	std::string body;
-	std::string redirect;
+	string path;
+	string file;
+	string body;
+	string redirect;
 	int status = 200;
 	bool is_download = false;
 };
 
 struct Trace {
-	std::string origin;
-	std::string target;
-	std::string authorization;
-	std::string api_key;
-	std::string headers;
-	std::string request_payer;
+	string origin;
+	string target;
+	string authorization;
+	string api_key;
+	string headers;
+	string request_payer;
 	bool is_download;
 	bool has_authorization;
 	bool has_request_payer;
@@ -74,7 +77,7 @@ struct Trace {
 // Expected values and assertions belong in SQLLogicTest files.
 class ProviderFixture {
 public:
-	ProviderFixture(std::string provider_p, bool authenticated) : provider(std::move(provider_p)) {
+	ProviderFixture(string provider_p, bool authenticated) : provider(std::move(provider_p)) {
 		try {
 			auto api_port = api.bind_to_any_port("127.0.0.1");
 			auto download_port = downloads.bind_to_any_port("127.0.0.1");
@@ -109,7 +112,7 @@ public:
 		Shutdown();
 	}
 
-	std::vector<Trace> Snapshot() {
+	vector<Trace> Snapshot() {
 		std::lock_guard<std::mutex> guard(trace_mutex);
 		return traces;
 	}
@@ -119,9 +122,9 @@ public:
 		traces.clear();
 	}
 
-	std::string endpoint;
-	std::string download_endpoint;
-	std::string auth_scope = "/";
+	string endpoint;
+	string download_endpoint;
+	string auth_scope = "/";
 	std::atomic<bool> reject_metadata {false};
 
 private:
@@ -136,13 +139,13 @@ private:
 		}
 	}
 
-	std::string Expand(std::string value) {
+	string Expand(string value) {
 		ReplaceAll(value, "API_ORIGIN", endpoint);
 		ReplaceAll(value, "ORIGIN", download_endpoint);
 		return value;
 	}
 
-	void LoadCollection(yyjson_val *root, const char *key, bool foreign, std::vector<Route> &routes) {
+	void LoadCollection(yyjson_val *root, const char *key, bool foreign, vector<Route> &routes) {
 		auto array = yyjson_obj_get(root, key);
 		if (!array) {
 			return;
@@ -182,7 +185,7 @@ private:
 		}
 		if (provider == "arxiv") {
 			for (const auto &name : {"arXiv_src_manifest.xml", "arXiv_src_2410_001.tar"}) {
-				std::string file = std::string("src/") + name;
+				string file = string("src/") + name;
 				auto body = ReadFile(provider, file);
 				bool payload = file.size() >= 4 && file.substr(file.size() - 4) == ".tar";
 				api_routes.push_back({"/arxiv-test/" + file, file, body, "", 200, payload});
@@ -192,7 +195,7 @@ private:
 		}
 		auto json = ReadFile(provider, "http.json");
 		duckdb::unique_ptr<yyjson_doc, decltype(&yyjson_doc_free)> document(yyjson_read(json.data(), json.size(), 0),
-		                                                                 yyjson_doc_free);
+		                                                                    yyjson_doc_free);
 		if (!document) {
 			throw InvalidInputException("Cannot parse provider fixture http.json: %s", provider);
 		}
@@ -207,7 +210,7 @@ private:
 		LoadCollection(root, "downloads", true, download_routes);
 	}
 
-	static const Route *FindRoute(const std::vector<Route> &routes, const duckdb_httplib::Request &req) {
+	static const Route *FindRoute(const vector<Route> &routes, const duckdb_httplib::Request &req) {
 		for (const auto &key : {req.target, req.target.substr(0, req.target.find('?')), req.path}) {
 			for (const auto &route : routes) {
 				if (route.path == key) {
@@ -218,10 +221,10 @@ private:
 		return nullptr;
 	}
 
-	void Respond(const duckdb_httplib::Request &req, duckdb_httplib::Response &res, const std::vector<Route> &routes,
-	             const std::string &origin) {
+	void Respond(const duckdb_httplib::Request &req, duckdb_httplib::Response &res, const vector<Route> &routes,
+	             const string &origin) {
 		auto route = FindRoute(routes, req);
-		std::string headers;
+		string headers;
 		for (const auto &header : req.headers) {
 			headers += header.first + ": " + header.second + "\n";
 		}
@@ -268,25 +271,25 @@ private:
 		res.set_content(route->body, "application/octet-stream");
 	}
 
-	std::string provider;
-	std::string auth;
-	std::string reject_route;
+	string provider;
+	string auth;
+	string reject_route;
 	bool require_bearer = false;
 	bool require_low = false;
 	duckdb_httplib::Server api;
 	duckdb_httplib::Server downloads;
 	std::thread api_worker;
 	std::thread download_worker;
-	std::vector<Route> api_routes;
-	std::vector<Route> download_routes;
+	vector<Route> api_routes;
+	vector<Route> download_routes;
 	std::mutex trace_mutex;
-	std::vector<Trace> traces;
+	vector<Trace> traces;
 };
 
 std::mutex fixture_mutex;
-std::map<std::string, std::shared_ptr<ProviderFixture>> fixtures;
+map<string, shared_ptr<ProviderFixture>> fixtures;
 
-std::shared_ptr<ProviderFixture> GetFixture(const std::string &provider) {
+shared_ptr<ProviderFixture> GetFixture(const string &provider) {
 	auto entry = fixtures.find(provider);
 	if (entry == fixtures.end()) {
 		throw InvalidInputException("Start the provider fixture first: %s", provider);
@@ -294,18 +297,16 @@ std::shared_ptr<ProviderFixture> GetFixture(const std::string &provider) {
 	return entry->second;
 }
 
-std::string FixtureCommand(const std::string &provider, const std::string &command) {
-	if (provider.empty() ||
-	    provider.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") !=
-	        std::string::npos) {
+string FixtureCommand(const string &provider, const string &command) {
+	if (provider.empty() || provider.find_first_not_of(
+	                            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") != string::npos) {
 		throw InvalidInputException("Invalid fixture provider name");
 	}
 	std::lock_guard<std::mutex> guard(fixture_mutex);
 	if (command == "start" || command == "start_anonymous" || command == "start_authenticated") {
 		fixtures.erase(provider);
-		bool authenticated = command == "start_authenticated" ||
-		                     (command == "start" && provider != "internet_archive");
-		auto fixture = std::make_shared<ProviderFixture>(provider, authenticated);
+		bool authenticated = command == "start_authenticated" || (command == "start" && provider != "internet_archive");
+		auto fixture = make_shared_ptr<ProviderFixture>(provider, authenticated);
 		auto endpoint = fixture->endpoint;
 		fixtures.emplace(provider, std::move(fixture));
 		return endpoint;
@@ -343,7 +344,7 @@ std::string FixtureCommand(const std::string &provider, const std::string &comma
 }
 
 struct RequestsBindData : public FunctionData {
-	std::string provider;
+	string provider;
 	unique_ptr<FunctionData> Copy() const override {
 		auto result = make_uniq<RequestsBindData>();
 		result->provider = provider;
@@ -360,7 +361,7 @@ unique_ptr<FunctionData> RequestsBind(ClientContext &, TableFunctionBindInput &i
 	if (input.inputs[0].IsNull()) {
 		throw InvalidInputException("Fixture provider cannot be NULL");
 	}
-	result->provider = input.inputs[0].GetValue<std::string>();
+	result->provider = input.inputs[0].GetValue<string>();
 	for (const auto &name : {"origin", "target", "authorization", "api_key", "headers", "request_payer"}) {
 		names.emplace_back(name);
 		types.emplace_back(LogicalType::VARCHAR);
@@ -373,7 +374,7 @@ unique_ptr<FunctionData> RequestsBind(ClientContext &, TableFunctionBindInput &i
 }
 
 struct RequestsState : public GlobalTableFunctionState {
-	std::vector<Trace> traces;
+	vector<Trace> traces;
 	idx_t offset = 0;
 };
 
@@ -434,10 +435,10 @@ void LoadInternal(ExtensionLoader &loader) {
 void DuckportTestFixtureExtension::Load(ExtensionLoader &loader) {
 	LoadInternal(loader);
 }
-std::string DuckportTestFixtureExtension::Name() {
+string DuckportTestFixtureExtension::Name() {
 	return "duckport_test_fixture";
 }
-std::string DuckportTestFixtureExtension::Version() const {
+string DuckportTestFixtureExtension::Version() const {
 	return "";
 }
 } // namespace duckdb
