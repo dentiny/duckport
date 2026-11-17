@@ -1,5 +1,6 @@
 #include "iceberg.hpp"
 #include "duckdb/common/exception.hpp"
+#include "duckdb/common/mutex.hpp"
 #include "duckdb/common/vector_operations/binary_executor.hpp"
 #include "duckdb/function/scalar_function.hpp"
 #include "httplib.hpp"
@@ -10,7 +11,6 @@
 #include <fstream>
 #include <iterator>
 #include <memory>
-#include <mutex>
 #include <thread>
 #include <unordered_map>
 
@@ -70,11 +70,11 @@ public:
 			res.set_content(R"({"defaults":{},"overrides":{}})", "application/json");
 		});
 		server.Get(TABLE_ROUTE, [this](const duckdb_httplib::Request &, duckdb_httplib::Response &res) {
-			std::lock_guard<std::mutex> guard(mutex);
+			annotated_lock_guard<annotated_mutex> guard(mutex);
 			Reply(res);
 		});
 		server.Post(TABLE_ROUTE, [this](const duckdb_httplib::Request &req, duckdb_httplib::Response &res) {
-			std::lock_guard<std::mutex> guard(mutex);
+			annotated_lock_guard<annotated_mutex> guard(mutex);
 			try {
 				Commit(req.body);
 				Reply(res);
@@ -102,7 +102,7 @@ public:
 	}
 
 	string Command(const string &command) {
-		std::lock_guard<std::mutex> guard(mutex);
+		annotated_lock_guard<annotated_mutex> guard(mutex);
 		if (command == "start") {
 			return endpoint;
 		}
@@ -133,7 +133,7 @@ private:
 		return path.generic_string();
 	}
 
-	void Reply(duckdb_httplib::Response &res) {
+	void Reply(duckdb_httplib::Response &res) DUCKDB_REQUIRES(mutex) {
 		Document response(yyjson_mut_doc_new(nullptr), yyjson_mut_doc_free);
 		auto root = yyjson_mut_obj(response.get());
 		yyjson_mut_doc_set_root(response.get(), root);
@@ -144,7 +144,7 @@ private:
 		res.set_content(Encode(root), "application/json");
 	}
 
-	void Commit(const string &body) {
+	void Commit(const string &body) DUCKDB_REQUIRES(mutex) {
 		if (reject_commits) {
 			throw InvalidInputException("Injected commit conflict");
 		}
@@ -211,19 +211,19 @@ private:
 
 	duckdb_httplib::Server server;
 	std::thread worker;
-	std::mutex mutex;
-	Document metadata;
+	annotated_mutex mutex;
+	Document metadata DUCKDB_GUARDED_BY(mutex);
 	std::filesystem::path directory;
 	string endpoint;
-	string metadata_file;
-	size_t commits = 0;
-	bool reject_commits = false;
+	string metadata_file DUCKDB_GUARDED_BY(mutex);
+	size_t commits DUCKDB_GUARDED_BY(mutex) = 0;
+	bool reject_commits DUCKDB_GUARDED_BY(mutex) = false;
 };
 
 string FixtureCommand(const string &root, const string &command) {
-	static std::mutex mutex;
-	static std::unordered_map<string, std::unique_ptr<IcebergFixture>> fixtures;
-	std::lock_guard<std::mutex> guard(mutex);
+	static annotated_mutex mutex;
+	static std::unordered_map<string, std::unique_ptr<IcebergFixture>> fixtures DUCKDB_GUARDED_BY(mutex);
+	annotated_lock_guard<annotated_mutex> guard(mutex);
 	if (command == "stop") {
 		fixtures.erase(root);
 		return "stopped";
