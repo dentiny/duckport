@@ -71,6 +71,8 @@ void ExportField(const LogicalType &type, ArrowSchema &schema, DuckDBArrowSchema
 	if (tagged) {
 		StoreMetadata(schema, metadata, holder);
 	}
+	// Metadata belongs to each field, so recurse into struct members and list/array
+	// elements to preserve storage hints on nested fields as well.
 	if (type.id() == LogicalTypeId::STRUCT) {
 		for (idx_t i = 0; i < StructType::GetChildCount(type); ++i) {
 			ExportField(StructType::GetChildType(type, i), *schema.children[i], holder);
