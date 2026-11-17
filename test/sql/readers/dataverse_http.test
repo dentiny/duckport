@@ -220,3 +220,49 @@ query T
 SELECT duckport_fixture('dataverse', 'stop');
 ----
 stopped
+
+# Standard Dataverse API tokens use X-Dataverse-key, while BEARER_TOKEN remains
+# the opt-in OIDC path tested above.
+statement ok
+SET VARIABLE fixture_endpoint = duckport_fixture('dataverse', 'start_authenticated');
+
+query T
+SELECT duckport_fixture('dataverse', 'use_api_key');
+----
+ok
+
+statement ok
+CREATE SECRET dataverse_api_test (TYPE http,
+    EXTRA_HTTP_HEADERS MAP {'X-Dataverse-key': 'fixture-key'},
+    SCOPE getvariable('fixture_endpoint') || '/');
+
+query I
+SELECT octet_length(data) FROM duckport_scan_dataverse('doi:10.7910/DVN/A&B+',
+    file_name := 'papers/2026/paper #1%.pdf', endpoint := getvariable('fixture_endpoint'), version := '1.0');
+----
+23
+
+query T
+SELECT bool_and(contains(lower(headers), 'x-dataverse-key') AND contains(headers, 'fixture-key')
+    AND NOT has_authorization AND NOT contains(target, 'fixture-key'))
+FROM duckport_fixture_requests('dataverse') WHERE origin = 'api';
+----
+true
+
+statement ok
+CREATE OR REPLACE SECRET dataverse_api_test (TYPE http, BEARER_TOKEN 'ambiguous',
+    EXTRA_HTTP_HEADERS MAP {'X-Dataverse-key': 'fixture-key'}, SCOPE getvariable('fixture_endpoint') || '/');
+
+statement error
+SELECT * FROM duckport_scan_dataverse('doi:10.7910/DVN/A&B+',
+    file_name := 'papers/2026/paper #1%.pdf', endpoint := getvariable('fixture_endpoint'), version := '1.0');
+----
+choose either
+
+statement ok
+DROP SECRET dataverse_api_test;
+
+query T
+SELECT duckport_fixture('dataverse', 'stop');
+----
+stopped

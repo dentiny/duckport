@@ -42,11 +42,21 @@ pub unsafe extern "C" fn duckport_dataverse_open(
         let attachment_options = crate::utils::attachment_options(&format, record_path.as_deref())?;
         let service =
             DataverseService::new(&endpoint)?.with_http_config(storage_options.policy.config()?)?;
-        let service = if let Some(token) = storage_options.security.token {
+        let mut api_key = None;
+        for (name, value) in &storage_options.security.http_headers {
+            if name.eq_ignore_ascii_case("x-dataverse-key") {
+                if api_key.is_some() { return Err("Dataverse X-Dataverse-key must be unique".into()); }
+                api_key = Some(value);
+            }
+        }
+        if api_key.is_some() && storage_options.security.token.is_some() {
+            return Err("Dataverse secret must choose either X-Dataverse-key or BEARER_TOKEN".into());
+        }
+        let service = if let Some(key) = api_key {
+            service.with_token(key)?
+        } else if let Some(token) = storage_options.security.token {
             service.with_bearer_token(&token)?
-        } else {
-            service
-        };
+        } else { service };
         let files = service.dataset(&locator, &version).await?;
         crate::service_files::open(files, file_name, attachment_options, scan_options).await
     };

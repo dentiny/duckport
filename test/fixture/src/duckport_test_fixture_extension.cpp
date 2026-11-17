@@ -125,6 +125,7 @@ public:
 		traces.clear();
 	}
 
+    void UseDataverseApiKey() { require_bearer = false; require_dataverse_key = true; }
 	string endpoint;
 	string download_endpoint;
 	string auth_scope = "/";
@@ -246,6 +247,11 @@ private:
 			std::lock_guard<std::mutex> guard(trace_mutex);
 			traces.push_back(std::move(trace));
 		}
+        if (origin == "api" && require_dataverse_key && req.get_header_value("X-Dataverse-key") != "fixture-key") {
+            res.status = 401;
+            res.set_content("Dataverse API key required", "text/plain");
+            return;
+        }
 		const auto expected_token = provider == "figshare" ? "token fixture-key" : "Bearer fixture-key";
 		if (origin == "api" && require_bearer && req.get_header_value("Authorization") != expected_token) {
 			res.status = 401;
@@ -285,6 +291,7 @@ private:
 	string provider;
 	string auth;
 	string reject_route;
+	bool require_dataverse_key = false;
 	bool require_bearer = false;
 	bool require_low = false;
 	duckdb_httplib::Server api;
@@ -327,6 +334,9 @@ string FixtureCommand(const string &provider, const string &command) {
 		return "stopped";
 	}
 	auto fixture = GetFixture(provider);
+    if (command == "use_api_key" && provider == "dataverse") {
+        fixture->UseDataverseApiKey(); return "ok";
+    }
 	if (command == "download_endpoint") {
 		return fixture->download_endpoint;
 	}
