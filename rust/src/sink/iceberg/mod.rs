@@ -63,7 +63,6 @@ pub(crate) async fn open_catalog(
     let output_schema = Arc::new(iceberg::arrow::schema_to_arrow_schema(
         table.metadata().current_schema(),
     )?);
-    // Preserve media URI/string values; do not apply Lance URL/Blob layers.
     // DuckDB does not export Iceberg field IDs. Match names and types first,
     // then attach the catalog schema, including IDs and requiredness.
     validation::validate_iceberg_schema(&schema, &output_schema)?;
