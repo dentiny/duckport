@@ -1,6 +1,7 @@
 # name: test/sql/writers/lance.test
 # description: COPY to Lance and validate with the independent reader
 # group: [sql]
+
 require duckport
 
 statement ok
