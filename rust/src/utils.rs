@@ -1,5 +1,12 @@
 //! Parsing, normalization and object construction; input checks live in validation.
 use crate::{error::Result, options::StorageConfig, validation};
+use arrow_schema::{DataType, Schema};
+use open_arrow_access::service::arxiv::ArxivKind;
+use open_arrow_access::service::biorxiv::Server;
+use open_arrow_access::service::huggingface::HuggingFaceDatasetRequest;
+use open_arrow_access::service::regulations::RegulationsResource;
+use open_arrow_access::{AttachmentFormat, AttachmentOptions, OuterCompression};
+use open_arrow_sink_core::{CompressionSpec, IndexSpec, IndexType, StructuralEncoding, WriteMode};
 use std::num::NonZeroUsize;
 use url::Url;
 
@@ -75,7 +82,6 @@ pub(crate) fn boolean(name: &str, value: i32) -> Result<bool> {
 }
 
 pub(crate) fn sink_mode(value: &str) -> Result<open_arrow_sink_core::WriteMode> {
-    use open_arrow_sink_core::WriteMode;
     validation::required(
         match value {
             "create" => Some(WriteMode::Create),
@@ -88,7 +94,6 @@ pub(crate) fn sink_mode(value: &str) -> Result<open_arrow_sink_core::WriteMode> 
 }
 
 pub(crate) fn arxiv_kind(value: &str) -> Result<open_arrow_access::service::arxiv::ArxivKind> {
-    use open_arrow_access::service::arxiv::ArxivKind;
     validation::required(
         match value {
             "source" => Some(ArxivKind::Source),
@@ -100,7 +105,6 @@ pub(crate) fn arxiv_kind(value: &str) -> Result<open_arrow_access::service::arxi
 }
 
 pub(crate) fn biorxiv_server(value: &str) -> Result<open_arrow_access::service::biorxiv::Server> {
-    use open_arrow_access::service::biorxiv::Server;
     validation::required(
         match value {
             "biorxiv" => Some(Server::Biorxiv),
@@ -114,7 +118,6 @@ pub(crate) fn biorxiv_server(value: &str) -> Result<open_arrow_access::service::
 pub(crate) fn regulations_resource(
     value: &str,
 ) -> Result<open_arrow_access::service::regulations::RegulationsResource> {
-    use open_arrow_access::service::regulations::RegulationsResource;
     validation::required(
         match value {
             "documents" => Some(RegulationsResource::Documents),
@@ -169,7 +172,6 @@ pub(crate) fn courtlistener_header(
 pub(crate) fn huggingface_request(
     locator: &str,
 ) -> Result<open_arrow_access::service::huggingface::HuggingFaceDatasetRequest> {
-    use open_arrow_access::service::huggingface::HuggingFaceDatasetRequest;
     let url = url::Url::parse(locator)?;
     validation::validate_huggingface_uri(&url)?;
     let path = validation::required(
@@ -211,7 +213,6 @@ pub(crate) fn attachment_options(
     format: &str,
     record_path: Option<&str>,
 ) -> Result<open_arrow_access::AttachmentOptions> {
-    use open_arrow_access::{AttachmentFormat, AttachmentOptions, OuterCompression};
     let selection = match format {
         "binary" => Some(AttachmentFormat::Binary),
         "csv" => Some(AttachmentFormat::Csv),
@@ -241,4 +242,106 @@ pub(crate) fn attachment_options(
     let options = AttachmentOptions::new(selection).with_outer_compression(compression);
     validation::validate_attachment_options(&options)?;
     Ok(options)
+}
+
+pub(crate) fn byte_size(name: &str, value: i64) -> Result<usize> {
+    validation::validate_byte_size(name, value)?;
+    Ok(usize::try_from(value).map_err(|_| format!("{name} exceeds platform size"))?)
+}
+
+pub(crate) fn optional_byte_size(name: &str, value: i64) -> Result<Option<usize>> {
+    if value == -1 {
+        return Ok(None);
+    }
+    byte_size(name, value).map(Some)
+}
+
+pub(crate) fn encoding_path(schema: &Schema, name: &str) -> Result<Vec<String>> {
+    if let Some(field) = schema
+        .fields()
+        .iter()
+        .find(|field| field.name().eq_ignore_ascii_case(name))
+    {
+        return Ok(vec![field.name().clone()]);
+    }
+    let mut fields = schema.fields();
+    let mut path = Vec::new();
+    let mut parts = name.split('.').peekable();
+    while let Some(part) = parts.next() {
+        let field = fields
+            .iter()
+            .find(|field| field.name().eq_ignore_ascii_case(part))
+            .ok_or_else(|| format!("Column encoding field not found: {name}"))?;
+        path.push(field.name().clone());
+        if parts.peek().is_none() {
+            break;
+        }
+        let mut data_type = field.data_type();
+        loop {
+            match data_type {
+                DataType::List(item)
+                | DataType::LargeList(item)
+                | DataType::FixedSizeList(item, _) => {
+                    data_type = item.data_type();
+                }
+                DataType::Struct(children) => {
+                    fields = children;
+                    break;
+                }
+                _ => return Err(format!("Column encoding field not found: {name}").into()),
+            }
+        }
+    }
+    Ok(path)
+}
+
+pub(crate) fn column_compression(
+    column: &str,
+    codec: Option<&str>,
+    level: Option<i32>,
+) -> Result<Option<CompressionSpec>> {
+    let compression = match codec {
+        None => None,
+        Some(codec) => Some(match codec.to_ascii_lowercase().as_str() {
+            "none" | "uncompressed" => CompressionSpec::Uncompressed,
+            "zstd" => CompressionSpec::Zstd { level },
+            "lz4" | "lz4_raw" => CompressionSpec::Lz4Raw,
+            "snappy" => CompressionSpec::Snappy,
+            "gzip" => CompressionSpec::Gzip,
+            _ => return Err(format!("Unknown COLUMN_COMPRESSION codec {codec}: {column}").into()),
+        }),
+    };
+    validation::validate_column_compression_level(column, compression, level)?;
+    Ok(compression)
+}
+
+pub(crate) fn column_structural_encoding(
+    column: &str,
+    path: &[String],
+    encoding: &str,
+) -> Result<StructuralEncoding> {
+    validation::validate_structural_encoding_path(path)?;
+    match encoding.to_ascii_lowercase().as_str() {
+        "miniblock" => Ok(StructuralEncoding::Miniblock),
+        "fullzip" => Ok(StructuralEncoding::Fullzip),
+        _ => {
+            Err(format!("COLUMN_STRUCTURAL_ENCODING must be miniblock or fullzip: {column}").into())
+        }
+    }
+}
+
+pub(crate) fn index_spec(schema: &Schema, column: &str, option: &str) -> Result<IndexSpec> {
+    let field = schema
+        .fields()
+        .iter()
+        .find(|field| field.name().eq_ignore_ascii_case(column))
+        .ok_or_else(|| format!("{option} column not found: {column}"))?;
+    let index_type = match option.to_ascii_lowercase().as_str() {
+        "scalar_index_columns" => IndexType::Scalar,
+        "vector_index_columns" => IndexType::Vector,
+        "text_index_columns" => IndexType::Text,
+        "bloom_filter_index_columns" => IndexType::BloomFilter,
+        _ => return Err(format!("Unknown index option: {option}").into()),
+    };
+    Ok(IndexSpec::new(field.name().clone(), index_type))
 }

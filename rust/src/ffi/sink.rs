@@ -22,7 +22,7 @@ pub unsafe extern "C" fn duckport_validate_byte_size(
     value: i64,
 ) -> *mut c_char {
     call(|| unsafe {
-        validation::byte_size(&string(name)?, value)?;
+        utils::byte_size(&string(name)?, value)?;
         Ok(())
     })
 }
@@ -91,18 +91,18 @@ impl DuckportWriteOptions {
         blob_column_count: usize,
         schema: &arrow_schema::Schema,
     ) -> Result<WriteOptions> {
-        let inline = validation::optional_byte_size(
+        let inline = utils::optional_byte_size(
             "BLOB_INLINE_SIZE_THRESHOLD",
             self.blob_inline_size_threshold,
         )?;
-        let dedicated = validation::optional_byte_size(
+        let dedicated = utils::optional_byte_size(
             "BLOB_DEDICATED_SIZE_THRESHOLD",
             self.blob_dedicated_size_threshold,
         )?;
         let mut options = WriteOptions::default();
         options.storage_version = unsafe { optional_string(self.storage_version) }?;
         options.target_file_size =
-            validation::optional_byte_size("TARGET_FILE_SIZE", self.target_file_size)?;
+            utils::optional_byte_size("TARGET_FILE_SIZE", self.target_file_size)?;
         if blob_column_count != 0 || inline.is_some() || dedicated.is_some() {
             options.blob_handle = Some(BlobHandleConfig {
                 inline_size_threshold: inline,
@@ -118,12 +118,11 @@ impl DuckportWriteOptions {
             )
         }? {
             let column = unsafe { string(entry.column) }?;
-            let path = validation::encoding_path(schema, &column)?;
+            let path = utils::encoding_path(schema, &column)?;
             let level = utils::boolean("has_compression_level", entry.has_compression_level)?
                 .then_some(entry.compression_level);
             let codec = unsafe { optional_string(entry.compression) }?;
-            if let Some(compression) =
-                validation::column_compression(&column, codec.as_deref(), level)?
+            if let Some(compression) = utils::column_compression(&column, codec.as_deref(), level)?
             {
                 if path.len() == 1 {
                     options
@@ -138,7 +137,7 @@ impl DuckportWriteOptions {
                 }
             }
             if let Some(encoding) = unsafe { optional_string(entry.structural_encoding) }? {
-                let encoding = validation::column_structural_encoding(&column, &path, &encoding)?;
+                let encoding = utils::column_structural_encoding(&column, &path, &encoding)?;
                 options
                     .compression
                     .column_encodings
@@ -148,7 +147,7 @@ impl DuckportWriteOptions {
         for entry in
             unsafe { utils::ffi_slice(self.indexes, self.index_count, "null index options") }?
         {
-            options.indexes.push(validation::index_spec(
+            options.indexes.push(utils::index_spec(
                 schema,
                 &unsafe { string(entry.column) }?,
                 &unsafe { string(entry.option) }?,
