@@ -41,6 +41,8 @@ char *duckport_lance_open(const char *path, const ArrowSchema *, const char *mod
                           size_t column_count, const DuckportStorageOptions *, DuckportSink **output);
 char *duckport_parquet_open(const char *path, const ArrowSchema *, const char *mode, const DuckportStorageOptions *,
                             DuckportSink **output);
+
+// Common sink functions
 char *duckport_sink_write(DuckportSink *, ArrowArray *);
 char *duckport_sink_commit(DuckportSink *);
 void duckport_sink_destroy(DuckportSink *);
