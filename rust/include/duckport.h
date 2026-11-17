@@ -23,12 +23,21 @@ struct DuckportScanOptions {
 	// Target rows per Arrow record batch; SQL default: 8192.
 	size_t batch_size;
 };
+struct DuckportColumnEncoding {
+	const char *column;
+	const char *compression;
+	int32_t has_compression_level;
+	int32_t compression_level;
+	const char *structural_encoding;
+};
 // Byte sizes: -1 preserves the backend default; inline may be zero.
 struct DuckportWriteOptions {
 	int64_t blob_inline_size_threshold;
 	int64_t blob_dedicated_size_threshold;
 	int64_t target_file_size;
 	const char *storage_version; // null when unset; borrowed during open
+	const DuckportColumnEncoding *column_encodings;
+	size_t column_encoding_count;
 };
 extern "C" {
 // Common FFI support

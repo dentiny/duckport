@@ -3,6 +3,7 @@
 #include "duckdb/catalog/catalog_entry/copy_function_catalog_entry.hpp"
 #include "duckdb/common/arrow/arrow_converter.hpp"
 #include "duckdb/common/arrow/arrow_wrapper.hpp"
+#include "duckdb/common/string_util.hpp"
 #include "duckdb/function/copy_function.hpp"
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/main/query_result.hpp"
@@ -56,7 +57,8 @@ struct CopyBindData : FunctionData {
 		       options.write_options.target_file_size == bind.options.write_options.target_file_size &&
 		       options.catalog_uri == bind.options.catalog_uri && options.warehouse == bind.options.warehouse &&
 		       options.storage_root == bind.options.storage_root &&
-		       options.storage_version == bind.options.storage_version && info == bind.info;
+		       options.storage_version == bind.options.storage_version &&
+		       options.column_encodings == bind.options.column_encodings && info == bind.info;
 	}
 };
 struct CopyGlobalState : GlobalFunctionData {
@@ -152,6 +154,50 @@ bool ParseSizeOption(const Identifier &name, const vector<Value> &values, Duckpo
 	return true;
 }
 
+bool ParseColumnOption(const Identifier &name, const vector<Value> &values, SinkWriteOptions &options) {
+	if (name != "column_compression" && name != "column_compression_level" && name != "column_structural_encoding") {
+		return false;
+	}
+	if (values.size() != 1 || values[0].IsNull() || values[0].type().id() != LogicalTypeId::STRUCT) {
+		throw BinderException("%s requires a struct mapping column names to settings", name);
+	}
+	const auto &fields = StructType::GetChildTypes(values[0].type());
+	const auto &settings = StructValue::GetChildren(values[0]);
+	identifier_set_t seen;
+	for (idx_t i = 0; i < fields.size(); i++) {
+		const auto &column = fields[i].first;
+		if (column.GetIdentifierName().empty() || column.GetIdentifierName().find('\0') != string::npos ||
+		    !seen.insert(column).second || settings[i].IsNull()) {
+			throw BinderException("%s requires unique, nonempty column names and non-NULL settings", name);
+		}
+		auto entry = std::find_if(options.column_encodings.begin(), options.column_encodings.end(),
+		                          [&](const ColumnEncodingOptions &value) {
+			                          return StringUtil::CIEquals(value.column, column.GetIdentifierName());
+		                          });
+		if (entry == options.column_encodings.end()) {
+			options.column_encodings.emplace_back();
+			entry = options.column_encodings.end() - 1;
+			entry->column = column.GetIdentifierName();
+		}
+		if (name == "column_compression_level") {
+			auto level = settings[i].DefaultTryCastAs(LogicalType::INTEGER);
+			if (!settings[i].type().IsIntegral() || !level) {
+				throw BinderException("COLUMN_COMPRESSION_LEVEL requires integer levels: %s", column);
+			}
+			entry->has_compression_level = true;
+			entry->compression_level = level->GetValue<int32_t>();
+		} else {
+			if (settings[i].type().id() != LogicalTypeId::VARCHAR || StringValue::Get(settings[i]).empty() ||
+			    StringValue::Get(settings[i]).find('\0') != string::npos) {
+				throw BinderException("%s requires nonempty text settings without NUL bytes: %s", name, column);
+			}
+			auto &target = name == "column_compression" ? entry->compression : entry->structural_encoding;
+			target = StringValue::Get(settings[i]);
+		}
+	}
+	return true;
+}
+
 unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput &input, const vector<Identifier> &names,
                                   const vector<LogicalType> &types) {
 	CheckWriteAccess(context);
@@ -166,6 +212,9 @@ unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput 
 	bool has_mode = false;
 	for (auto &entry : input.info.options) {
 		if (ParseSizeOption(entry.first, entry.second, result->options.write_options)) {
+			continue;
+		}
+		if (ParseColumnOption(entry.first, entry.second, result->options)) {
 			continue;
 		}
 		if (ParseTextOption(entry.first, entry.second, result->options)) {
@@ -313,9 +362,10 @@ void CommonCopyOptions(ClientContext &, CopyOptionsInput &input) {
 	input.options["blob_columns"] = CopyOption(LogicalType::LIST(LogicalType::VARCHAR), CopyOptionMode::WRITE_ONLY);
 	input.options["append"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
 	input.options["overwrite"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
-	// Preserve original numeric values for validation.
+	// Preserve original values for validation.
 	for (const auto &option : {"target_file_size", "blob_inline_size_threshold", "blob_dedicated_size_threshold",
-	                          "sample_percent", "sample_rows"}) {
+	                          "sample_percent", "sample_rows", "column_compression", "column_compression_level",
+	                          "column_structural_encoding"}) {
 		input.options[option] = CopyOption(LogicalType::ANY, CopyOptionMode::WRITE_ONLY);
 	}
 }

@@ -29,8 +29,8 @@ this sink exposes APPEND, OVERWRITE, BLOB_COLUMNS, byte-size and storage-version
 options. Blob column names
 follow DuckDB identifier matching; empty lists, duplicates and invalid columns fail
 at bind time. File URL sources require `file://`; bare local blob paths are not supported.
-Column compression/encoding, indexes and generated-column options are
-not exposed yet.
+Column compression/encoding uses the [shared COPY options](README.md#column-compression-and-encoding).
+Indexes and generated-column options are not exposed yet.
 
 ## Byte-size options
 

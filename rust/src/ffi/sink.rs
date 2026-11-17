@@ -3,7 +3,7 @@ use super::common::RUNTIME;
 use crate::{
     error::{Result, call, cleanup},
     sink::DuckportSink,
-    utils::{optional_string, string},
+    utils::{self, optional_string, string},
     validation,
 };
 use arrow_array::{
@@ -37,6 +37,15 @@ pub extern "C" fn duckport_validate_sample_rows(value: i64, max_rows: u64) -> *m
     call(|| validation::sample_rows(value, max_rows))
 }
 
+#[repr(C)]
+pub struct DuckportColumnEncoding {
+    pub column: *const c_char,
+    pub compression: *const c_char,
+    pub has_compression_level: i32,
+    pub compression_level: i32,
+    pub structural_encoding: *const c_char,
+}
+
 /// Shared C ABI write options. -1 byte sizes and a null version preserve backend defaults.
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -45,6 +54,8 @@ pub struct DuckportWriteOptions {
     pub blob_dedicated_size_threshold: i64,
     pub target_file_size: i64,
     pub storage_version: *const c_char,
+    pub column_encodings: *const DuckportColumnEncoding,
+    pub column_encoding_count: usize,
 }
 
 impl Default for DuckportWriteOptions {
@@ -54,6 +65,8 @@ impl Default for DuckportWriteOptions {
             blob_dedicated_size_threshold: -1,
             target_file_size: -1,
             storage_version: std::ptr::null(),
+            column_encodings: std::ptr::null(),
+            column_encoding_count: 0,
         }
     }
 }
@@ -61,8 +74,13 @@ impl Default for DuckportWriteOptions {
 impl DuckportWriteOptions {
     // Selecting URL columns requests blob support even without explicit layout overrides.
     /// # Safety
-    /// storage_version is null or a borrowed NUL-terminated UTF-8 string.
-    pub(crate) unsafe fn convert(&self, blob_column_count: usize) -> Result<WriteOptions> {
+    /// Strings are null or borrowed NUL-terminated UTF-8. The column encoding array
+    /// contains column_encoding_count live records, or is null when the count is zero.
+    pub(crate) unsafe fn convert(
+        &self,
+        blob_column_count: usize,
+        schema: &arrow_schema::Schema,
+    ) -> Result<WriteOptions> {
         let inline = validation::optional_byte_size(
             "BLOB_INLINE_SIZE_THRESHOLD",
             self.blob_inline_size_threshold,
@@ -81,6 +99,41 @@ impl DuckportWriteOptions {
                 dedicated_size_threshold: dedicated.and_then(std::num::NonZeroUsize::new),
                 ..Default::default()
             });
+        }
+        for entry in unsafe {
+            utils::ffi_slice(
+                self.column_encodings,
+                self.column_encoding_count,
+                "null column encodings",
+            )
+        }? {
+            let column = unsafe { string(entry.column) }?;
+            let path = validation::encoding_path(schema, &column)?;
+            let level = utils::boolean("has_compression_level", entry.has_compression_level)?
+                .then_some(entry.compression_level);
+            let codec = unsafe { optional_string(entry.compression) }?;
+            if let Some(compression) =
+                validation::column_compression(&column, codec.as_deref(), level)?
+            {
+                if path.len() == 1 {
+                    options
+                        .compression
+                        .columns
+                        .insert(path[0].clone(), compression);
+                } else {
+                    options
+                        .compression
+                        .nested_columns
+                        .insert(path.clone(), compression);
+                }
+            }
+            if let Some(encoding) = unsafe { optional_string(entry.structural_encoding) }? {
+                let encoding = validation::column_structural_encoding(&column, &path, &encoding)?;
+                options
+                    .compression
+                    .column_encodings
+                    .insert(path[0].clone(), encoding);
+            }
         }
         Ok(options)
     }

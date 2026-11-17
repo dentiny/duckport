@@ -281,3 +281,94 @@ pub(crate) fn sample_rows(value: i64, max_rows: u64) -> Result<()> {
     }
     Ok(())
 }
+
+pub(crate) fn encoding_path(schema: &arrow_schema::Schema, name: &str) -> Result<Vec<String>> {
+    if let Some(field) = schema
+        .fields()
+        .iter()
+        .find(|field| field.name().eq_ignore_ascii_case(name))
+    {
+        return Ok(vec![field.name().clone()]);
+    }
+    let mut fields = schema.fields();
+    let mut path = Vec::new();
+    let mut parts = name.split('.').peekable();
+    while let Some(part) = parts.next() {
+        let field = fields
+            .iter()
+            .find(|field| field.name().eq_ignore_ascii_case(part))
+            .ok_or_else(|| format!("Column encoding field not found: {name}"))?;
+        path.push(field.name().clone());
+        if parts.peek().is_none() {
+            break;
+        }
+        let mut data_type = field.data_type();
+        loop {
+            use arrow_schema::DataType;
+            match data_type {
+                DataType::List(item)
+                | DataType::LargeList(item)
+                | DataType::FixedSizeList(item, _) => {
+                    data_type = item.data_type();
+                }
+                DataType::Struct(children) => {
+                    fields = children;
+                    break;
+                }
+                _ => return Err(format!("Column encoding field not found: {name}").into()),
+            }
+        }
+    }
+    Ok(path)
+}
+
+pub(crate) fn column_compression(
+    column: &str,
+    codec: Option<&str>,
+    level: Option<i32>,
+) -> Result<Option<open_arrow_sink_core::CompressionSpec>> {
+    use open_arrow_sink_core::CompressionSpec;
+    let Some(codec) = codec else {
+        if level.is_some() {
+            return Err(format!(
+                "COLUMN_COMPRESSION_LEVEL requires explicit zstd compression: {column}"
+            )
+            .into());
+        }
+        return Ok(None);
+    };
+    let compression = match codec.to_ascii_lowercase().as_str() {
+        "none" | "uncompressed" => CompressionSpec::Uncompressed,
+        "zstd" => CompressionSpec::Zstd { level },
+        "lz4" | "lz4_raw" => CompressionSpec::Lz4Raw,
+        "snappy" => CompressionSpec::Snappy,
+        "gzip" => CompressionSpec::Gzip,
+        _ => return Err(format!("Unknown COLUMN_COMPRESSION codec {codec}: {column}").into()),
+    };
+    if level.is_some() && !matches!(compression, CompressionSpec::Zstd { .. }) {
+        return Err(
+            format!("COLUMN_COMPRESSION_LEVEL is only supported for zstd: {column}").into(),
+        );
+    }
+    Ok(Some(compression))
+}
+
+pub(crate) fn column_structural_encoding(
+    column: &str,
+    path: &[String],
+    encoding: &str,
+) -> Result<open_arrow_sink_core::StructuralEncoding> {
+    use open_arrow_sink_core::StructuralEncoding;
+    if path.len() != 1 {
+        return Err(
+            "COLUMN_STRUCTURAL_ENCODING applies to top-level columns, not nested fields".into(),
+        );
+    }
+    match encoding.to_ascii_lowercase().as_str() {
+        "miniblock" => Ok(StructuralEncoding::Miniblock),
+        "fullzip" => Ok(StructuralEncoding::Fullzip),
+        _ => {
+            Err(format!("COLUMN_STRUCTURAL_ENCODING must be miniblock or fullzip: {column}").into())
+        }
+    }
+}

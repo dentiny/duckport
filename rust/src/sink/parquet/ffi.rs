@@ -24,12 +24,14 @@ pub unsafe extern "C" fn duckport_parquet_open(
         let schema = validation::required(schema.as_ref(), "null sink schema")?;
         let storage = validation::required(storage.as_ref(), "null Parquet options")?;
         let options = validation::required(options.as_ref(), "null sink write options")?;
+        let schema = Arc::new(Schema::try_from(schema)?);
+        let write_options = options.convert(column_count, &schema)?;
         let sink = RUNTIME.block_on(super::open(
             &string(path)?,
-            Arc::new(Schema::try_from(schema)?),
+            schema,
             &string(mode)?,
             &storage.read()?,
-            options.convert(column_count)?,
+            write_options,
         ))?;
         *output = Box::into_raw(Box::new(sink));
         Ok(())
