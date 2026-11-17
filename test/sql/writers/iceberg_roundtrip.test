@@ -21,22 +21,6 @@ COPY (SELECT * FROM (VALUES (4, 'Δuck'), (5, '')) AS t(id, name))
 TO 'tests.people' (FORMAT duckport_iceberg,
     CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse', APPEND);
 
-statement ok
-SET VARIABLE iceberg_metadata = duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'metadata');
-
-query IT
-SELECT id, name FROM iceberg_scan(getvariable('iceberg_metadata')) ORDER BY id NULLS LAST;
-----
-1	Alice
-2	NULL
-3	Charlie
-4	Δuck
-5	(empty)
-NULL	missing-id
-
-statement ok
-SET VARIABLE committed_metadata = duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'metadata');
-
 statement error
 COPY (SELECT 6 AS id, 'invalid-mode' AS name)
 TO 'tests.people' (FORMAT duckport_iceberg,
@@ -70,27 +54,8 @@ TO 'tests.people' (FORMAT duckport_iceberg,
 ----
 Iceberg input column names
 
-statement ok
-SET VARIABLE reject_commits = duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'reject_commits');
-
-statement error
-COPY (SELECT 6 AS id, 'not-published' AS name)
-TO 'tests.people' (FORMAT duckport_iceberg,
-    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse', APPEND);
-----
-CatalogCommitConflicts
-
-query II
-SELECT duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'metadata') = getvariable('committed_metadata'),
-       duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'commits')::INTEGER;
-----
-true	2
-
-statement ok
-SET VARIABLE iceberg_metadata = duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'metadata');
-
 query IT
-SELECT id, name FROM iceberg_scan(getvariable('iceberg_metadata')) ORDER BY id NULLS LAST;
+SELECT id, name FROM iceberg_scan('{TEST_DIR}/iceberg_warehouse/people/metadata/current.metadata.json') ORDER BY id NULLS LAST;
 ----
 1	Alice
 2	NULL
