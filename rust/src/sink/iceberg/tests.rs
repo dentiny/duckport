@@ -12,7 +12,8 @@ async fn catalog_schema_is_applied_and_required_nulls_abort() {
         id.clone(),
         input.schema(),
         open_arrow_sink_core::WriteOptions::default(),
-        /*writer_count=*/1,
+        /*writer_count=*/ 1,
+        Default::default(),
     )
     .await
     .unwrap();

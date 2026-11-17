@@ -1,5 +1,6 @@
 #include "duckdb/function/table/arrow.hpp"
 #include "duckdb/main/settings.hpp"
+#include "duckdb/main/query_profiler.hpp"
 #include "error.hpp"
 #include "source/options.hpp"
 #include "source/reader.hpp"
@@ -9,7 +10,8 @@
 namespace duckdb {
 namespace {
 struct ReaderInfo : TableFunctionInfo {
-	explicit ReaderInfo(ReaderBind open) : open(std::move(open)) {}
+	explicit ReaderInfo(ReaderBind open) : open(std::move(open)) {
+	}
 	ReaderBind open;
 };
 void CheckAccess(ClientContext &context) {
@@ -18,7 +20,7 @@ void CheckAccess(ClientContext &context) {
 	}
 }
 unique_ptr<FunctionData> BindReader(ClientContext &context, TableFunctionBindInput &input, vector<LogicalType> &types,
-									vector<Identifier> &names) {
+                                    vector<Identifier> &names) {
 	CheckAccess(context);
 	auto path = ReadSourceString(input.inputs[0]);
 	auto scan = ReadScanOptions(input);
@@ -43,10 +45,35 @@ unique_ptr<GlobalTableFunctionState> InitReader(ClientContext &context, TableFun
 	return ArrowTableFunction::ArrowScanInitGlobal(context, input);
 }
 } // namespace
+SourceFactory &GetFactory(const FunctionData *data) {
+	return data->Cast<ArrowScanFunctionData>().factory->Cast<SourceFactory>();
+}
+void ScanReader(ClientContext &context, TableFunctionInput &input, DataChunk &output) {
+	ArrowTableFunction::ArrowScanFunction(context, input, output);
+	GetFactory(input.bind_data.get()).ReportBytes(context);
+}
+void GetReaderMetrics(TableFunctionGetMetricsInput &input) {
+	auto &factory = GetFactory(input.bind_data.get());
+	factory.ReportBytes(input.context);
+	auto rows = input.bind_data->Cast<ArrowScanFunctionData>().lines_read.load();
+	input.operator_metrics.rows_scanned = factory.ReportRows(rows);
+}
+double ReaderProgress(ClientContext &, const FunctionData *data, const GlobalTableFunctionState *) {
+	const auto metrics = GetFactory(data).Snapshot();
+	if (metrics.finished) {
+		return 100.0;
+	}
+	if (!metrics.total_bytes_known || metrics.total_bytes == 0) {
+		return -1.0;
+	}
+	// Range reads, schema inference and prefetch can exceed the selected input.
+	// Only the Arrow reader reaching EOF signals complete consumption.
+	return MinValue(99.0, 100.0 * double(metrics.progress_bytes) / double(metrics.total_bytes));
+}
 void RegisterReader(ExtensionLoader &loader, const string &name, ReaderBind open,
-					const std::function<void(TypedKwargs &)> &add_reader_options) {
-	TableFunction function(Identifier(name), {LogicalType::VARCHAR}, ArrowTableFunction::ArrowScanFunction, BindReader,
-						   InitReader, ArrowTableFunction::ArrowScanInitLocal);
+                    const std::function<void(TypedKwargs &)> &add_reader_options) {
+	TableFunction function(Identifier(name), {LogicalType::VARCHAR}, ScanReader, BindReader, InitReader,
+	                       ArrowTableFunction::ArrowScanInitLocal);
 	function.function_info = make_shared_ptr<ReaderInfo>(std::move(open));
 	function.GetSignature().WithTypedKwargs("options", [&](TypedKwargs &options) {
 		options.Add("batch_size", LogicalType::BIGINT);
@@ -54,14 +81,16 @@ void RegisterReader(ExtensionLoader &loader, const string &name, ReaderBind open
 			add_reader_options(options);
 		}
 	});
+	function.get_metrics = GetReaderMetrics;
+	function.table_scan_progress = ReaderProgress;
 	function.projection_pushdown = true;
 	loader.RegisterFunction(function);
 }
 void RegisterReader(ExtensionLoader &loader, const string &name, ReaderOpen open,
-					const std::function<void(TypedKwargs &)> &add_reader_options) {
+                    const std::function<void(TypedKwargs &)> &add_reader_options) {
 	ReaderBind bind = [open](ClientContext &context, const string &locator, const DuckportScanOptions &scan,
-							 const TableFunctionBindInput &, DuckportSource **output) {
-		StorageParameters storage(context, locator, /*secret_type=*/{});
+	                         const TableFunctionBindInput &, DuckportSource **output) {
+		StorageParameters storage(context, locator, /*secret_type=*/ {});
 		return open(locator.c_str(), storage.config, scan, output);
 	};
 	RegisterReader(loader, name, std::move(bind), add_reader_options);

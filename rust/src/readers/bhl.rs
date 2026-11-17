@@ -48,7 +48,14 @@ pub unsafe extern "C" fn duckport_bhl_open(
         .with_key(&token)?
         .item(locator.parse()?)
         .await?;
-        crate::service_files::open(files, file_name, attachment_options, scan_options).await
+        crate::service_files::open(
+            files,
+            file_name,
+            attachment_options,
+            scan_options,
+            storage_options.metrics.clone(),
+        )
+        .await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }

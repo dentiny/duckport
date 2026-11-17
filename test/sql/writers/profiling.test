@@ -1,0 +1,95 @@
+# name: test/sql/profiling.test
+# description: Source and destination metrics are reported through DuckDB profiling
+# group: [sql]
+
+require duckport
+
+require json
+
+statement ok
+SET profiling_coverage = 'ALL';
+
+statement ok
+PRAGMA enable_profiling = 'json';
+
+statement ok
+PRAGMA profiling_output = '{TEST_DIR}/lance_profile.json';
+
+statement ok
+SET tracked_metrics = ['operator.type', 'operator.rows_scanned', 'io.total_bytes_read', 'io.total_bytes_written'];
+
+query I
+COPY (
+    SELECT * FROM duckport_scan_warc('testdata/warc/good_resources.warc')
+) TO '{TEST_DIR}/profiled.lance' (FORMAT duckport_lance);
+----
+2
+
+statement ok
+PRAGMA disable_profiling;
+
+query II
+SELECT io.total_bytes_read > 0, io.total_bytes_written > 0
+FROM read_json_auto('{TEST_DIR}/lance_profile.json');
+----
+true	true
+
+# Operator metrics vary by node, so walk JSON without inferring a recursive STRUCT type.
+statement ok
+CREATE VIEW profiled_operators AS
+SELECT node.value->>'type' AS operator_type,
+       (node.value->>'rows_scanned')::UBIGINT AS operator_rows_scanned
+FROM read_json_objects('{TEST_DIR}/lance_profile.json') AS profile,
+     json_tree(profile.json) AS node
+WHERE node.type = 'OBJECT';
+
+query I
+SELECT sum(operator_rows_scanned)
+FROM profiled_operators
+WHERE operator_type = 'TABLE_SCAN';
+----
+2
+
+# APPEND reads existing destination metadata; report those bytes even when the
+# source query does not read external storage.
+statement ok
+PRAGMA enable_profiling = 'json';
+
+statement ok
+PRAGMA profiling_output = '{TEST_DIR}/append_profile.json';
+
+query I
+COPY (SELECT * FROM duckport_scan_warc('testdata/warc/good_resources.warc'))
+TO '{TEST_DIR}/profiled.lance' (FORMAT duckport_lance, APPEND);
+----
+2
+
+statement ok
+PRAGMA disable_profiling;
+
+query II
+SELECT io.total_bytes_read > 0, io.total_bytes_written > 0
+FROM read_json_auto('{TEST_DIR}/append_profile.json');
+----
+true	true
+
+# Shared write metrics must also work for the Parquet backend.
+statement ok
+PRAGMA enable_profiling = 'json';
+
+statement ok
+PRAGMA profiling_output = '{TEST_DIR}/parquet_profile.json';
+
+query I
+COPY (SELECT * FROM range(100)) TO '{TEST_DIR}/profiled_parquet'
+(FORMAT duckport_parquet);
+----
+100
+
+statement ok
+PRAGMA disable_profiling;
+
+query I
+SELECT io.total_bytes_written > 0 FROM read_json_auto('{TEST_DIR}/parquet_profile.json');
+----
+true

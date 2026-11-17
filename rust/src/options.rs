@@ -23,6 +23,7 @@ pub struct DuckportScanOptions {
 
 #[derive(Default)]
 pub struct StorageConfig {
+    pub(crate) metrics: crate::metrics::ReadMetrics,
     pub endpoint: Option<String>,
     pub region: Option<String>,
     pub access_key_id: Option<String>,
@@ -36,6 +37,7 @@ pub struct StorageConfig {
 impl DuckportStorageOptions {
     pub(crate) unsafe fn read(&self) -> Result<StorageConfig> {
         Ok(StorageConfig {
+            metrics: Default::default(),
             endpoint: unsafe { optional_string(self.endpoint) }?,
             region: unsafe { optional_string(self.region) }?,
             access_key_id: unsafe { optional_string(self.access_key_id) }?,

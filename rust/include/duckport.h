@@ -46,6 +46,18 @@ struct DuckportWriteOptions {
 	size_t index_count;
 	size_t writer_count;
 };
+struct DuckportReadMetrics {
+	uint64_t bytes_read;
+	uint64_t rows_read;
+	uint64_t total_bytes;
+	uint64_t progress_bytes;
+	bool total_bytes_known;
+	bool finished;
+};
+struct DuckportWriteMetrics {
+	uint64_t bytes_read;
+	uint64_t bytes_written;
+};
 extern "C" {
 // Common FFI support
 void duckport_source_error_free(char *);
@@ -58,7 +70,8 @@ char *duckport_validate_sample_rows(int64_t value, uint64_t max_rows);
 char *duckport_source_get_schema(const DuckportSource *, ArrowSchema *);
 // Projection names are borrowed for this call; zero columns preserves row counts.
 char *duckport_source_get_stream(const DuckportSource *, const char *const *columns, size_t column_count,
-                                ArrowArrayStream *);
+                                 ArrowArrayStream *);
+char *duckport_source_get_metrics(const DuckportSource *, DuckportReadMetrics *);
 void duckport_source_destroy(DuckportSource *);
 
 // Format-related functions
@@ -78,5 +91,6 @@ char *duckport_parquet_open(const char *path, const ArrowSchema *, const char *m
 // Common sink functions
 char *duckport_sink_write(DuckportSink *, ArrowArray *);
 char *duckport_sink_commit(DuckportSink *);
+char *duckport_sink_get_metrics(const DuckportSink *, DuckportWriteMetrics *);
 void duckport_sink_destroy(DuckportSink *);
 }

@@ -60,7 +60,7 @@ async fn open(
         columns.iter().map(|s| s.to_string()).collect(),
         &StorageConfig::default(),
         WriteOptions::default(),
-        /*writer_count=*/1,
+        /*writer_count=*/ 1,
     )
     .await
 }
@@ -273,4 +273,23 @@ async fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
     })
     .await
     .unwrap();
+}
+
+#[tokio::test]
+async fn io_metrics_include_commit_and_append_metadata() {
+    let temp = tempdir().await;
+    let path = temp.path().join("metrics.lance");
+    let batch = input();
+    let mut writer = open(&path, &batch, "create", &[]).await.unwrap();
+    let metrics = writer.metrics.clone();
+    writer.write(batch.clone()).await.unwrap();
+    writer.commit().await.unwrap();
+    let created = metrics.snapshot();
+    assert!(created.bytes_written > 0);
+    assert_eq!(metrics.snapshot(), created); // snapshot is cumulative, not draining.
+    let mut append = open(&path, &batch, "append", &[]).await.unwrap();
+    assert!(append.metrics.snapshot().bytes_read > 0);
+    append.write(batch).await.unwrap();
+    append.commit().await.unwrap();
+    assert!(append.metrics.snapshot().bytes_written > 0);
 }

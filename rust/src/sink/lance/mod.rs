@@ -20,7 +20,9 @@ pub(crate) async fn open(
     options: WriteOptions,
     writer_count: usize,
 ) -> Result<DuckportSink> {
-    let options = options.with_mode(utils::sink_mode(mode)?);
+    let mut options = options.with_mode(utils::sink_mode(mode)?);
+    let metrics = open_arrow_sink_core::IoMetrics::default();
+    options.io_metrics = Some(metrics.clone().into());
     let paths = columns
         .iter()
         .map(|name| utils::resolve_column_path(&schema, name, "BLOB_COLUMNS"))
@@ -32,6 +34,7 @@ pub(crate) async fn open(
     let sink = LanceDatasetSink::new(destination.storage).layer(DownloadBlobLayer::new(columns));
     let writer = open_writer(sink, destination.url, schema.clone(), options, writer_count).await?;
     Ok(DuckportSink {
+        metrics,
         writer: Some(writer),
         schema,
         output_schema: None,

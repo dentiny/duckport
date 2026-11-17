@@ -1,13 +1,16 @@
 use crate::error::Result;
 use arrow_schema::SchemaRef;
 use open_arrow_access::{
-    Accessor, OuterCompression, PreparedSource, ReadOptions, ReadOptionsProvider, ReadRequest,
-    ReaderFactory, RecordReader, file_accessor, storage::opendal,
+    Accessor, AccessorExt, ByteAccessor, FactoryAccessor, OuterCompression, PreparedSource,
+    ReadOptions, ReadOptionsProvider, ReadRequest, ReaderFactory, RecordReader,
+    decompression::AutoDecompressionLayer,
+    storage::{OpenDalAccessor, opendal},
 };
 
 pub struct DuckportSource {
     source: PreparedSource,
     options: ReadOptions,
+    claimed: std::sync::atomic::AtomicBool,
 }
 
 impl DuckportSource {
@@ -20,6 +23,7 @@ impl DuckportSource {
         Ok(Self {
             source: PreparedSource::prepare(accessor, request).await?,
             options,
+            claimed: std::sync::atomic::AtomicBool::new(false),
         })
     }
 
@@ -42,6 +46,16 @@ impl DuckportSource {
         } else {
             Some(projection)
         };
+        if !self
+            .claimed
+            .swap(true, std::sync::atomic::Ordering::Relaxed)
+            && options.projection.is_some()
+        {
+            // A projected scan cannot reuse the initial unprojected reader.
+            // Release it now so its storage buffers and final IO observations
+            // do not remain held until the prepared statement is destroyed.
+            drop(self.source.scan(self.options.clone()).await?);
+        }
         Ok(self.source.scan(options).await?)
     }
 }
@@ -51,9 +65,16 @@ pub(crate) async fn open_file_source<F>(
     request: ReadRequest,
     format: F,
     compression: OuterCompression,
+    metrics: &crate::metrics::ReadMetrics,
 ) -> Result<DuckportSource>
 where
     F: ReaderFactory<Request = ReadRequest, Reader = dyn RecordReader> + 'static,
 {
-    DuckportSource::new(file_accessor(operator, format, compression), request).await
+    let storage =
+        crate::metrics::ObservedBytes::new(OpenDalAccessor::new(operator), metrics.clone());
+    let storage: std::sync::Arc<dyn ByteAccessor> = match compression {
+        OuterCompression::None => std::sync::Arc::new(storage),
+        OuterCompression::Auto => std::sync::Arc::new(storage.layer(AutoDecompressionLayer::new())),
+    };
+    DuckportSource::new(FactoryAccessor::new(storage, format), request).await
 }

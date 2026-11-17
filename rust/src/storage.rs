@@ -6,7 +6,8 @@ use url::Url;
 pub fn operator(locator: &str, config: &StorageConfig) -> Result<(opendal::Operator, String)> {
     opendal::install_default();
     if is_local(locator) {
-        return create_local_operator(locator);
+        let (operator, path) = create_local_operator(locator)?;
+        return Ok((observe(operator, config), path));
     }
     create_remote_operator(locator, config)
 }
@@ -74,7 +75,7 @@ fn remote_operator(
         }
         opendal::Operator::new(builder)?
     };
-    Ok((operator, path))
+    Ok((observe(operator, config), path))
 }
 
 pub(crate) fn is_local(locator: &str) -> bool {
@@ -115,7 +116,10 @@ pub(crate) fn directory_operator_with_requester_pays(
     crate::validation::validate_requester_pays(locator, config, requester_pays)?;
     opendal::install_default();
     if is_local(locator) {
-        return create_local_directory_operator(&crate::utils::local_path(locator)?);
+        return Ok(observe(
+            create_local_directory_operator(&crate::utils::local_path(locator)?)?,
+            config,
+        ));
     }
     let url = Url::parse(locator)?;
     crate::validation::validate_uri(&url)?;
@@ -145,4 +149,11 @@ pub(crate) fn sink_storage_from_root(
     let root = crate::utils::sanitize_storage_root(root);
     let operator = directory_operator(root.as_str(), config)?;
     Ok(open_arrow_sink_storage::Storage::new(operator, root)?)
+}
+
+pub(crate) fn observe(operator: opendal::Operator, config: &StorageConfig) -> opendal::Operator {
+    config.metrics.observe_storage();
+    operator.layer(open_arrow_access::storage::opendal_metrics_layer(
+        config.metrics.clone(),
+    ))
 }

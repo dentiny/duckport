@@ -54,7 +54,14 @@ pub unsafe extern "C" fn duckport_openstax_open(
             OpenStaxService::with_connections(connection, Connection::new(&archive_endpoint)?)
                 .book(&locator, &revision)
                 .await?;
-        crate::service_files::open(files, file_name, attachment_options, scan_options).await
+        crate::service_files::open(
+            files,
+            file_name,
+            attachment_options,
+            scan_options,
+            storage_options.metrics.clone(),
+        )
+        .await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }

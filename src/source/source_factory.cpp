@@ -1,5 +1,6 @@
 #include "error.hpp"
 #include "source/source_factory.hpp"
+#include "duckdb/main/query_profiler.hpp"
 
 namespace duckdb {
 
@@ -21,4 +22,26 @@ unique_ptr<ArrowArrayStreamWrapper> SourceFactory::ProduceStream(ArrowStreamPara
 	return stream;
 }
 
+namespace {
+uint64_t TakeDelta(std::atomic<uint64_t> &reported, uint64_t current) {
+	auto previous = reported.load(std::memory_order_relaxed);
+	while (current > previous && !reported.compare_exchange_weak(previous, current, std::memory_order_relaxed)) {
+	}
+	return current > previous ? current - previous : 0;
+}
+} // namespace
+DuckportReadMetrics SourceFactory::Snapshot() const {
+	DuckportReadMetrics metrics {};
+	CheckError(duckport_source_get_metrics(source.get(), &metrics));
+	return metrics;
+}
+void SourceFactory::ReportBytes(ClientContext &context) {
+	auto delta = TakeDelta(reported_bytes, Snapshot().bytes_read);
+	if (delta) {
+		QueryProfiler::Get(context).TrackBytesRead(delta);
+	}
+}
+uint64_t SourceFactory::ReportRows(uint64_t rows) {
+	return TakeDelta(reported_rows, rows);
+}
 } // namespace duckdb
