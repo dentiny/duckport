@@ -164,3 +164,70 @@ pub(crate) fn validate_attachment_options(
 ) -> Result<()> {
     Ok(options.validate()?)
 }
+
+pub(crate) fn validate_iceberg_catalog_uri(uri: &Url) -> Result<()> {
+    validate_uri(uri)?;
+    if !matches!(uri.scheme(), "http" | "https") {
+        return Err("CATALOG_URI must use http:// or https://".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_iceberg_identifier(identifier: &[&str]) -> Result<()> {
+    if identifier.len() < 2 || identifier.iter().any(|part| part.is_empty()) {
+        return Err("Iceberg destination must be namespace.table".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_iceberg_storage_root(root: &Url) -> Result<()> {
+    if root.scheme() == "s3" && root.path() != "/" {
+        return Err("Iceberg STORAGE_ROOT must be an S3 bucket root (s3://bucket/)".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_iceberg_table(
+    table: &open_arrow_sink_iceberg::iceberg::table::Table,
+) -> Result<()> {
+    if !table
+        .metadata()
+        .default_partition_spec()
+        .fields()
+        .is_empty()
+    {
+        return Err("Iceberg COPY currently supports unpartitioned tables only".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_iceberg_schema(
+    schema: &arrow_schema::Schema,
+    output_schema: &arrow_schema::Schema,
+) -> Result<()> {
+    if schema.fields().len() != output_schema.fields().len()
+        || schema
+            .fields()
+            .iter()
+            .zip(output_schema.fields())
+            .any(|(input, output)| {
+                input.name() != output.name()
+                    || !input.data_type().equals_datatype(output.data_type())
+            })
+    {
+        return Err(
+            "Iceberg input column names, order and types must match the existing table".into(),
+        );
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_sink_batch_schema(
+    schema: &arrow_schema::Schema,
+    expected: &arrow_schema::Schema,
+) -> Result<()> {
+    if schema != expected {
+        return Err("sink batch schema does not match the opened schema".into());
+    }
+    Ok(())
+}

@@ -16,9 +16,7 @@ impl DuckportSink {
     pub(crate) async fn write(&mut self, batch: RecordBatch) -> Result<()> {
         let writer = validation::required(self.writer.as_mut(), "sink writer is closed")?;
         let result = async {
-            if batch.schema() != self.schema {
-                return Err("sink batch schema does not match the opened schema".into());
-            }
+            validation::validate_sink_batch_schema(&batch.schema(), &self.schema)?;
             let batch = if let Some(schema) = &self.output_schema {
                 let columns = batch
                     .columns()
