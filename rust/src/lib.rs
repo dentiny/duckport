@@ -6,6 +6,7 @@ mod readers;
 mod service_files;
 mod source;
 mod storage;
+mod storage_policy;
 mod utils;
 mod validation;
 

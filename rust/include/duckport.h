@@ -8,6 +8,16 @@ struct DuckportSource;
 struct DuckportSink;
 struct ArrowArray;
 
+// Per-query remote storage policy; copied during open.
+struct DuckportStoragePolicy {
+	uint64_t timeout_ms;
+	uint64_t io_timeout_ms;
+	uint64_t retry_max_times;
+	uint64_t retry_min_delay_ms;
+	uint64_t retry_max_delay_ms;
+	double retry_factor;
+};
+
 // Optional strings are null when unset and borrowed only for the open call.
 struct DuckportStorageOptions {
 	const char *endpoint;
@@ -18,6 +28,7 @@ struct DuckportStorageOptions {
 	const char *token;
 	int32_t virtual_host_style; // 0 or 1
 	int32_t allow_anonymous;    // 0 or 1
+	DuckportStoragePolicy policy;
 };
 struct DuckportScanOptions {
 	// Target rows per Arrow record batch; SQL default: 8192.
@@ -48,6 +59,7 @@ struct DuckportWriteOptions {
 };
 extern "C" {
 // Common FFI support
+DuckportStoragePolicy duckport_default_storage_policy();
 void duckport_source_error_free(char *);
 char *duckport_validate_byte_size(const char *name, int64_t value);
 char *duckport_validate_file_count(int64_t value, bool preserve_order);

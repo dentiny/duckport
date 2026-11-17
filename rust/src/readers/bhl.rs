@@ -36,14 +36,18 @@ pub unsafe extern "C" fn duckport_bhl_open(
         let endpoint = unsafe { optional_string(reader_options.endpoint) }?
             .unwrap_or_else(|| "https://www.biodiversitylibrary.org".into());
         let attachment_options = crate::utils::attachment_options(&format, record_path.as_deref())?;
-        let connection = Connection::new(&endpoint)?;
+        let connection =
+            Connection::new(&endpoint)?.with_http_config(storage_options.policy.config()?)?;
         let token = crate::validation::nonempty(
             storage_options.token,
             "a scoped HTTP bearer_token secret is required for this service",
         )?;
         let files = BhlService::with_services(
             connection,
-            open_arrow_access::service::figshare::FigshareService::new()?,
+            open_arrow_access::service::figshare::FigshareService::with_connection(
+                Connection::new("https://api.figshare.com")?
+                    .with_http_config(storage_options.policy.config()?)?,
+            ),
         )
         .with_key(&token)?
         .item(locator.parse()?)

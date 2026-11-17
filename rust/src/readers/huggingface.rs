@@ -61,7 +61,9 @@ pub unsafe extern "C" fn duckport_huggingface_open(
         if let Some(token) = storage_options.token {
             settings = settings.with_token(token);
         }
-        let service = HuggingFaceService::new(settings).await?;
+        let service = HuggingFaceService::new(settings)
+            .await?
+            .with_http_config(storage_options.policy.config()?)?;
         AsyncSource::new(service, request.with_options(scan_options)).await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }

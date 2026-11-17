@@ -1,6 +1,9 @@
-use crate::{error::Result, options::StorageConfig};
+use crate::{error::Result, options::StorageConfig, storage_policy::DuckportStoragePolicy};
 use open_arrow_sink_core::{CompressionSpec, IndexSpec};
-use std::collections::HashSet;
+use std::{
+    collections::HashSet,
+    time::{Duration, Instant},
+};
 use url::Url;
 
 pub(crate) fn validate_uri(url: &Url) -> Result<()> {
@@ -10,6 +13,39 @@ pub(crate) fn validate_uri(url: &Url) -> Result<()> {
         || url.password().is_some()
     {
         return Err("URI queries, fragments, and embedded credentials are unsupported".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_storage_policy(policy: &DuckportStoragePolicy) -> Result<()> {
+    for (name, value) in [
+        ("timeout_ms", policy.timeout_ms),
+        ("io_timeout_ms", policy.io_timeout_ms),
+        ("retry_min_delay_ms", policy.retry_min_delay_ms),
+        ("retry_max_delay_ms", policy.retry_max_delay_ms),
+    ] {
+        if value == 0 {
+            return Err(format!("conversion_storage_{name} must be positive").into());
+        }
+        if Instant::now()
+            .checked_add(Duration::from_millis(value))
+            .is_none()
+        {
+            return Err(format!("conversion_storage_{name} is too large").into());
+        }
+    }
+    if policy.retry_max_delay_ms < policy.retry_min_delay_ms {
+        return Err(
+            "conversion_storage_retry_max_delay_ms must be at least retry_min_delay_ms".into(),
+        );
+    }
+    if !policy.retry_factor.is_finite()
+        || policy.retry_factor < 1.0
+        || policy.retry_factor > f32::MAX as f64
+    {
+        return Err(
+            "conversion_storage_retry_factor must be finite and between 1 and f32::MAX".into(),
+        );
     }
     Ok(())
 }

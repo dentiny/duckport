@@ -1,6 +1,7 @@
 #define DUCKDB_EXTENSION_MAIN
 #include "duckport_extension.hpp"
 #include "sink/copy.hpp"
+#include "storage_options.hpp"
 #include "readers/commoncrawl.h"
 #include "readers/json.h"
 #include "readers/warc.h"
@@ -34,6 +35,7 @@
 namespace duckdb {
 namespace {
 void LoadInternal(ExtensionLoader &loader) {
+	RegisterStorageSettings(loader);
 	RegisterCopyFunctions(loader);
 	RegisterReader(loader, "duckport_scan_oapen", OpenOapen, [](TypedKwargs &options) {
 		options.Add("endpoint", LogicalType::VARCHAR);
