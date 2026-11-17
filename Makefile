@@ -16,3 +16,15 @@ toml-format:
 
 toml-format-check:
 	taplo fmt --check
+
+DUCKPORT_TEST_WRITER ?= build/release/duckdb
+DUCKPORT_TEST_EXTENSION ?= build/release/extension/duckport/duckport.duckdb_extension
+DUCKPORT_TEST_READER ?= duckdb
+
+.PHONY: test-iceberg
+
+test-iceberg:
+	python3 test/integration/iceberg_roundtrip.py \
+		--writer "$(DUCKPORT_TEST_WRITER)" \
+		--duckport-extension "$(DUCKPORT_TEST_EXTENSION)" \
+		--reader "$(DUCKPORT_TEST_READER)"

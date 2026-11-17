@@ -34,3 +34,31 @@ version pinned by the DuckDB checkout alongside the native fixture extension.
 Lance writer tests build the upstream [Lance reader](https://github.com/lance-format/lance-duckdb)
 at the revision pinned in `extension_config.cmake`, only with `BUILD_UNITTESTS`.
 They restart and load that reader to check written rows and downloaded blob bytes.
+
+The Iceberg COPY round-trip test uses a local REST catalog fixture and verifies
+committed table contents with DuckDB's independent Iceberg extension in a separate
+reader process. It checks the initial COPY, APPEND, NULLs, Unicode and empty
+strings, empty input, schema mismatch, and visibility after a failed catalog
+commit. Python's standard library is sufficient; no external catalog is needed.
+
+Install Iceberg once for the reader CLI, then run after building DuckPort:
+
+```sh
+duckdb -c 'INSTALL iceberg;'
+make test-iceberg
+```
+
+The reader CLI and its Iceberg extension must match each other; they can use a
+different DuckDB version from the writer. Override the binaries and writer
+extension when using another build directory:
+
+```sh
+make test-iceberg \
+  DUCKPORT_TEST_WRITER=/path/to/duckdb \
+  DUCKPORT_TEST_EXTENSION=/path/to/duckport.duckdb_extension \
+  DUCKPORT_TEST_READER=/path/to/reader-duckdb
+```
+
+For an explicitly built Iceberg extension, run
+`python3 test/integration/iceberg_roundtrip.py --help` and use
+`--iceberg-extension /path/to/iceberg.duckdb_extension` with its matching reader.
