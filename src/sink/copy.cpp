@@ -246,6 +246,24 @@ bool ParseIndexOption(const Identifier &name, const vector<Value> &values, SinkW
 	return true;
 }
 
+int64_t ParseFileCount(const vector<Value> &values) {
+	if (values.size() != 1 || values[0].IsNull() || !values[0].type().IsIntegral()) {
+		throw BinderException("FILE_COUNT requires one integer");
+	}
+	auto value = values[0].DefaultTryCastAs(LogicalType::BIGINT);
+	if (!value) {
+		throw BinderException("FILE_COUNT requires an integer that fits in BIGINT");
+	}
+	return value->GetValue<int64_t>();
+}
+
+bool ParsePreserveOrder(ClientContext &context, const vector<Value> &values) {
+	if (values.size() > 1 || (!values.empty() && values[0].IsNull())) {
+		throw BinderException("PRESERVE_ORDER requires a boolean");
+	}
+	return values.empty() || values[0].CastAs(context, LogicalType::BOOLEAN).GetValue<bool>();
+}
+
 unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput &input, const vector<Identifier> &names,
                                   const vector<LogicalType> &types) {
 	CheckWriteAccess(context);
@@ -276,22 +294,11 @@ unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput 
 			continue;
 		}
 		if (entry.first == "file_count") {
-			if (entry.second.size() != 1 || entry.second[0].IsNull() || !entry.second[0].type().IsIntegral()) {
-				throw BinderException("FILE_COUNT requires one integer");
-			}
-			auto value = entry.second[0].DefaultTryCastAs(LogicalType::BIGINT);
-			if (!value) {
-				throw BinderException("FILE_COUNT requires an integer that fits in BIGINT");
-			}
-			result->options.file_count = value->GetValue<int64_t>();
+			result->options.file_count = ParseFileCount(entry.second);
 			continue;
 		}
 		if (entry.first == "preserve_order") {
-			if (entry.second.size() > 1 || (!entry.second.empty() && entry.second[0].IsNull())) {
-				throw BinderException("PRESERVE_ORDER requires a boolean");
-			}
-			result->options.preserve_order =
-			    entry.second.empty() || entry.second[0].CastAs(context, LogicalType::BOOLEAN).GetValue<bool>();
+			result->options.preserve_order = ParsePreserveOrder(context, entry.second);
 			continue;
 		}
 		if (entry.first != "append" && entry.first != "overwrite") {
