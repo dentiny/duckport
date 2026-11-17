@@ -186,34 +186,3 @@ impl MediaResolver {
         ))
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn resolves_media_relative_to_document() {
-        assert_eq!(
-            resolve_uri("/runs/a/t.json", "image 1.png").unwrap(),
-            "file:///runs/a/image%201.png"
-        );
-        assert_eq!(
-            resolve_uri("https://example.com/run/t.json", "../image.png").unwrap(),
-            "https://example.com/image.png"
-        );
-        assert_eq!(
-            resolve_uri("s3://bucket/run/t.json.gz", "a.png").unwrap(),
-            "s3://bucket/run/a.png"
-        );
-        for reference in [
-            "file:///etc/passwd",
-            "s3://other/image.png",
-            "https://other/image.png",
-        ] {
-            assert!(resolve_uri("s3://bucket/run/t.json", reference).is_err());
-        }
-        assert_eq!(
-            resolve_uri("/runs/t.json", "data:image/png;base64,AP8=").unwrap(),
-            "data:image/png;base64,AP8="
-        );
-    }
-}

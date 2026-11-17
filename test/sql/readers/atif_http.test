@@ -1,0 +1,64 @@
+# name: test/sql/readers/atif_http.test
+# description: Remote ATIF normalizes relative media, defers authenticated downloads and rejects origin changes
+# group: [sql]
+
+require duckport
+
+require duckport_test_fixture
+
+statement ok
+SET VARIABLE atif_endpoint = duckport_fixture('atif', 'start_authenticated');
+
+statement ok
+SET VARIABLE atif_scope = duckport_fixture('atif', 'scope');
+
+statement ok
+CREATE SECRET atif_http IN connection (TYPE http, BEARER_TOKEN 'fixture-key', SCOPE getvariable('atif_scope'));
+
+statement ok
+CREATE TABLE remote_atif AS SELECT * FROM duckport_scan_atif(getvariable('atif_endpoint') || '/runs/trajectory_media.json');
+
+query II
+SELECT steps[1].message[2].source.path = getvariable('atif_endpoint') || '/runs/atif-image.png',
+       steps[1].message[3].source.path = getvariable('atif_endpoint') || '/runs/atif-audio.wav'
+FROM remote_atif;
+----
+true	true
+
+query I
+SELECT count(*) FROM duckport_fixture_requests('atif') WHERE target LIKE '%.png%' OR target LIKE '%.wav%';
+----
+0
+
+foreach bad local origin scheme
+
+statement error
+SELECT steps FROM duckport_scan_atif(getvariable('atif_endpoint') || '/runs/bad_${bad}_media.json');
+----
+ATIF remote media must use the trajectory's storage origin
+
+endloop
+
+statement ok
+COPY remote_atif TO '{TEST_DIR}/remote.lance' (FORMAT duckport_lance);
+
+query II
+SELECT count(*) > 0, bool_and(authorization = 'Bearer fixture-key')
+FROM duckport_fixture_requests('atif') WHERE target LIKE '%.png%' OR target LIKE '%.wav%';
+----
+true	true
+
+statement ok
+SELECT duckport_fixture('atif', 'stop');
+
+restart no_extension_load
+
+statement ok
+LOAD '{BUILD_DIRECTORY}/extension/lance/lance.duckdb_extension';
+
+query II
+SELECT steps[1].message[2].source.path = (SELECT content FROM read_blob('testdata/atif/atif-image.png')),
+       steps[1].message[3].source.path = (SELECT content FROM read_blob('testdata/atif/atif-audio.wav'))
+FROM '{TEST_DIR}/remote.lance';
+----
+true	true

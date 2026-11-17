@@ -22,6 +22,7 @@
 #include <thread>
 
 namespace duckdb {
+void RegisterFileAndBlobFixtures(ExtensionLoader &loader);
 namespace {
 using namespace duckdb_yyjson;
 
@@ -407,6 +408,7 @@ void RequestsScan(ClientContext &, TableFunctionInput &input, DataChunk &output)
 
 void LoadInternal(ExtensionLoader &loader) {
 	RegisterIcebergFixture(loader);
+	RegisterFileAndBlobFixtures(loader);
 	ScalarFunction command(
 	    "duckport_fixture", {LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::VARCHAR,
 	    [](DataChunk &args, ExpressionState &, Vector &result) {

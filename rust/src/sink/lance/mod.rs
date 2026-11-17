@@ -12,32 +12,6 @@ use std::sync::Arc;
 mod atif;
 mod download;
 mod ffi;
-#[cfg(test)]
-mod tests;
-
-#[cfg(test)]
-pub(crate) async fn open(
-    path: &str,
-    schema: SchemaRef,
-    mode: &str,
-    columns: HashSet<String>,
-    config: &StorageConfig,
-    options: WriteOptions,
-    writer_count: usize,
-) -> Result<DuckportSink> {
-    open_with_sources(
-        path,
-        schema,
-        mode,
-        columns,
-        config,
-        options,
-        writer_count,
-        Vec::new(),
-    )
-    .await
-}
-
 #[allow(clippy::too_many_arguments)]
 async fn open_with_sources(
     path: &str,

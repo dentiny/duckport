@@ -6,3 +6,7 @@ Copied from open-arrow-access's MIT-licensed ATIF fixtures. `trajectory.json` co
 `dentiny/duckdb_lance_conversion`'s MIT-licensed media fixtures. They exercise
 message and observation image/audio content, Unicode and storage metadata.
 `trajectory_media.jsonl.gz` contains two copies compressed with gzip.
+
+`http.json` serves authenticated trajectories/media through the native loopback
+fixture. `bad_*_media.json` cover forbidden local-file, cross-origin and
+cross-scheme references in remote trajectories.

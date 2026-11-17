@@ -1,0 +1,30 @@
+{
+  "routes": [
+    {
+      "path": "/runs/trajectory_media.json",
+      "file": "trajectory_media.json"
+    },
+    {
+      "path": "/runs/atif-image.png",
+      "file": "atif-image.png"
+    },
+    {
+      "path": "/runs/atif-audio.wav",
+      "file": "atif-audio.wav"
+    },
+    {
+      "path": "/runs/bad_local_media.json",
+      "file": "bad_local_media.json"
+    },
+    {
+      "path": "/runs/bad_origin_media.json",
+      "file": "bad_origin_media.json"
+    },
+    {
+      "path": "/runs/bad_scheme_media.json",
+      "file": "bad_scheme_media.json"
+    }
+  ],
+  "auth": "authorization",
+  "auth_scope": "/runs/"
+}

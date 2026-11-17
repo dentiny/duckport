@@ -47,6 +47,3 @@ pub(crate) async fn open(
     };
     Ok(source.with_atif(MediaResolver { document }))
 }
-
-#[cfg(test)]
-mod tests;

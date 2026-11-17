@@ -82,7 +82,3 @@ pub(crate) async fn open_catalog(
 }
 
 mod ffi;
-#[cfg(test)]
-mod test_utils;
-#[cfg(test)]
-mod tests;

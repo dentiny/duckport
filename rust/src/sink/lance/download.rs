@@ -79,21 +79,3 @@ fn decode_data_uri(uri: &str, limit: usize) -> Result<Vec<u8>> {
         Ok(bytes)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn data_uris_obey_download_limits() {
-        assert_eq!(
-            decode_data_uri("data:image/png;base64,AP8%3D", 2).unwrap(),
-            [0, 255]
-        );
-        assert_eq!(
-            decode_data_uri("data:audio/wav,%00%ff", 2).unwrap(),
-            [0, 255]
-        );
-        assert!(decode_data_uri("data:image/png;base64,AP8=", 1).is_err());
-        assert!(decode_data_uri("data:image/png;base64,????", 3).is_err());
-    }
-}

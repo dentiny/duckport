@@ -48,3 +48,10 @@ After building, run:
 ```sh
 make test T='test/sql/writers/iceberg_roundtrip.test'
 ```
+
+All extension assertions live in SQLLogicTests; there are no Rust unit tests.
+The fixture-only Rust `test-fixtures` feature exposes read-only native Lance
+Blob descriptor/field-metadata diagnostics to `duckport_test_fixture`. SQL checks
+actual inline/packed/dedicated kinds; an independent Lance reader checks payloads.
+The fixture also creates/removes temporary input files for source-deletion checks.
+Production builds with `DUCKPORT_BUILD_TEST_FIXTURES=OFF` exclude these diagnostics.
