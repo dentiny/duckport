@@ -46,9 +46,9 @@ struct CopyBindData : FunctionData {
 		auto &bind = other.Cast<CopyBindData>();
 		return types == bind.types && names == bind.names && path == bind.path && options.mode == bind.options.mode &&
 		       options.blob_columns == bind.options.blob_columns &&
-		       options.write.blob_inline_size_threshold == bind.options.write.blob_inline_size_threshold &&
-		       options.write.blob_dedicated_size_threshold == bind.options.write.blob_dedicated_size_threshold &&
-		       options.write.target_file_size == bind.options.write.target_file_size &&
+		       options.write_options.blob_inline_size_threshold == bind.options.write_options.blob_inline_size_threshold &&
+		       options.write_options.blob_dedicated_size_threshold == bind.options.write_options.blob_dedicated_size_threshold &&
+		       options.write_options.target_file_size == bind.options.write_options.target_file_size &&
 		       options.catalog_uri == bind.options.catalog_uri && options.warehouse == bind.options.warehouse &&
 		       options.storage_root == bind.options.storage_root && info == bind.info;
 	}
@@ -157,7 +157,7 @@ unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput 
 	result->info = input.function_info;
 	bool has_mode = false;
 	for (auto &entry : input.info.options) {
-		if (ParseSizeOption(entry.first, entry.second, result->options.write)) {
+		if (ParseSizeOption(entry.first, entry.second, result->options.write_options)) {
 			continue;
 		}
 		if (ParseTextOption(entry.first, entry.second, result->options)) {
