@@ -3,6 +3,13 @@ use crate::error::Result;
 use open_arrow_access::storage::{RetryConfig, StorageConfig, TimeoutConfig};
 use std::time::{Duration, Instant};
 
+const DEFAULT_STORAGE_TIMEOUT_MS: u64 = 30_000;
+const DEFAULT_STORAGE_IO_TIMEOUT_MS: u64 = 30_000;
+const DEFAULT_STORAGE_RETRY_MAX_TIMES: u64 = 5;
+const DEFAULT_STORAGE_RETRY_MIN_DELAY_MS: u64 = 500;
+const DEFAULT_STORAGE_RETRY_MAX_DELAY_MS: u64 = 10_000;
+const DEFAULT_STORAGE_RETRY_FACTOR: f64 = 2.0;
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct DuckportStoragePolicy {
@@ -17,12 +24,12 @@ pub struct DuckportStoragePolicy {
 impl Default for DuckportStoragePolicy {
     fn default() -> Self {
         Self {
-            timeout_ms: 30_000,
-            io_timeout_ms: 30_000,
-            retry_max_times: 5,
-            retry_min_delay_ms: 500,
-            retry_max_delay_ms: 10_000,
-            retry_factor: 2.0,
+            timeout_ms: DEFAULT_STORAGE_TIMEOUT_MS,
+            io_timeout_ms: DEFAULT_STORAGE_IO_TIMEOUT_MS,
+            retry_max_times: DEFAULT_STORAGE_RETRY_MAX_TIMES,
+            retry_min_delay_ms: DEFAULT_STORAGE_RETRY_MIN_DELAY_MS,
+            retry_max_delay_ms: DEFAULT_STORAGE_RETRY_MAX_DELAY_MS,
+            retry_factor: DEFAULT_STORAGE_RETRY_FACTOR,
         }
     }
 }
