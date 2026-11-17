@@ -33,8 +33,8 @@ expected ATIF-v1.0 through ATIF-v1.8
 
 query TIII
 SELECT decode(steps[1].message[1].text),
-       steps[1].message[2].source.path = (SELECT content FROM read_blob('testdata/atif/atif-image.png')),
-       steps[1].message[3].source.path = (SELECT content FROM read_blob('testdata/atif/atif-audio.wav')),
+       steps[1].message[2].source.path = 'file://{WORKING_DIRECTORY}/testdata/atif/atif-image.png',
+       steps[1].message[3].source.path = 'file://{WORKING_DIRECTORY}/testdata/atif/atif-audio.wav',
        steps[2].observation.results[1].content[2].source.path = steps[1].message[2].source.path
 FROM duckport_scan_atif('testdata/atif/trajectory_media.json');
 ----

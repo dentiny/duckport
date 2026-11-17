@@ -26,8 +26,8 @@ impl DuckportSource {
     }
 
     pub fn schema(&self) -> SchemaRef {
-        if self.media.is_some() {
-            crate::readers::atif::embedded_schema(&self.source.schema())
+        if let Some(resolver) = &self.media {
+            resolver.schema(&self.source.schema())
         } else {
             self.source.schema()
         }

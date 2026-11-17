@@ -36,19 +36,23 @@ fn message(batch: &RecordBatch) -> StructArray {
 }
 
 #[tokio::test]
-async fn embeds_local_media_and_preserves_raw_json_and_variants() {
+async fn normalizes_local_uris_and_preserves_raw_json_and_variants() {
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/atif");
     let batches = read(&fixtures.join("trajectory_media.json")).await.unwrap();
     let batch = &batches[0];
     let parts = message(batch);
-    let paths = &parts["source"].as_struct()["path"].as_binary::<i64>();
+    let paths = &parts["source"].as_struct()["path"].as_string::<i32>();
     assert_eq!(
         paths.value(1),
-        std::fs::read(fixtures.join("atif-image.png")).unwrap()
+        url::Url::from_file_path(fixtures.join("atif-image.png"))
+            .unwrap()
+            .as_str()
     );
     assert_eq!(
         paths.value(2),
-        std::fs::read(fixtures.join("atif-audio.wav")).unwrap()
+        url::Url::from_file_path(fixtures.join("atif-audio.wav"))
+            .unwrap()
+            .as_str()
     );
     assert_eq!(
         parts["text"].as_binary::<i64>().value(0),
@@ -63,7 +67,7 @@ async fn embeds_local_media_and_preserves_raw_json_and_variants() {
     let content = results.as_struct()["content"].as_list::<i32>().value(0);
     assert_eq!(
         content.as_struct()["source"].as_struct()["path"]
-            .as_binary::<i64>()
+            .as_string::<i32>()
             .value(1),
         paths.value(1)
     );
@@ -74,7 +78,7 @@ async fn embeds_local_media_and_preserves_raw_json_and_variants() {
 }
 
 #[tokio::test]
-async fn embeds_jsonl_data_uris_and_reports_missing_media() {
+async fn preserves_data_uris_and_defers_missing_media_to_copy() {
     let temp = tempfile::tempdir().unwrap();
     let doc = std::fs::read_to_string(
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/atif/trajectory_media.json"),
@@ -89,21 +93,21 @@ async fn embeds_jsonl_data_uris_and_reports_missing_media() {
     assert_eq!(batches.iter().map(RecordBatch::num_rows).sum::<usize>(), 2);
     assert_eq!(
         message(&batches[0])["source"].as_struct()["path"]
-            .as_binary::<i64>()
+            .as_string::<i32>()
             .value(1),
-        [0, 255]
+        "data:image/png;base64,AP8="
     );
     std::fs::write(
         &path,
         doc.replace("data:image/png;base64,AP8=", "missing.png"),
     )
     .unwrap();
+    let batches = read(&path).await.unwrap();
     assert!(
-        read(&path)
-            .await
-            .unwrap_err()
-            .to_string()
-            .contains("ATIF media missing.png")
+        message(&batches[0])["source"].as_struct()["path"]
+            .as_string::<i32>()
+            .value(1)
+            .ends_with("/missing.png")
     );
 }
 
@@ -113,13 +117,15 @@ async fn gzip_resolves_local_media_relative_to_compressed_document() {
     let batches = read(&fixtures.join("trajectory_media.jsonl.gz"))
         .await
         .unwrap();
-    assert_eq!(batches.len(), 2);
+    assert_eq!(batches.iter().map(RecordBatch::num_rows).sum::<usize>(), 2);
     for batch in batches {
         assert_eq!(
             message(&batch)["source"].as_struct()["path"]
-                .as_binary::<i64>()
+                .as_string::<i32>()
                 .value(1),
-            std::fs::read(fixtures.join("atif-image.png")).unwrap()
+            url::Url::from_file_path(fixtures.join("atif-image.png"))
+                .unwrap()
+                .as_str()
         );
     }
 }
@@ -152,14 +158,8 @@ async fn projections_skip_missing_media_and_keep_zero_column_row_counts() {
         assert!(reader.next().await.unwrap().is_none());
     }
     let mut reader = source.reader(vec!["steps".into()]).await.unwrap();
-    assert!(
-        reader
-            .next()
-            .await
-            .unwrap_err()
-            .to_string()
-            .contains("atif-image.png")
-    );
-    // The library stream adapter makes errors terminal and releases its input.
+    let batch = reader.next().await.unwrap().unwrap();
+    assert_eq!(batch.num_rows(), 2);
+    // Reading steps still only resolves URIs; absent media is a COPY-time error.
     assert!(reader.next().await.unwrap().is_none());
 }

@@ -339,6 +339,16 @@ unique_ptr<GlobalFunctionData> InitCopy(ClientContext &context, FunctionData &da
 	}
 	StorageParameters storage(context, bind.options.storage_root.empty() ? path : bind.options.storage_root, {});
 	auto options = bind.options;
+	const auto documents = SourceMediaDocuments(schema.arrow_schema);
+	vector<unique_ptr<StorageParameters>> source_storage;
+	for (const auto &document : documents) {
+		if (!StringUtil::StartsWith(document, "s3://") && !StringUtil::StartsWith(document, "http://") &&
+		    !StringUtil::StartsWith(document, "https://")) {
+			continue;
+		}
+		source_storage.push_back(make_uniq<StorageParameters>(context, document, string()));
+		options.blob_sources.push_back(DuckportBlobSource {document.c_str(), source_storage.back()->config});
+	}
 	options.write_options.writer_count = options.file_count.value_or(
 	    options.preserve_order ? 1 : TaskScheduler::GetScheduler(context).NumberOfThreads());
 	state->writer = bind.info->Cast<WriterInfo>().open(path, storage.config, options, schema.arrow_schema);

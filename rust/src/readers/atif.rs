@@ -6,9 +6,9 @@ use crate::{
     options::{DuckportScanOptions, DuckportStorageOptions},
     storage,
 };
-pub(crate) use media::{MediaResolver, embedded_schema};
+pub(crate) use media::MediaResolver;
 use open_arrow_access::{OuterCompression, ReadRequest, file_format::atif::AtifFormat};
-use policy::{ContentType, SOURCE_TYPE, STORAGE_POLICY, StoragePolicy};
+use policy::{SOURCE_TYPE, STORAGE_POLICY, StoragePolicy};
 use std::ffi::c_char;
 
 /// # Safety
@@ -28,16 +28,8 @@ pub unsafe extern "C" fn duckport_atif_open(
 pub(crate) async fn open(
     locator: &str,
     storage_options: crate::options::StorageConfig,
-    mut scan_options: open_arrow_access::ReadOptions,
+    scan_options: open_arrow_access::ReadOptions,
 ) -> crate::error::Result<crate::source::DuckportSource> {
-    // A trajectory can embed many MB of media; keep materialization row-bounded.
-    if scan_options
-        .projection
-        .as_ref()
-        .is_none_or(|p| p.iter().any(|c| c == "steps"))
-    {
-        scan_options = scan_options.with_batch_size(std::num::NonZeroUsize::MIN);
-    }
     let (operator, path) = storage::operator(locator, &storage_options)?;
     let source = open_file_source(
         operator,
@@ -53,10 +45,7 @@ pub(crate) async fn open(
     } else {
         locator.to_owned()
     };
-    Ok(source.with_atif(MediaResolver {
-        document,
-        config: storage_options,
-    }))
+    Ok(source.with_atif(MediaResolver { document }))
 }
 
 #[cfg(test)]

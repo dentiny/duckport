@@ -1,14 +1,7 @@
-//! ATIF content variants and field-level storage metadata are separate concepts.
+//! ATIF field storage hints, independent of each content part variant.
 
 pub(crate) const SOURCE_TYPE: &str = "duckport:source_type";
 pub(crate) const STORAGE_POLICY: &str = "duckport:storage_policy";
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ContentType {
-    Text,
-    Image,
-    Audio,
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum StoragePolicy {

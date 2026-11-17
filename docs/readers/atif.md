@@ -7,19 +7,16 @@ SELECT * FROM duckport_scan_atif('testdata/atif/trajectories.jsonl', batch_size 
 
 Reads ATIF trajectories with the library's fixed schema. JSON objects are framed automatically from their contents, accepting pretty-printed JSON and JSONL without inspecting filenames or selecting a layout.
 
-See [shared settings](../../README.md#read) and [test instructions](../../test/README.md).
+Image/audio `source.path` values in messages and observation results are normalized
+to absolute URI strings. Local references become percent-encoded `file://` URIs;
+HTTP(S) and S3 references resolve against the trajectory's directory. `data:` URIs
+are retained. Remote media references must stay on the document's storage origin
+(scheme, host and port / S3 bucket). Subagent trajectories remain raw JSON.
 
-Image and audio references in `steps.message` and `steps.observation.results.content`
-are embedded automatically: `source.path` contains the media bytes as `BLOB`, while
-`type`, `media_type`, duration, text bytes and `raw_json` retain their original meaning.
-Subagent trajectories remain raw JSON and are not traversed for media.
-
-Relative media paths resolve against the trajectory's directory, including JSONL
-and compressed input. Local paths, `file://`, HTTP(S), S3 and base64 or
-percent-encoded `data:` references are supported. Remote media must stay on the
-trajectory's storage origin (same scheme, host and port / S3 bucket); the reader
-uses the trajectory's storage credentials. Missing media and malformed data URIs
-fail the scan with the media reference in the error.
+Scanning does not download, open or decode media. Missing files and malformed data
+URI payloads therefore do not fail a scan. Content types, media attributes, text
+bytes and `raw_json` retain their original meaning. Projection pushdown, empty
+projections (`COUNT(*)`) and the normal `batch_size` target are preserved.
 
 ```sql
 COPY (
@@ -27,15 +24,20 @@ COPY (
 ) TO 'trajectory.lance' (FORMAT duckport_lance);
 ```
 
-No `BLOB_COLUMNS` is needed for embedded media. ATIF field metadata survives
-DuckDB tables, projections and renaming: the Lance writer stores marked media as
-managed Blob v2 fields and text as large binary with lz4 compression by default.
-Explicit `COLUMN_COMPRESSION` settings override the text compression default.
-These defaults apply only to tagged ATIF fields, not arbitrary binary columns.
-When `steps` is read, each Arrow batch contains one trajectory to bound media
-buffering; `batch_size` is a target rather than a minimum.
+COPY automatically selects tagged media URI fields for the sink's
+`DownloadBlobLayer`; no `BLOB_COLUMNS` is required for ATIF media. The Lance backend
+owns downloading, bounded payload buffers, concurrency and managed Blob v2
+storage. A small downloader adapter handles `data:` URIs and explicitly configured
+source stores; other downloads use the sink library's default OpenDAL downloader.
+Missing media and invalid data URI payloads fail COPY rather than SELECT.
 
-Projection pushdown is preserved: queries excluding `steps`, including `COUNT(*)`,
-do not read referenced media. Media transformation uses open-arrow-access's
-source-aware record stream adapter, retaining ordering/capabilities and releasing
-the input on EOF or errors without prefetching media.
+ATIF storage metadata survives DuckDB tables, projection and renaming. Tagged text
+uses large binary/lz4 by default; explicit `COLUMN_COMPRESSION` settings override
+that default. These policies apply only to tagged fields. COPY resolves the
+trajectory's HTTP/S3 source secrets independently of destination credentials;
+credential values are never stored in field metadata. Secrets are looked up again
+at COPY time, including after storing URI rows in a DuckDB table. Automatic secret registration follows the remote trajectory's document scope.
+Absolute remote references from local documents use the sink library's default
+source resolution.
+
+See [shared settings](../../README.md#read) and [test instructions](../../test/README.md).

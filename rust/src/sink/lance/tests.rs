@@ -193,6 +193,8 @@ async fn ffi_ingests_urls_and_preserves_ownership_and_metadata() {
                 1,
                 &DuckportWriteOptions::default(),
                 &DuckportStorageOptions::default(),
+                ptr::null(),
+                0,
                 &mut writer,
             ))
             .unwrap();
@@ -244,6 +246,8 @@ async fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
                     0,
                     &DuckportWriteOptions::default(),
                     &options,
+                    ptr::null(),
+                    0,
                     &mut output
                 ))
                 .is_err()
@@ -258,6 +262,8 @@ async fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
                     1,
                     &DuckportWriteOptions::default(),
                     &options,
+                    ptr::null(),
+                    0,
                     &mut output
                 ))
                 .is_err()
@@ -382,4 +388,61 @@ fn arrow_select_for_test(batch: &RecordBatch) -> RecordBatch {
     RecordBatch::try_new(batch.schema(), columns)
         .unwrap()
         .slice(1, 1)
+}
+
+#[tokio::test]
+async fn atif_downloads_data_uris_and_rejects_missing_files_only_on_copy() {
+    let temp = tempdir().await;
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/atif");
+    let document = std::fs::read_to_string(fixtures.join("trajectory_media.json")).unwrap();
+    for (name, reference, succeeds) in [
+        ("inline", "data:image/png;base64,AP8=", true),
+        ("missing", "missing.png", false),
+    ] {
+        let path = temp.path().join(format!("{name}.json"));
+        std::fs::write(
+            &path,
+            document
+                .replace("atif-image.png", reference)
+                .replace("atif-audio.wav", "data:audio/wav,%00%ff"),
+        )
+        .unwrap();
+        let source = crate::readers::atif::open(
+            path.to_str().unwrap(),
+            StorageConfig::default(),
+            Default::default(),
+        )
+        .await
+        .unwrap();
+        let mut reader = source
+            .reader(
+                source
+                    .schema()
+                    .fields()
+                    .iter()
+                    .map(|f| f.name().clone())
+                    .collect(),
+            )
+            .await
+            .unwrap();
+        // Even missing payloads are valid URI rows at scan time.
+        let batch = reader.next().await.unwrap().unwrap();
+        let output = temp.path().join(format!("{name}.lance"));
+        let mut writer = open(&output, &batch, "create", &[]).await.unwrap();
+        let result = writer.write(batch).await;
+        if succeeds {
+            result.unwrap();
+            writer.commit().await.unwrap();
+            let batch = read(&output).await.unwrap();
+            let steps = batch["steps"].as_list::<i32>().value(0);
+            let parts = steps.as_struct()["message"].as_list::<i32>().value(0);
+            let paths = parts.as_struct()["source"].as_struct()["path"].as_binary::<i64>();
+            assert_eq!(paths.value(1), [0, 255]);
+            assert_eq!(paths.value(2), [0, 255]);
+        } else {
+            assert!(result.is_err());
+            assert!(writer.writer.is_none());
+            assert!(!output.join("_latest.manifest").exists());
+        }
+    }
 }

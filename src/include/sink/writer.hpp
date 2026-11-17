@@ -38,6 +38,8 @@ struct SinkWriteOptions {
 	bool preserve_order = false;
 	optional<int64_t> file_count;
 	vector<string> blob_columns;
+	// Borrowed only during writer open; resolved using each media document scope.
+	vector<DuckportBlobSource> blob_sources;
 	DuckportWriteOptions write_options {
 	    .blob_inline_size_threshold = -1,
 	    .blob_dedicated_size_threshold = -1,

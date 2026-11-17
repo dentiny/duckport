@@ -5,6 +5,12 @@ use crate::{error::call, ffi::common::RUNTIME, utils, utils::string, validation}
 use arrow_schema::{Schema, ffi::FFI_ArrowSchema};
 use std::{ffi::c_char, ptr, sync::Arc};
 
+#[repr(C)]
+pub struct DuckportBlobSource {
+    pub document: *const c_char,
+    pub storage: crate::options::DuckportStorageOptions,
+}
+
 /// # Safety
 /// Strings are NUL-terminated UTF-8; schema and storage are live and borrowed.
 /// Columns points to column_count readable string pointers (or is null for zero columns).
@@ -19,6 +25,8 @@ pub unsafe extern "C" fn duckport_lance_open(
     column_count: usize,
     options: *const DuckportWriteOptions,
     storage: *const crate::options::DuckportStorageOptions,
+    sources: *const DuckportBlobSource,
+    source_count: usize,
     output: *mut *mut DuckportSink,
 ) -> *mut c_char {
     call(|| unsafe {
@@ -34,7 +42,11 @@ pub unsafe extern "C" fn duckport_lance_open(
             .collect::<crate::error::Result<std::collections::HashSet<_>>>()?;
         let schema = Arc::new(Schema::try_from(schema)?);
         let write_options = options.convert(column_count, &schema)?;
-        let sink = RUNTIME.block_on(super::open(
+        let sources = utils::ffi_slice(sources, source_count, "null blob sources")?
+            .iter()
+            .map(|source| Ok((string(source.document)?, source.storage.read()?)))
+            .collect::<crate::error::Result<Vec<_>>>()?;
+        let sink = RUNTIME.block_on(super::open_with_sources(
             &string(path)?,
             schema,
             &string(mode)?,
@@ -42,6 +54,7 @@ pub unsafe extern "C" fn duckport_lance_open(
             &storage.read()?,
             write_options,
             options.writer_count,
+            sources,
         ))?;
         *output = Box::into_raw(Box::new(sink));
         Ok(())

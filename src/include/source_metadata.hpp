@@ -10,4 +10,6 @@ void ImportSourceMetadata(vector<LogicalType> &types, const ArrowSchema &schema)
 // Attach metadata to a schema created by ArrowConverter::ToArrowSchema, using its owner.
 void ExportSourceMetadata(const vector<LogicalType> &types, ArrowSchema &schema);
 
+vector<string> SourceMediaDocuments(const ArrowSchema &schema);
+
 } // namespace duckdb

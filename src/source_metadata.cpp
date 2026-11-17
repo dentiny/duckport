@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <functional>
 #include "source_metadata.hpp"
 
 #include "duckdb/common/arrow/arrow_converter.hpp"
@@ -8,6 +10,7 @@ namespace duckdb {
 namespace {
 
 constexpr const char *SOURCE_TYPE = "duckport:source_type";
+constexpr const char *MEDIA_DOCUMENT = "duckport:media_document";
 constexpr const char *STORAGE_POLICY = "duckport:storage_policy";
 
 LogicalType ImportField(const LogicalType &type, const ArrowSchema &schema, const string &inherited_source) {
@@ -34,9 +37,11 @@ LogicalType ImportField(const LogicalType &type, const ArrowSchema &schema, cons
 	auto info = type.HasExtensionInfo() ? make_uniq<ExtensionTypeInfo>(*type.GetExtensionInfo())
 	                                    : make_uniq<ExtensionTypeInfo>();
 	info->properties[SOURCE_TYPE] = Value(source);
-	auto policy = metadata.GetOption(STORAGE_POLICY);
-	if (!policy.empty()) {
-		info->properties[STORAGE_POLICY] = Value(policy);
+	for (auto key : {STORAGE_POLICY, MEDIA_DOCUMENT}) {
+		auto value = metadata.GetOption(key);
+		if (!value.empty()) {
+			info->properties[key] = Value(value);
+		}
 	}
 	return result.WithExtensionInfo(std::move(info));
 }
@@ -58,7 +63,7 @@ void StoreMetadata(ArrowSchema &schema, ArrowSchemaMetadata &metadata, DuckDBArr
 void ExportField(const LogicalType &type, ArrowSchema &schema, DuckDBArrowSchemaHolder &holder) {
 	auto metadata = schema.metadata ? ArrowSchemaMetadata(schema.metadata) : ArrowSchemaMetadata();
 	bool tagged = false;
-	for (auto key : {SOURCE_TYPE, STORAGE_POLICY}) {
+	for (auto key : {SOURCE_TYPE, STORAGE_POLICY, MEDIA_DOCUMENT}) {
 		auto value = Property(type, key);
 		if (!value.empty()) {
 			metadata.AddOption(key, value);
@@ -102,6 +107,22 @@ void ExportSourceMetadata(const vector<LogicalType> &types, ArrowSchema &schema)
 		metadata.AddOption(SOURCE_TYPE, source);
 		StoreMetadata(schema, metadata, holder);
 	}
+}
+
+vector<string> SourceMediaDocuments(const ArrowSchema &schema) {
+	vector<string> result;
+	std::function<void(const ArrowSchema &)> visit = [&](const ArrowSchema &field) {
+		auto metadata = field.metadata ? ArrowSchemaMetadata(field.metadata) : ArrowSchemaMetadata();
+		auto document = metadata.GetOption(MEDIA_DOCUMENT);
+		if (!document.empty() && std::find(result.begin(), result.end(), document) == result.end()) {
+			result.push_back(document);
+		}
+		for (int64_t i = 0; i < field.n_children; ++i) {
+			visit(*field.children[i]);
+		}
+	};
+	visit(schema);
+	return result;
 }
 
 } // namespace duckdb

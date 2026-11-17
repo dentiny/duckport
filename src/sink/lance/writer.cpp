@@ -17,7 +17,7 @@ unique_ptr<SinkWriter> OpenLanceWriter(const string &path, const DuckportStorage
 	auto write_options = options.ToFfi(encodings, indexes);
 	DuckportSink *raw = nullptr;
 	CheckError(duckport_lance_open(path.c_str(), &schema, mode, columns.data(), columns.size(), &write_options,
-	                               &storage, &raw));
+	                               &storage, options.blob_sources.data(), options.blob_sources.size(), &raw));
 	return MakeSinkWriter(SinkPtr(raw, duckport_sink_destroy));
 }
 } // namespace duckdb
