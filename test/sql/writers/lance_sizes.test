@@ -14,150 +14,42 @@ COPY (SELECT 'file://{WORKING_DIRECTORY}/testdata/zenodo/attachment.bin' AS payl
 TO '{TEST_DIR}/sizes.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('payload'), APPEND,
     BLOB_INLINE_SIZE_THRESHOLD 0, BLOB_DEDICATED_SIZE_THRESHOLD 1, TARGET_FILE_SIZE 1);
 
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_INLINE_SIZE_THRESHOLD -1);
-----
-blob_inline_size_threshold
+# Keep names lowercase to match the binder's error messages.
+foreach option blob_inline_size_threshold blob_dedicated_size_threshold target_file_size
+
+foreach value -1 NULL 1.5 9223372036854775808 true '1024'
 
 statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_INLINE_SIZE_THRESHOLD NULL);
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, ${option} ${value});
 ----
-blob_inline_size_threshold
+${option}
+
+endloop
 
 statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_INLINE_SIZE_THRESHOLD 1.5);
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, ${option});
 ----
-blob_inline_size_threshold
+${option}
+
+foreach format duckport_parquet duckport_iceberg
 
 statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid' (FORMAT duckport_parquet, BLOB_INLINE_SIZE_THRESHOLD 1);
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid' (FORMAT ${format}, ${option} 1);
 ----
 Unrecognized option
 
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid' (FORMAT duckport_iceberg, BLOB_INLINE_SIZE_THRESHOLD 1);
-----
-Unrecognized option
+endloop
+
+endloop
+
+foreach option blob_dedicated_size_threshold target_file_size
 
 statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_DEDICATED_SIZE_THRESHOLD -1);
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, ${option} 0);
 ----
-blob_dedicated_size_threshold
+${option}
 
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_DEDICATED_SIZE_THRESHOLD NULL);
-----
-blob_dedicated_size_threshold
-
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_DEDICATED_SIZE_THRESHOLD 1.5);
-----
-blob_dedicated_size_threshold
-
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_DEDICATED_SIZE_THRESHOLD 0);
-----
-blob_dedicated_size_threshold
-
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid' (FORMAT duckport_parquet, BLOB_DEDICATED_SIZE_THRESHOLD 1);
-----
-Unrecognized option
-
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid' (FORMAT duckport_iceberg, BLOB_DEDICATED_SIZE_THRESHOLD 1);
-----
-Unrecognized option
-
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, TARGET_FILE_SIZE -1);
-----
-target_file_size
-
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, TARGET_FILE_SIZE NULL);
-----
-target_file_size
-
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, TARGET_FILE_SIZE 1.5);
-----
-target_file_size
-
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, TARGET_FILE_SIZE 0);
-----
-target_file_size
-
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid' (FORMAT duckport_parquet, TARGET_FILE_SIZE 1);
-----
-Unrecognized option
-
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid' (FORMAT duckport_iceberg, TARGET_FILE_SIZE 1);
-----
-Unrecognized option
-
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_INLINE_SIZE_THRESHOLD 9223372036854775808);
-----
-blob_inline_size_threshold
-
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_INLINE_SIZE_THRESHOLD true);
-----
-blob_inline_size_threshold
-
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_INLINE_SIZE_THRESHOLD '1024');
-----
-blob_inline_size_threshold
-
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_INLINE_SIZE_THRESHOLD );
-----
-blob_inline_size_threshold
-
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_DEDICATED_SIZE_THRESHOLD 9223372036854775808);
-----
-blob_dedicated_size_threshold
-
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_DEDICATED_SIZE_THRESHOLD true);
-----
-blob_dedicated_size_threshold
-
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_DEDICATED_SIZE_THRESHOLD '1024');
-----
-blob_dedicated_size_threshold
-
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_DEDICATED_SIZE_THRESHOLD );
-----
-blob_dedicated_size_threshold
-
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, TARGET_FILE_SIZE 9223372036854775808);
-----
-target_file_size
-
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, TARGET_FILE_SIZE true);
-----
-target_file_size
-
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, TARGET_FILE_SIZE '1024');
-----
-target_file_size
-
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, TARGET_FILE_SIZE );
-----
-target_file_size
+endloop
 
 restart no_extension_load
 

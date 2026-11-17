@@ -1,4 +1,4 @@
-use super::ffi::duckport_lance_open;
+use super::ffi::{DuckportLanceWriteOptions, duckport_lance_open};
 use crate::{
     error::{Result, ffi_result},
     ffi::sink::*,
@@ -10,6 +10,7 @@ use arrow_array::{
     types::Int64Type,
 };
 use arrow_schema::ffi::FFI_ArrowSchema;
+use open_arrow_sink_core::WriteOptions;
 use open_arrow_sink_lance::{LanceDatasetSink, Url};
 use std::{ffi::CString, path::Path, ptr, sync::Arc};
 
@@ -61,7 +62,7 @@ async fn open(
         mode,
         columns.iter().map(|s| s.to_string()).collect(),
         &StorageConfig::default(),
-        &super::DuckportLanceWriteOptions::default(),
+        WriteOptions::default(),
     )
     .await
 }
@@ -195,7 +196,7 @@ async fn ffi_ingests_urls_and_preserves_ownership_and_metadata() {
                 mode.as_ptr(),
                 [column.as_ptr()].as_ptr(),
                 1,
-                &super::DuckportLanceWriteOptions {
+                &DuckportLanceWriteOptions {
                     blob_inline_size_threshold: 0,
                     blob_dedicated_size_threshold: 1,
                     target_file_size: 1,
@@ -272,7 +273,7 @@ async fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
                     mode.as_ptr(),
                     ptr::null(),
                     0,
-                    &super::DuckportLanceWriteOptions::default(),
+                    &DuckportLanceWriteOptions::default(),
                     &options,
                     &mut output
                 ))
@@ -286,7 +287,7 @@ async fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
                     mode.as_ptr(),
                     ptr::null(),
                     1,
-                    &super::DuckportLanceWriteOptions::default(),
+                    &DuckportLanceWriteOptions::default(),
                     &options,
                     &mut output
                 ))
@@ -309,11 +310,13 @@ async fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
 async fn configured_thresholds_control_blob_layout() {
     use lance::datatypes::BlobKind;
     let temp = tempdir().await;
-    let options = super::DuckportLanceWriteOptions {
+    let options = DuckportLanceWriteOptions {
         blob_inline_size_threshold: 1,
         blob_dedicated_size_threshold: 2,
         target_file_size: -1,
-    };
+    }
+    .read()
+    .unwrap();
     for (payload, kind) in [
         ("x", BlobKind::Inline),
         ("xx", BlobKind::Managed),
@@ -329,7 +332,7 @@ async fn configured_thresholds_control_blob_layout() {
             "create",
             ["blob".to_string()].into(),
             &StorageConfig::default(),
-            &options,
+            options.clone(),
         )
         .await
         .unwrap();
@@ -365,12 +368,12 @@ async fn configured_thresholds_control_blob_layout() {
 
 #[test]
 fn size_options_validate_boundaries_and_preserve_defaults() {
-    let defaults = super::DuckportLanceWriteOptions::default();
+    let defaults = DuckportLanceWriteOptions::default();
     let options = defaults.read().unwrap();
     assert!(options.blob_handle.is_none());
     assert!(options.target_file_size.is_none());
     assert!(
-        super::DuckportLanceWriteOptions {
+        DuckportLanceWriteOptions {
             blob_inline_size_threshold: 0,
             ..defaults
         }
@@ -378,19 +381,19 @@ fn size_options_validate_boundaries_and_preserve_defaults() {
         .is_ok()
     );
     for invalid in [
-        super::DuckportLanceWriteOptions {
+        DuckportLanceWriteOptions {
             blob_inline_size_threshold: -2,
             ..defaults
         },
-        super::DuckportLanceWriteOptions {
+        DuckportLanceWriteOptions {
             blob_dedicated_size_threshold: 0,
             ..defaults
         },
-        super::DuckportLanceWriteOptions {
+        DuckportLanceWriteOptions {
             target_file_size: 0,
             ..defaults
         },
-        super::DuckportLanceWriteOptions {
+        DuckportLanceWriteOptions {
             target_file_size: -2,
             ..defaults
         },
@@ -428,17 +431,19 @@ async fn target_file_size_rotates_files_without_losing_rows() {
     .unwrap();
     for (label, target_file_size) in [("default", -1), ("small", 1)] {
         let path = temp.path().join(label);
-        let options = super::DuckportLanceWriteOptions {
+        let options = DuckportLanceWriteOptions {
             target_file_size,
             ..Default::default()
-        };
+        }
+        .read()
+        .unwrap();
         let mut writer = super::open(
             path.to_str().unwrap(),
             batch.schema(),
             "create",
             Default::default(),
             &StorageConfig::default(),
-            &options,
+            options,
         )
         .await
         .unwrap();

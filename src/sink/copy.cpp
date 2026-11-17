@@ -22,10 +22,9 @@ void CheckWriteAccess(ClientContext &context) {
 	}
 }
 struct WriterInfo : CopyFunctionInfo {
-	WriterInfo(WriterOpen open, bool lance) : open(std::move(open)), lance(lance) {
+	explicit WriterInfo(WriterOpen open) : open(std::move(open)) {
 	}
 	WriterOpen open;
-	bool lance;
 };
 struct CopyBindData : FunctionData {
 	vector<LogicalType> types;
@@ -153,7 +152,7 @@ unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput 
 	result->info = input.function_info;
 	bool has_mode = false;
 	for (auto &entry : input.info.options) {
-		if (result->info->Cast<WriterInfo>().lance &&
+		if (StringUtil::CIEquals(input.info.format, "duckport_lance") &&
 		    ParseLanceSizeOption(entry.first, entry.second, result->options.lance)) {
 			continue;
 		}
@@ -266,7 +265,7 @@ void CommonCopyOptions(ClientContext &, CopyOptionsInput &input) {
 
 void RegisterCopyFunction(ExtensionLoader &loader, const string &name, WriterOpen open) {
 	CopyFunction function {Identifier(name)};
-	function.function_info = make_shared_ptr<WriterInfo>(std::move(open), name == "duckport_lance");
+	function.function_info = make_shared_ptr<WriterInfo>(std::move(open));
 	function.copy_options = CommonCopyOptions;
 	if (name == "duckport_lance") {
 		function.copy_options = [](ClientContext &context, CopyOptionsInput &input) {
