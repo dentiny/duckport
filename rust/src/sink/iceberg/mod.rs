@@ -54,7 +54,6 @@ pub(crate) async fn open_catalog(
         .with_mode(WriteMode::Append)
         .with_ordering(Ordering::Unordered);
     let sink = IcebergTableSink::new(catalog.clone());
-    // Reject unsupported requests before fetching the catalog schema.
     open_arrow_sink_core::validation::validate_options(&schema, &options, sink.capability())?;
     let table = catalog.load_table(&identifier).await?;
     validation::validate_iceberg_table(&table)?;
