@@ -37,6 +37,14 @@ COPY atif_layout_input TO '{TEST_DIR}/atif_${layout}.lance'
 
 endloop
 
+# The same CTAS/renamed fields retain media/text policies through COPY.
+query TTT
+SELECT duckport_fixture_field_metadata('{TEST_DIR}/atif_inline.lance', 'renamed_steps.item.message.item.source.path', 'ARROW:extension:name'),
+       duckport_fixture_field_metadata('{TEST_DIR}/atif_inline.lance', 'renamed_steps.item.message.item.text', 'lance-encoding:compression'),
+       duckport_fixture_field_metadata('{TEST_DIR}/atif_inline.lance', 'renamed_steps.item.message.item.text', 'ARROW:extension:name');
+----
+lance.blob.v2	lz4	(empty)
+
 statement ok
 SELECT duckport_fixture_remove('{TEST_DIR}/input dir/trajectory.jsonl');
 

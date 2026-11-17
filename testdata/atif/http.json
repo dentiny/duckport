@@ -11,10 +11,6 @@
     {
       "path": "/runs/atif-audio.wav",
       "file": "atif-audio.wav"
-    },
-    {
-      "path": "/runs/bad_origin_media.json",
-      "file": "bad_origin_media.json"
     }
   ],
   "auth": "authorization",

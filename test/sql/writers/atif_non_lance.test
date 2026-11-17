@@ -46,5 +46,9 @@ FROM iceberg_scan('{TEST_DIR}/iceberg/people/metadata/current.metadata.json');
 ----
 1	true	true
 
+# Lance must attempt ingestion of the same missing media and fail.
+statement error
+COPY atif_passthrough TO '{TEST_DIR}/lance' (FORMAT duckport_lance);
+
 statement ok
 SELECT duckport_iceberg_fixture('{TEST_DIR}/iceberg', 'stop');

@@ -8,4 +8,4 @@ message and observation image/audio content, Unicode and storage metadata.
 
 
 `http.json` serves authenticated trajectories/media through the native loopback
-fixture. `bad_origin_media.json` covers cross-origin references in remote trajectories.
+fixture.

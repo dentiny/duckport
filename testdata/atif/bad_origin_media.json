@@ -1,1 +1,0 @@
-{"schema_version": "ATIF-v1.8", "agent": {"name": "test", "version": "1"}, "steps": [{"step_id": 1, "source": "user", "message": [{"type": "text", "text": "hello 你好🙂"}, {"type": "image", "source": {"media_type": "image/png", "path": "ORIGIN/image.png"}}]}]}

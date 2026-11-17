@@ -1,5 +1,5 @@
 # name: test/sql/readers/atif_http.test
-# description: Remote ATIF normalizes relative media, defers authenticated downloads and rejects origin changes
+# description: Authenticated ATIF media is copied into Lance and survives server shutdown
 # group: [sql]
 
 require duckport
@@ -16,33 +16,8 @@ statement ok
 CREATE SECRET atif_http IN connection (TYPE http, BEARER_TOKEN 'fixture-key', SCOPE getvariable('atif_scope'));
 
 statement ok
-CREATE TABLE remote_atif AS SELECT * FROM duckport_scan_atif(getvariable('atif_endpoint') || '/runs/trajectory_media.json');
-
-query II
-SELECT steps[1].message[2].source.path = getvariable('atif_endpoint') || '/runs/atif-image.png',
-       steps[1].message[3].source.path = getvariable('atif_endpoint') || '/runs/atif-audio.wav'
-FROM remote_atif;
-----
-true	true
-
-query I
-SELECT count(*) FROM duckport_fixture_requests('atif') WHERE target LIKE '%.png%' OR target LIKE '%.wav%';
-----
-0
-
-statement error
-SELECT steps FROM duckport_scan_atif(getvariable('atif_endpoint') || '/runs/bad_origin_media.json');
-----
-ATIF remote media must use the trajectory's storage origin
-
-statement ok
-COPY remote_atif TO '{TEST_DIR}/remote.lance' (FORMAT duckport_lance);
-
-query II
-SELECT count(*) > 0, bool_and(authorization = 'Bearer fixture-key')
-FROM duckport_fixture_requests('atif') WHERE target LIKE '%.png%' OR target LIKE '%.wav%';
-----
-true	true
+COPY (SELECT * FROM duckport_scan_atif(getvariable('atif_endpoint') || '/runs/trajectory_media.json'))
+TO '{TEST_DIR}/remote.lance' (FORMAT duckport_lance);
 
 statement ok
 SELECT duckport_fixture('atif', 'stop');

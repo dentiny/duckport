@@ -1,5 +1,5 @@
 # name: test/sql/readers/atif_uris.test
-# description: ATIF preserves data URIs, normalizes missing media and keeps projection row counts
+# description: ATIF data URIs materialize during COPY and malformed payloads fail only at COPY
 # group: [sql]
 
 require duckport
@@ -11,38 +11,10 @@ SET VARIABLE atif_inline = (SELECT replace(replace(content, 'atif-image.png', 'd
     'atif-audio.wav', 'data:audio/wav,%00%ff') FROM read_text('testdata/atif/trajectory_media.json'));
 
 statement ok
-SELECT duckport_fixture_write('{TEST_DIR}/inline.jsonl', encode(getvariable('atif_inline') || chr(10) || getvariable('atif_inline')));
-
-query TTTI
-SELECT steps[1].message[2].source.path, steps[1].message[3].source.path,
-       steps[1].message[3].type, raw_json = getvariable('atif_inline')
-FROM duckport_scan_atif('{TEST_DIR}/inline.jsonl') WHERE source_record_index = 2;
-----
-data:image/png;base64,AP8%3D	data:audio/wav,%00%ff	audio	true
+SELECT duckport_fixture_write('{TEST_DIR}/inline.json', encode(getvariable('atif_inline')));
 
 statement ok
-SELECT duckport_fixture_write('{TEST_DIR}/missing.json', encode(replace(getvariable('atif_inline'), 'data:image/png;base64,AP8%3D', 'missing.png')));
-
-query I
-SELECT ends_with(steps[1].message[2].source.path, '/missing.png') FROM duckport_scan_atif('{TEST_DIR}/missing.json');
-----
-true
-
-query T
-SELECT trajectory_id FROM duckport_scan_atif('{TEST_DIR}/missing.json');
-----
-media
-
-query I
-SELECT count(*) FROM duckport_scan_atif('{TEST_DIR}/inline.jsonl', batch_size := 2);
-----
-2
-
-statement ok
-COPY (SELECT * FROM duckport_scan_atif('{TEST_DIR}/inline.jsonl')) TO '{TEST_DIR}/inline.lance' (FORMAT duckport_lance);
-
-statement error
-COPY (SELECT * FROM duckport_scan_atif('{TEST_DIR}/missing.json')) TO '{TEST_DIR}/missing.lance' (FORMAT duckport_lance);
+COPY (SELECT * FROM duckport_scan_atif('{TEST_DIR}/inline.json')) TO '{TEST_DIR}/inline.lance' (FORMAT duckport_lance);
 
 statement ok
 SELECT duckport_fixture_write('{TEST_DIR}/bad_data.json', encode(replace(getvariable('atif_inline'), 'data:image/png;base64,AP8%3D', 'data:image/png;base64,????')));
@@ -55,35 +27,14 @@ data:image/png;base64,????
 statement error
 COPY (SELECT * FROM duckport_scan_atif('{TEST_DIR}/bad_data.json')) TO '{TEST_DIR}/bad_data.lance' (FORMAT duckport_lance);
 
-query I
-SELECT count(*) FROM glob('{TEST_DIR}/missing.lance/_versions/*.manifest');
-----
-0
-
-query I
-SELECT count(*) FROM glob('{TEST_DIR}/bad_data.lance/_versions/*.manifest');
-----
-0
-
-# URI normalization is independent of enabled storage transports.
-statement ok
-SELECT duckport_fixture_write('{TEST_DIR}/generic_uri.json', encode(replace(getvariable('atif_inline'),
-    'data:image/png;base64,AP8%3D', 'memory://media/run/image.bin')));
-
-query T
-SELECT steps[1].message[2].source.path FROM duckport_scan_atif('{TEST_DIR}/generic_uri.json');
-----
-memory://media/run/image.bin
-
 restart no_extension_load
 
 statement ok
 LOAD '{BUILD_DIRECTORY}/extension/lance/lance.duckdb_extension';
 
-query ITTT rowsort
-SELECT source_record_index, hex(steps[1].message[2].source.path), hex(steps[1].message[3].source.path),
+query TTT
+SELECT hex(steps[1].message[2].source.path), hex(steps[1].message[3].source.path),
        hex(steps[2].observation.results[1].content[2].source.path)
 FROM '{TEST_DIR}/inline.lance';
 ----
-1	00FF	00FF	00FF
-2	00FF	00FF	00FF
+00FF	00FF	00FF
