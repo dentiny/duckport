@@ -1,6 +1,6 @@
 # Lance sink
 
-Builds require `protoc` and use open-arrow-sink 0.1.1.
+Builds require `protoc` and use open-arrow-sink 0.3.0.
 
 ```sql
 COPY input_table TO 'output.lance' (FORMAT duckport_lance);
@@ -14,9 +14,12 @@ replaces its rows. Empty input commits the selected schema. `PRESERVE_ORDER true
 writes batches in input order; the default allows reordering. See
 [COPY ordering](README.md#copy-ordering) for write scheduling and reader semantics.
 
-`BLOB_COLUMNS ('image', 'audio')` selects top-level text columns for download through
-DownloadBlobLayer. HTTP(S), file:// and enabled OpenDAL sources such as S3 are
-supported. Bytes are ingested, so the source is no longer needed after commit.
+`BLOB_COLUMNS ('image', 'audio')` explicitly selects text URL fields for download.
+Dotted paths traverse STRUCTs and implicitly traverse LIST/ARRAY elements;
+selected text lists are adapted element by element. Unselected fields keep their
+original values. All selections use `DownloadBlobLayer` and the sink's native
+Blob materializer, including its size thresholds. HTTP(S), file:// and enabled
+OpenDAL sources such as S3 are supported. Bytes are ingested, so the source is no longer needed after commit.
 NULLs remain NULL; other strings remain strings. Invalid columns, URLs and failed
 downloads fail COPY.
 
@@ -28,9 +31,11 @@ publication are unsupported.
 
 Compared with [duckdb_lance_conversion](https://github.com/dentiny/duckdb_lance_conversion),
 this sink exposes APPEND, OVERWRITE, BLOB_COLUMNS, byte-size and storage-version
-options. Blob column names
-follow DuckDB identifier matching; empty lists, duplicates and invalid columns fail
-at bind time. File URL sources require `file://`; bare local blob paths are not supported.
+options. Blob paths
+follow DuckDB identifier matching; exact top-level names (including dots) take
+precedence over nested traversal; empty lists, duplicates and invalid columns fail
+before the destination is opened. File URL sources require `file://`; bare local
+blob paths are not supported.
 Column compression/encoding uses the [shared COPY options](README.md#column-compression-and-encoding).
 Indexes use the [shared COPY index options](README.md#copy-indexes).
 Generated columns use the [shared COPY option](README.md#generated-columns),
@@ -73,3 +78,8 @@ COPY input_table TO 'output.lance' (FORMAT duckport_lance, STORAGE_VERSION '2.3'
 
 Support is determined by the sink's capability. The current Parquet and Iceberg
 sinks reject `STORAGE_VERSION`.
+
+For ATIF, select fields explicitly, for example:
+`BLOB_COLUMNS ('steps.message.source.path', 'steps.observation.results.content.source.path')`.
+Relative references must be qualified before COPY; no ATIF-specific path resolution
+or storage policy is inferred.

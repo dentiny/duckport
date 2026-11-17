@@ -1,0 +1,24 @@
+# name: test/sql/writers/nested_blobs.test
+# description: Nested BLOB_COLUMNS downloads payloads and preserves nulls and unselected fields
+# group: [sql]
+
+require duckport
+
+statement ok
+COPY (
+    SELECT 'file://{WORKING_DIRECTORY}/testdata/zenodo/attachment.bin' AS attachment,
+           [{'path': 'file://{WORKING_DIRECTORY}/testdata/zenodo/attachment.bin'}, NULL] AS media,
+           'https://example.invalid/keep' AS untouched
+) TO '{TEST_DIR}/nested.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('ATTACHMENT', 'MEDIA.PATH'));
+
+restart no_extension_load
+
+statement ok
+LOAD '{BUILD_DIRECTORY}/extension/lance/lance.duckdb_extension';
+
+query IIIIT
+SELECT attachment = (SELECT content FROM read_blob('testdata/zenodo/attachment.bin')),
+       len(media), media[1].path = (SELECT content FROM read_blob('testdata/zenodo/attachment.bin')),
+       media[2] IS NULL, untouched FROM '{TEST_DIR}/nested.lance';
+----
+true	2	true	true	https://example.invalid/keep

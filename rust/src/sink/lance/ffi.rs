@@ -34,7 +34,6 @@ pub unsafe extern "C" fn duckport_lance_open(
             .collect::<crate::error::Result<std::collections::HashSet<_>>>()?;
         let schema = Arc::new(Schema::try_from(schema)?);
         let write_options = options.convert(column_count, &schema)?;
-        validation::validate_blob_indexes(&write_options.indexes, &columns)?;
         let sink = RUNTIME.block_on(super::open(
             &string(path)?,
             schema,

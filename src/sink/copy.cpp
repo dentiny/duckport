@@ -92,30 +92,23 @@ struct CopyGlobalState : GlobalFunctionData {
 };
 struct CopyLocalState : LocalFunctionData {};
 
-vector<string> ParseBlobColumns(const vector<Value> &values, const vector<Identifier> &names,
-                                const vector<LogicalType> &types) {
+vector<string> ParseBlobColumns(const vector<Value> &values) {
 	const auto &columns =
-	    values.size() == 1 && values[0].type().id() == LogicalTypeId::LIST ? ListValue::GetChildren(values[0]) : values;
+	    values.size() == 1 && !values[0].IsNull() && values[0].type().id() == LogicalTypeId::LIST
+	        ? ListValue::GetChildren(values[0])
+	        : values;
 	if (columns.empty()) {
 		throw BinderException("BLOB_COLUMNS requires at least one column");
 	}
 	vector<string> selected;
-	selected.reserve(columns.size());
+	identifier_set_t seen;
 	for (const auto &column : columns) {
-		if (column.IsNull() || column.type().id() != LogicalTypeId::VARCHAR ||
+		if (column.IsNull() || column.type().id() != LogicalTypeId::VARCHAR || StringValue::Get(column).empty() ||
 		    StringValue::Get(column).find('\0') != string::npos) {
-			throw BinderException("BLOB_COLUMNS requires non-NULL text column names without NUL bytes");
+			throw BinderException("BLOB_COLUMNS requires nonempty text paths without NUL bytes");
 		}
-		auto match = std::find(names.begin(), names.end(), Identifier(StringValue::Get(column)));
-		if (match == names.end()) {
-			throw BinderException("BLOB_COLUMNS column not found: %s", StringValue::Get(column));
-		}
-		auto index = static_cast<idx_t>(match - names.begin());
-		if (types[index].id() != LogicalTypeId::VARCHAR) {
-			throw BinderException("BLOB_COLUMNS column must be text: %s", *match);
-		}
-		const auto &name = match->GetIdentifierName();
-		if (std::find(selected.begin(), selected.end(), name) != selected.end()) {
+		const auto &name = StringValue::Get(column);
+		if (!seen.insert(Identifier(name)).second) {
 			throw BinderException("Duplicate BLOB_COLUMNS column: %s", name);
 		}
 		selected.push_back(name);
@@ -284,7 +277,7 @@ unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput 
 			continue;
 		}
 		if (entry.first == "blob_columns") {
-			result->options.blob_columns = ParseBlobColumns(entry.second, names, types);
+			result->options.blob_columns = ParseBlobColumns(entry.second);
 			continue;
 		}
 		if (entry.first == "file_count") {

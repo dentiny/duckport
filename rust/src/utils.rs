@@ -256,7 +256,7 @@ pub(crate) fn optional_byte_size(name: &str, value: i64) -> Result<Option<usize>
     byte_size(name, value).map(Some)
 }
 
-pub(crate) fn encoding_path(schema: &Schema, name: &str) -> Result<Vec<String>> {
+pub(crate) fn resolve_column_path(schema: &Schema, name: &str, option: &str) -> Result<Vec<String>> {
     if let Some(field) = schema
         .fields()
         .iter()
@@ -271,7 +271,7 @@ pub(crate) fn encoding_path(schema: &Schema, name: &str) -> Result<Vec<String>> 
         let field = fields
             .iter()
             .find(|field| field.name().eq_ignore_ascii_case(part))
-            .ok_or_else(|| format!("Column encoding field not found: {name}"))?;
+            .ok_or_else(|| format!("{option} field not found: {name}"))?;
         path.push(field.name().clone());
         if parts.peek().is_none() {
             break;
@@ -288,7 +288,7 @@ pub(crate) fn encoding_path(schema: &Schema, name: &str) -> Result<Vec<String>> 
                     fields = children;
                     break;
                 }
-                _ => return Err(format!("Column encoding field not found: {name}").into()),
+                _ => return Err(format!("{option} field not found: {name}").into()),
             }
         }
     }
