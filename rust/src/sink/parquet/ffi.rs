@@ -8,7 +8,7 @@ use std::{ffi::c_char, ptr, sync::Arc};
 /// Strings are NUL-terminated UTF-8; schema and storage are live and borrowed.
 /// Output points to writable sink-pointer storage. No inputs are retained.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn duckport_parquet_sink_open(
+pub unsafe extern "C" fn duckport_parquet_open(
     path: *const c_char,
     schema: *const FFI_ArrowSchema,
     mode: *const c_char,
