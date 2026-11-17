@@ -28,6 +28,7 @@ struct DuckportWriteOptions {
 	int64_t blob_inline_size_threshold;
 	int64_t blob_dedicated_size_threshold;
 	int64_t target_file_size;
+	const char *storage_version; // null when unset; borrowed during open
 };
 extern "C" {
 // Common FFI support

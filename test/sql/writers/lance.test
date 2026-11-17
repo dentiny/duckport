@@ -11,7 +11,7 @@ COPY (
            CASE id WHEN 1 THEN unhex('00FF0102') WHEN 2 THEN ''::BLOB END AS bytes,
            'https://example.invalid/keep' AS text
     FROM duckport_scan_parquet('testdata/parquet/people.parquet', batch_size := 1)
-) TO '{TEST_DIR}/output.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('PAYLOAD'));
+) TO '{TEST_DIR}/output.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('PAYLOAD'), STORAGE_VERSION '2.2');
 
 restart no_extension_load
 

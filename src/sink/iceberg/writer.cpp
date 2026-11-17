@@ -7,10 +7,11 @@ unique_ptr<SinkWriter> OpenIcebergWriter(const string &path, const DuckportStora
 	const char *mode = options.mode == SinkWriteMode::APPEND      ? "append"
 	                   : options.mode == SinkWriteMode::OVERWRITE ? "overwrite"
 	                                                              : "create";
+	auto write_options = options.ToFfi();
 	DuckportSink *raw = nullptr;
 	CheckError(duckport_iceberg_open(path.c_str(), &schema, mode, options.blob_columns.size(),
 	                                 options.catalog_uri.c_str(), options.warehouse.c_str(),
-	                                 options.storage_root.c_str(), &options.write_options, &storage, &raw));
+	                                 options.storage_root.c_str(), &write_options, &storage, &raw));
 	return MakeSinkWriter(SinkPtr(raw, duckport_sink_destroy));
 }
 } // namespace duckdb

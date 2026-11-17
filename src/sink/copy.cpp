@@ -50,7 +50,8 @@ struct CopyBindData : FunctionData {
 		       options.write_options.blob_dedicated_size_threshold == bind.options.write_options.blob_dedicated_size_threshold &&
 		       options.write_options.target_file_size == bind.options.write_options.target_file_size &&
 		       options.catalog_uri == bind.options.catalog_uri && options.warehouse == bind.options.warehouse &&
-		       options.storage_root == bind.options.storage_root && info == bind.info;
+		       options.storage_root == bind.options.storage_root &&
+		       options.storage_version == bind.options.storage_version && info == bind.info;
 	}
 };
 struct CopyGlobalState : GlobalFunctionData {
@@ -105,6 +106,8 @@ bool ParseTextOption(const Identifier &name, const vector<Value> &values, SinkWr
 		target = &options.warehouse;
 	} else if (name == "storage_root") {
 		target = &options.storage_root;
+	} else if (name == "storage_version") {
+		target = &options.storage_version;
 	} else {
 		return false;
 	}
@@ -258,7 +261,7 @@ BoundStatement PlanCopy(Binder &binder, CopyStatement &statement) {
 	return result;
 }
 void CommonCopyOptions(ClientContext &, CopyOptionsInput &input) {
-	for (const auto &name : {"catalog_uri", "warehouse", "storage_root"}) {
+	for (const auto &name : {"catalog_uri", "warehouse", "storage_root", "storage_version"}) {
 		input.options[name] = CopyOption(LogicalType::VARCHAR, CopyOptionMode::WRITE_ONLY);
 	}
 	input.options["blob_columns"] = CopyOption(LogicalType::LIST(LogicalType::VARCHAR), CopyOptionMode::WRITE_ONLY);

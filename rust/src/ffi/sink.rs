@@ -3,7 +3,7 @@ use super::common::RUNTIME;
 use crate::{
     error::{Result, call, cleanup},
     sink::DuckportSink,
-    utils::string,
+    utils::{optional_string, string},
     validation,
 };
 use arrow_array::{
@@ -27,13 +27,14 @@ pub unsafe extern "C" fn duckport_validate_byte_size(
     })
 }
 
-/// Byte sizes passed across the C ABI. -1 leaves a backend default unchanged.
+/// Shared C ABI write options. -1 byte sizes and a null version preserve backend defaults.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct DuckportWriteOptions {
     pub blob_inline_size_threshold: i64,
     pub blob_dedicated_size_threshold: i64,
     pub target_file_size: i64,
+    pub storage_version: *const c_char,
 }
 
 impl Default for DuckportWriteOptions {
@@ -42,13 +43,16 @@ impl Default for DuckportWriteOptions {
             blob_inline_size_threshold: -1,
             blob_dedicated_size_threshold: -1,
             target_file_size: -1,
+            storage_version: std::ptr::null(),
         }
     }
 }
 
 impl DuckportWriteOptions {
     // Selecting URL columns requests blob support even without explicit layout overrides.
-    pub(crate) fn convert(&self, blob_column_count: usize) -> Result<WriteOptions> {
+    /// # Safety
+    /// storage_version is null or a borrowed NUL-terminated UTF-8 string.
+    pub(crate) unsafe fn convert(&self, blob_column_count: usize) -> Result<WriteOptions> {
         let inline = validation::optional_byte_size(
             "BLOB_INLINE_SIZE_THRESHOLD",
             self.blob_inline_size_threshold,
@@ -58,6 +62,7 @@ impl DuckportWriteOptions {
             self.blob_dedicated_size_threshold,
         )?;
         let mut options = WriteOptions::default();
+        options.storage_version = unsafe { optional_string(self.storage_version) }?;
         options.target_file_size =
             validation::optional_byte_size("TARGET_FILE_SIZE", self.target_file_size)?;
         if blob_column_count != 0 || inline.is_some() || dedicated.is_some() {
