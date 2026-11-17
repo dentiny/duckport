@@ -30,13 +30,13 @@ pub unsafe extern "C" fn duckport_sink_write(
     })
 }
 /// # Safety
-/// Sink is a live pointer returned by a sink open function.
+/// Sink is a live pointer returned by duckport_lance_open.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_sink_commit(sink: *mut DuckportSink) -> *mut c_char {
     call(|| unsafe { RUNTIME.block_on(validation::required(sink.as_mut(), "null sink")?.commit()) })
 }
 /// # Safety
-/// Sink is null or a live pointer returned by a sink open function, freed once.
+/// Sink is null or a live pointer returned by duckport_lance_open, freed once.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_sink_destroy(sink: *mut DuckportSink) {
     cleanup(|| {

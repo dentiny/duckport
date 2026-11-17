@@ -58,6 +58,8 @@ open-arrow-sink-core = "0.1.1"
 open-arrow-sink-iceberg = "0.1.1"
 open-arrow-sink-lance = "0.1.1"
 open-arrow-sink-layer = "0.1.1"
+open-arrow-sink-parquet = "0.1.1"
+open-arrow-sink-storage = "0.1.1"
 opendal = { version = "0.59", default-features = false, features = [
     "auto-register-services",
     "http-transport-reqwest",

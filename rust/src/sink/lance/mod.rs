@@ -1,4 +1,4 @@
-//! Lance dataset setup; the shared sink owns the writer lifecycle.
+//! Lance dataset setup and backend-specific tests.
 use super::DuckportSink;
 use crate::{error::Result, options::StorageConfig, storage, utils};
 use arrow_schema::SchemaRef;

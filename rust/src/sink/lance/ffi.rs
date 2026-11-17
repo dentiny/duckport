@@ -1,4 +1,4 @@
-//! Backend-specific Arrow C ABI opening.
+//! Lance Arrow C ABI opener.
 use super::super::DuckportSink;
 use crate::{error::call, ffi::common::RUNTIME, utils, utils::string, validation};
 use arrow_schema::{Schema, ffi::FFI_ArrowSchema};
