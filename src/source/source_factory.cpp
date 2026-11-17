@@ -10,9 +10,14 @@ void SourceFactory::GetSchema(ArrowSchema &schema) {
 	CheckError(duckport_source_get_schema(source.get(), &schema));
 }
 
-unique_ptr<ArrowArrayStreamWrapper> SourceFactory::ProduceStream(ArrowStreamParameters &) {
+unique_ptr<ArrowArrayStreamWrapper> SourceFactory::ProduceStream(ArrowStreamParameters &parameters) {
 	auto stream = make_uniq<ArrowArrayStreamWrapper>();
-	CheckError(duckport_source_get_stream(source.get(), &stream->arrow_array_stream));
+	vector<const char *> columns;
+	columns.reserve(parameters.projected_columns.columns.size());
+	for (const auto &column : parameters.projected_columns.columns) {
+		columns.push_back(column.c_str());
+	}
+	CheckError(duckport_source_get_stream(source.get(), columns.data(), columns.size(), &stream->arrow_array_stream));
 	return stream;
 }
 

@@ -1,17 +1,18 @@
 use super::common::RUNTIME;
+use crate::source::open_file_source;
 use crate::{
     error::{Result, call, cleanup},
     options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
     source::DuckportSource as AsyncSource,
     storage,
-    utils::string,
+    utils::{ffi_slice, string},
     validation,
 };
 use arrow_array::ffi_stream::FFI_ArrowArrayStream;
 use arrow_schema::ffi::FFI_ArrowSchema;
 use open_arrow_access::{
     BlockingRecordBatchReader, OuterCompression, ReadOptions, ReadRequest,
-    file_format::parquet::ParquetFormat, open_file_source,
+    file_format::parquet::ParquetFormat,
 };
 use std::{ffi::c_char, ptr, sync::Arc};
 
@@ -44,8 +45,7 @@ pub unsafe extern "C" fn duckport_parquet_source_open(
             ParquetFormat,
             OuterCompression::None,
         )
-        .await?
-        .into())
+        .await?)
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }
@@ -68,18 +68,27 @@ pub unsafe extern "C" fn duckport_source_get_schema(
     })
 }
 /// # Safety
-/// Source is live; output points to writable, uninitialized ArrowArrayStream storage.
+/// Source is live; columns contains column_count pointers to NUL-terminated UTF-8
+/// names, borrowed only for this call. A zero count selects zero columns; columns
+/// may then be null. Output points to writable, uninitialized stream storage.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_source_get_stream(
     source: *const DuckportSource,
+    columns: *const *const c_char,
+    column_count: usize,
     output: *mut FFI_ArrowArrayStream,
 ) -> *mut c_char {
     call(|| unsafe {
         let handle = validation::required(source.as_ref(), "null stream argument")?;
         validation::non_null(output, "null stream argument")?;
         let source = handle.source.as_ref().unwrap();
+        let columns = ffi_slice(columns, column_count, "null projection columns")?;
+        let projection = columns
+            .iter()
+            .map(|column| string(*column))
+            .collect::<Result<Vec<_>>>()?;
         let reader = BlockingRecordBatchReader::new(
-            RUNTIME.block_on(source.reader())?,
+            RUNTIME.block_on(source.reader(projection))?,
             Arc::clone(&RUNTIME),
         );
         ptr::write(output, FFI_ArrowArrayStream::new(Box::new(reader)));

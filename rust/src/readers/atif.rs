@@ -1,14 +1,13 @@
 mod media;
 mod policy;
+use crate::source::open_file_source;
 use crate::{
     ffi::source::{DuckportSource, open_reader},
     options::{DuckportScanOptions, DuckportStorageOptions},
     storage,
 };
 pub(crate) use media::{MediaResolver, embedded_schema};
-use open_arrow_access::{
-    OuterCompression, ReadRequest, file_format::atif::AtifFormat, open_file_source,
-};
+use open_arrow_access::{OuterCompression, ReadRequest, file_format::atif::AtifFormat};
 use policy::{ContentType, SOURCE_TYPE, STORAGE_POLICY, StoragePolicy};
 use std::ffi::c_char;
 
@@ -46,8 +45,7 @@ pub(crate) async fn open(
         AtifFormat::Auto,
         OuterCompression::Auto,
     )
-    .await?
-    .into_bound_source();
+    .await?;
     let document = if storage::is_local(locator) {
         crate::utils::local_path(locator)?
             .to_string_lossy()
@@ -55,12 +53,10 @@ pub(crate) async fn open(
     } else {
         locator.to_owned()
     };
-    Ok(
-        crate::source::DuckportSource::from(source).with_atif(MediaResolver {
-            document,
-            config: storage_options,
-        }),
-    )
+    Ok(source.with_atif(MediaResolver {
+        document,
+        config: storage_options,
+    }))
 }
 
 #[cfg(test)]

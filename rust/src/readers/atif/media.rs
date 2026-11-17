@@ -76,22 +76,22 @@ fn resolve_uri(document: &str, reference: &str) -> Result<String> {
     if reference.starts_with("data:") {
         return Ok(reference.to_owned());
     }
-    if let Ok(base) = Url::parse(document) {
-        if matches!(base.scheme(), "s3" | "http" | "https") {
-            let target = base.join(reference)?;
-            if target.scheme() != base.scheme()
-                || target.host_str() != base.host_str()
-                || target.port_or_known_default() != base.port_or_known_default()
-                || !target.username().is_empty()
-                || target.password().is_some()
-            {
-                return Err(std::io::Error::other(
-                    "ATIF remote media must use the trajectory's storage origin",
-                )
-                .into());
-            }
-            return Ok(target.to_string());
+    if let Ok(base) = Url::parse(document)
+        && matches!(base.scheme(), "s3" | "http" | "https")
+    {
+        let target = base.join(reference)?;
+        if target.scheme() != base.scheme()
+            || target.host_str() != base.host_str()
+            || target.port_or_known_default() != base.port_or_known_default()
+            || !target.username().is_empty()
+            || target.password().is_some()
+        {
+            return Err(std::io::Error::other(
+                "ATIF remote media must use the trajectory's storage origin",
+            )
+            .into());
         }
+        return Ok(target.to_string());
     }
     if Path::new(reference).is_absolute() {
         return Ok(reference.to_owned());

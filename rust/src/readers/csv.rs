@@ -1,3 +1,4 @@
+use crate::source::open_file_source;
 use crate::{
     ffi::source::{DuckportSource, open_reader},
     options::{DuckportScanOptions, DuckportStorageOptions},
@@ -6,7 +7,6 @@ use crate::{
 use open_arrow_access::{
     OuterCompression, ReadRequest,
     file_format::csv::{CsvDialect, CsvFileFormat, CsvHeader},
-    open_file_source,
 };
 use std::ffi::c_char;
 
@@ -46,8 +46,7 @@ pub unsafe extern "C" fn duckport_csv_open(
             format,
             OuterCompression::Auto,
         )
-        .await?
-        .into())
+        .await?)
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }

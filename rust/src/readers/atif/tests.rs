@@ -10,7 +10,16 @@ async fn read(path: &Path) -> Result<Vec<RecordBatch>> {
         Default::default(),
     )
     .await?;
-    let mut reader = source.reader().await?;
+    let mut reader = source
+        .reader(
+            source
+                .schema()
+                .fields()
+                .iter()
+                .map(|f| f.name().clone())
+                .collect(),
+        )
+        .await?;
     let mut batches = Vec::new();
     while let Some(batch) = reader.next().await? {
         batches.push(batch);

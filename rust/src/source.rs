@@ -1,33 +1,57 @@
 use crate::error::Result;
 use arrow_schema::SchemaRef;
-use open_arrow_access::{Accessor, BoundSource, FileSource, RecordReader};
+use open_arrow_access::{
+    Accessor, OuterCompression, PreparedSource, ReadOptions, ReadOptionsProvider, ReadRequest,
+    ReaderFactory, RecordReader, file_accessor, storage::opendal,
+};
 
-pub struct DuckportSource(
-    BoundSource,
-    Option<std::sync::Arc<crate::readers::atif::MediaResolver>>,
-);
+pub struct DuckportSource {
+    source: PreparedSource,
+    options: ReadOptions,
+    media: Option<std::sync::Arc<crate::readers::atif::MediaResolver>>,
+}
 
 impl DuckportSource {
     pub async fn new<A>(accessor: A, request: A::Request) -> Result<Self>
     where
         A: Accessor<Reader = dyn RecordReader> + 'static,
-        A::Request: Clone + Sync + 'static,
+        A::Request: Clone + Sync + ReadOptionsProvider + 'static,
     {
-        Ok(Self(BoundSource::bind(accessor, request).await?, None))
+        let options = request.read_options().clone();
+        Ok(Self {
+            source: PreparedSource::prepare(accessor, request).await?,
+            options,
+            media: None,
+        })
     }
 
     pub fn schema(&self) -> SchemaRef {
-        match &self.1 {
-            Some(_) => crate::readers::atif::embedded_schema(&self.0.schema()),
-            None => self.0.schema(),
+        if self.media.is_some() {
+            crate::readers::atif::embedded_schema(&self.source.schema())
+        } else {
+            self.source.schema()
         }
     }
 
-    pub async fn reader(&self) -> Result<Box<dyn RecordReader>> {
-        let reader = self.0.reader().await?;
-        if let Some(resolver) = &self.1 {
+    pub async fn reader(&self, projection: Vec<String>) -> Result<Box<dyn RecordReader>> {
+        let mut options = self.options.clone();
+        // None reuses the reader opened at bind, avoiding another open for a full scan.
+        // Other projections, including an empty list for COUNT(*), are passed through.
+        options.projection = if projection.iter().map(String::as_str).eq(self
+            .source
+            .schema()
+            .fields()
+            .iter()
+            .map(|field| field.name().as_str()))
+        {
+            None
+        } else {
+            Some(projection)
+        };
+        let reader = self.source.scan(options).await?;
+        if let Some(resolver) = &self.media {
             let mut metadata = reader.metadata().clone();
-            metadata.schema = self.schema();
+            metadata.schema = crate::readers::atif::embedded_schema(&metadata.schema);
             Ok(Box::new(AtifReader {
                 inner: reader,
                 resolver: resolver.clone(),
@@ -40,21 +64,21 @@ impl DuckportSource {
     }
 }
 
-impl From<BoundSource> for DuckportSource {
-    fn from(source: BoundSource) -> Self {
-        Self(source, None)
-    }
-}
-
-impl From<FileSource> for DuckportSource {
-    fn from(source: FileSource) -> Self {
-        Self(source.into_bound_source(), None)
-    }
+pub(crate) async fn open_file_source<F>(
+    operator: opendal::Operator,
+    request: ReadRequest,
+    format: F,
+    compression: OuterCompression,
+) -> Result<DuckportSource>
+where
+    F: ReaderFactory<Request = ReadRequest, Reader = dyn RecordReader> + 'static,
+{
+    DuckportSource::new(file_accessor(operator, format, compression), request).await
 }
 
 impl DuckportSource {
     pub(crate) fn with_atif(mut self, resolver: crate::readers::atif::MediaResolver) -> Self {
-        self.1 = Some(std::sync::Arc::new(resolver));
+        self.media = Some(std::sync::Arc::new(resolver));
         self
     }
 }

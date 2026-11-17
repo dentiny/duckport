@@ -304,7 +304,17 @@ async fn atif_media_defaults_survive_source_deletion_and_wide_sliced_batches() {
     )
     .await
     .unwrap();
-    let mut reader = source.reader().await.unwrap();
+    let mut reader = source
+        .reader(
+            source
+                .schema()
+                .fields()
+                .iter()
+                .map(|f| f.name().clone())
+                .collect(),
+        )
+        .await
+        .unwrap();
     let batch = reader.next().await.unwrap().unwrap();
     let schema = Arc::new(Schema::new_with_metadata(
         batch
