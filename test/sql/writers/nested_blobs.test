@@ -1,0 +1,31 @@
+# name: test/sql/writers/nested_blobs.test
+# description: BLOB_COLUMNS explicitly selects nested URL fields and list values
+# group: [sql]
+
+require duckport
+
+query I
+COPY (
+    SELECT 1 AS id,
+           [{'media': 'file://{WORKING_DIRECTORY}/testdata/zenodo/attachment.bin'}] AS items,
+           ['file://{WORKING_DIRECTORY}/testdata/zenodo/attachment.bin', NULL] AS urls,
+           {'media': 'file://{WORKING_DIRECTORY}/testdata/zenodo/attachment.bin'} AS info,
+           'file://{WORKING_DIRECTORY}/testdata/zenodo/attachment.bin' AS "literal.dot",
+           'https://example.invalid/keep-as-text' AS untouched
+) TO '{TEST_DIR}/nested.lance' (
+    FORMAT duckport_lance,
+    BLOB_COLUMNS ('ITEMS.MEDIA', 'urls', 'info.media', 'literal.dot'),
+    BLOB_INLINE_SIZE_THRESHOLD 0, BLOB_DEDICATED_SIZE_THRESHOLD 1
+);
+----
+1
+
+restart no_extension_load
+
+statement ok
+LOAD '{BUILD_DIRECTORY}/extension/lance/lance.duckdb_extension';
+
+query IT
+SELECT id, untouched FROM '{TEST_DIR}/nested.lance';
+----
+1	https://example.invalid/keep-as-text

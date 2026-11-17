@@ -14,8 +14,12 @@ replaces its rows. Empty input commits the selected schema. `PRESERVE_ORDER true
 writes batches in input order; the default allows reordering. See
 [COPY ordering](README.md#copy-ordering) for write scheduling and reader semantics.
 
-`BLOB_COLUMNS ('image', 'audio')` selects top-level text columns for download through
-DownloadBlobLayer. HTTP(S), file:// and enabled OpenDAL sources such as S3 are
+`BLOB_COLUMNS ('image', 'audio')` explicitly selects text URL fields for download.
+Dotted paths traverse STRUCTs and implicitly traverse LIST/ARRAY elements. A
+selected list of text URLs is adapted element by element. Unselected fields keep
+their original values. Top-level text selections retain the existing
+DownloadBlobLayer path; nested selections adapt to native Blob v2 inputs before
+the same sink materializer downloads them. HTTP(S), file:// and enabled OpenDAL sources such as S3 are
 supported. Bytes are ingested, so the source is no longer needed after commit.
 NULLs remain NULL; other strings remain strings. Invalid columns, URLs and failed
 downloads fail COPY.
@@ -28,9 +32,11 @@ publication are unsupported.
 
 Compared with [duckdb_lance_conversion](https://github.com/dentiny/duckdb_lance_conversion),
 this sink exposes APPEND, OVERWRITE, BLOB_COLUMNS, byte-size and storage-version
-options. Blob column names
-follow DuckDB identifier matching; empty lists, duplicates and invalid columns fail
-at bind time. File URL sources require `file://`; bare local blob paths are not supported.
+options. Blob paths
+follow DuckDB identifier matching; exact top-level names (including dots) take
+precedence over nested traversal; empty lists, duplicates and invalid columns fail
+before the destination is opened. File URL sources require `file://`; bare local
+blob paths are not supported.
 Column compression/encoding uses the [shared COPY options](README.md#column-compression-and-encoding).
 Indexes use the [shared COPY index options](README.md#copy-indexes).
 Generated columns use the [shared COPY option](README.md#generated-columns),
@@ -73,3 +79,22 @@ COPY input_table TO 'output.lance' (FORMAT duckport_lance, STORAGE_VERSION '2.3'
 
 Support is determined by the sink's capability. The current Parquet and Iceberg
 sinks reject `STORAGE_VERSION`.
+
+## Nested BLOB_COLUMNS
+
+ATIF media can be selected explicitly with the same option:
+
+```sql
+COPY (SELECT * FROM duckport_scan_atif('trajectories.jsonl'))
+TO 'trajectories.lance' (
+    FORMAT duckport_lance,
+    BLOB_COLUMNS ('steps.message.source.path', 'steps.observation.results.content.source.path')
+);
+```
+
+The selected leaves must contain absolute URLs supported by the existing Blob
+reader (`file://`, HTTP(S), S3 or other enabled services). Qualify relative ATIF
+references before COPY; this option does not infer an ATIF document base URI,
+source credentials or text-compression policy. Null structs, lists and values
+remain null, and hidden values under null parents are not downloaded. Blob size
+thresholds apply to the selected nested fields as well as top-level fields.
