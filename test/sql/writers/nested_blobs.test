@@ -6,17 +6,19 @@ require duckport
 
 statement ok
 COPY (
-    SELECT [{'path': 'file://{WORKING_DIRECTORY}/testdata/zenodo/attachment.bin'}, NULL] AS media,
+    SELECT 'file://{WORKING_DIRECTORY}/testdata/zenodo/attachment.bin' AS attachment,
+           [{'path': 'file://{WORKING_DIRECTORY}/testdata/zenodo/attachment.bin'}, NULL] AS media,
            'https://example.invalid/keep' AS untouched
-) TO '{TEST_DIR}/nested.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('MEDIA.PATH'));
+) TO '{TEST_DIR}/nested.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('ATTACHMENT', 'MEDIA.PATH'));
 
 restart no_extension_load
 
 statement ok
 LOAD '{BUILD_DIRECTORY}/extension/lance/lance.duckdb_extension';
 
-query IIIT
-SELECT len(media), media[1].path = (SELECT content FROM read_blob('testdata/zenodo/attachment.bin')),
+query IIIIT
+SELECT attachment = (SELECT content FROM read_blob('testdata/zenodo/attachment.bin')),
+       len(media), media[1].path = (SELECT content FROM read_blob('testdata/zenodo/attachment.bin')),
        media[2] IS NULL, untouched FROM '{TEST_DIR}/nested.lance';
 ----
-2	true	true	https://example.invalid/keep
+true	2	true	true	https://example.invalid/keep

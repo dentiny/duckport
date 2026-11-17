@@ -1,5 +1,4 @@
 use crate::{error::Result, options::StorageConfig};
-use arrow_schema::{DataType, Field};
 use open_arrow_sink_core::{CompressionSpec, IndexSpec};
 use std::collections::HashSet;
 use url::Url;
@@ -339,19 +338,6 @@ pub(crate) fn validate_file_count(value: i64, preserve_order: bool) -> Result<()
     }
     if preserve_order && value != 1 {
         return Err("PRESERVE_ORDER true requires FILE_COUNT 1".into());
-    }
-    Ok(())
-}
-
-pub(crate) fn validate_blob_column(field: &Field, path: &str) -> Result<()> {
-    let mut data_type = field.data_type();
-    while let DataType::List(item) | DataType::LargeList(item) | DataType::FixedSizeList(item, _) =
-        data_type
-    {
-        data_type = item.data_type();
-    }
-    if !data_type.is_string() {
-        return Err(format!("BLOB_COLUMNS path must select text values: {path}").into());
     }
     Ok(())
 }

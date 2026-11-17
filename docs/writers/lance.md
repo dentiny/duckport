@@ -17,9 +17,9 @@ writes batches in input order; the default allows reordering. See
 `BLOB_COLUMNS ('image', 'audio')` explicitly selects text URL fields for download.
 Dotted paths traverse STRUCTs and implicitly traverse LIST/ARRAY elements;
 selected text lists are adapted element by element. Unselected fields keep their
-original values. Nested selections reuse the sink's native Blob materializer,
-including its size thresholds; top-level selections retain DownloadBlobLayer. HTTP(S), file:// and enabled OpenDAL sources such as S3 are
-supported. Bytes are ingested, so the source is no longer needed after commit.
+original values. All selections use `DownloadBlobLayer` and the sink's native
+Blob materializer, including its size thresholds. HTTP(S), file:// and enabled
+OpenDAL sources such as S3 are supported. Bytes are ingested, so the source is no longer needed after commit.
 NULLs remain NULL; other strings remain strings. Invalid columns, URLs and failed
 downloads fail COPY.
 
