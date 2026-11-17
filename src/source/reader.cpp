@@ -4,8 +4,8 @@
 #include "source/options.hpp"
 #include "source/reader.hpp"
 #include "source/source_factory.hpp"
-#include "storage_options.hpp"
 #include "source_metadata.hpp"
+#include "storage_options.hpp"
 
 namespace duckdb {
 namespace {
