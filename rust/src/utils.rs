@@ -139,6 +139,13 @@ pub(crate) fn sink_url(path: &str) -> Result<Url> {
     Ok(url)
 }
 
+pub(crate) fn sanitize_storage_root(mut root: Url) -> Url {
+    if root.scheme() == "s3" {
+        root.set_path("/");
+    }
+    root
+}
+
 pub(crate) fn internet_archive_credentials(config: &StorageConfig) -> Result<Option<(&str, &str)>> {
     validation::validate_internet_archive_credentials(config)?;
     Ok(config

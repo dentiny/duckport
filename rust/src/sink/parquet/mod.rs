@@ -25,5 +25,6 @@ pub(crate) async fn open(
     Ok(DuckportSink {
         writer: Some(writer),
         schema,
+        output_schema: None,
     })
 }

@@ -34,3 +34,17 @@ version pinned by the DuckDB checkout alongside the native fixture extension.
 Lance writer tests build the upstream [Lance reader](https://github.com/lance-format/lance-duckdb)
 at the revision pinned in `extension_config.cmake`, only with `BUILD_UNITTESTS`.
 They restart and load that reader to check written rows and downloaded blob bytes.
+
+The Iceberg COPY round-trip SQLLogicTest uses the native loopback REST catalog
+fixture. DuckDB's independent Iceberg extension reads the committed metadata
+with `iceberg_scan`; the test checks COPY, APPEND, NULLs, Unicode, empty strings,
+empty input, invalid options and schema mismatch.
+No external catalog or Python test runner is needed.
+
+The Iceberg reader is pinned by the DuckDB checkout and built only with
+`BUILD_UNITTESTS`. Its `roaring` dependency is provided by the vcpkg manifest.
+After building, run:
+
+```sh
+make test T='test/sql/writers/iceberg_roundtrip.test'
+```

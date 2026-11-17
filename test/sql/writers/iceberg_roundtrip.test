@@ -1,0 +1,70 @@
+# name: test/sql/writers/iceberg_roundtrip.test
+# description: COPY through DuckPort and read committed snapshots with DuckDB Iceberg
+# group: [sql]
+
+require duckport
+
+require duckport_test_fixture
+
+require iceberg
+
+statement ok
+SET VARIABLE iceberg_catalog = duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'start');
+
+statement ok
+COPY (SELECT * FROM (VALUES (1, 'Alice'), (2, NULL), (3, 'Charlie'), (NULL, 'missing-id')) AS t(id, name))
+TO 'tests.people' (FORMAT duckport_iceberg,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse', APPEND);
+
+statement ok
+COPY (SELECT * FROM (VALUES (4, 'Δuck'), (5, '')) AS t(id, name))
+TO 'tests.people' (FORMAT duckport_iceberg,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse', APPEND);
+
+statement error
+COPY (SELECT 6 AS id, 'invalid-mode' AS name)
+TO 'tests.people' (FORMAT duckport_iceberg,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse');
+----
+Iceberg COPY requires APPEND
+
+statement error
+COPY (SELECT 6 AS id, 'invalid-mode' AS name)
+TO 'tests.people' (FORMAT duckport_iceberg,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse', OVERWRITE);
+----
+Iceberg COPY requires APPEND
+
+statement error
+COPY (SELECT 6 AS id, 'invalid-blob' AS name)
+TO 'tests.people' (FORMAT duckport_iceberg,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse', APPEND, BLOB_COLUMNS ('name'));
+----
+Iceberg COPY does not support BLOB_COLUMNS
+
+statement ok
+COPY (SELECT 6 AS id, 'empty' AS name WHERE false)
+TO 'tests.people' (FORMAT duckport_iceberg,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse', APPEND);
+
+statement error
+COPY (SELECT 'wrong type' AS id, 'invalid' AS name)
+TO 'tests.people' (FORMAT duckport_iceberg,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse', APPEND);
+----
+Iceberg input column names
+
+query IT
+SELECT id, name FROM iceberg_scan('{TEST_DIR}/iceberg_warehouse/people/metadata/current.metadata.json') ORDER BY id NULLS LAST;
+----
+1	Alice
+2	NULL
+3	Charlie
+4	Δuck
+5	(empty)
+NULL	missing-id
+
+query T
+SELECT duckport_iceberg_fixture('{TEST_DIR}/iceberg_warehouse', 'stop');
+----
+stopped
