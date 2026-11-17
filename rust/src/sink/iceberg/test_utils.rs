@@ -2,9 +2,8 @@
 use crate::storage;
 use arrow_array::{ArrayRef, Int32Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
-use futures::TryStreamExt;
 use open_arrow_sink_iceberg::{
-    OpenDalStorageFactory, Storage,
+    OpenDalStorageFactory,
     iceberg::{
         Catalog, CatalogBuilder, NamespaceIdent, TableCreation, TableIdent,
         memory::MemoryCatalogBuilder,
@@ -17,11 +16,7 @@ pub(super) async fn table() -> (tempfile::TempDir, Arc<dyn Catalog>, TableIdent)
     let temp = tempfile::tempdir().unwrap();
     let root = url::Url::from_directory_path(temp.path()).unwrap();
     let factory = OpenDalStorageFactory::new(
-        Storage::new(
-            storage::create_local_directory_operator(temp.path()).unwrap(),
-            root.clone(),
-        )
-        .unwrap(),
+        storage::sink_storage_from_root(root.clone(), &Default::default()).unwrap(),
     );
     let catalog: Arc<dyn Catalog> = Arc::new(
         MemoryCatalogBuilder::default()
@@ -67,31 +62,4 @@ pub(super) fn batch(values: Vec<Option<i32>>) -> RecordBatch {
         vec![Arc::new(Int32Array::from(values)) as ArrayRef],
     )
     .unwrap()
-}
-
-pub(super) async fn rows(catalog: &Arc<dyn Catalog>, id: &TableIdent) -> Vec<i32> {
-    let table = catalog.load_table(id).await.unwrap();
-    let batches: Vec<RecordBatch> = table
-        .scan()
-        .build()
-        .unwrap()
-        .to_arrow()
-        .await
-        .unwrap()
-        .try_collect()
-        .await
-        .unwrap();
-    let mut values = batches
-        .iter()
-        .flat_map(|b| {
-            b.column(0)
-                .as_any()
-                .downcast_ref::<Int32Array>()
-                .unwrap()
-                .values()
-                .to_vec()
-        })
-        .collect::<Vec<_>>();
-    values.sort_unstable();
-    values
 }
