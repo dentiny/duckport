@@ -152,8 +152,7 @@ unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput 
 	result->info = input.function_info;
 	bool has_mode = false;
 	for (auto &entry : input.info.options) {
-		if ((entry.first == "target_file_size" || StringUtil::CIEquals(input.info.format, "duckport_lance")) &&
-		    ParseSizeOption(entry.first, entry.second, result->options.write)) {
+		if (ParseSizeOption(entry.first, entry.second, result->options.write)) {
 			continue;
 		}
 		if (ParseTextOption(entry.first, entry.second, result->options)) {
@@ -261,7 +260,9 @@ void CommonCopyOptions(ClientContext &, CopyOptionsInput &input) {
 	input.options["append"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
 	input.options["overwrite"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
 	// Validate the original value instead of rounding fractional byte sizes.
-	input.options["target_file_size"] = CopyOption(LogicalType::ANY, CopyOptionMode::WRITE_ONLY);
+	for (const auto &option : {"target_file_size", "blob_inline_size_threshold", "blob_dedicated_size_threshold"}) {
+		input.options[option] = CopyOption(LogicalType::ANY, CopyOptionMode::WRITE_ONLY);
+	}
 }
 } // namespace
 
@@ -269,15 +270,6 @@ void RegisterCopyFunction(ExtensionLoader &loader, const string &name, WriterOpe
 	CopyFunction function {Identifier(name)};
 	function.function_info = make_shared_ptr<WriterInfo>(std::move(open));
 	function.copy_options = CommonCopyOptions;
-	if (name == "duckport_lance") {
-		function.copy_options = [](ClientContext &context, CopyOptionsInput &input) {
-			CommonCopyOptions(context, input);
-			for (const auto &option : {"blob_inline_size_threshold", "blob_dedicated_size_threshold"}) {
-				// Preserve the original value so validation rejects fractional byte sizes.
-				input.options[option] = CopyOption(LogicalType::ANY, CopyOptionMode::WRITE_ONLY);
-			}
-		};
-	}
 	function.copy_to_bind = BindCopy;
 	function.copy_to_initialize_global = InitCopy;
 	function.copy_to_initialize_local = [](ExecutionContext &, FunctionData &) -> unique_ptr<LocalFunctionData> {

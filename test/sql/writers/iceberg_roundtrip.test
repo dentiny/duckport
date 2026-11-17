@@ -40,7 +40,7 @@ COPY (SELECT 6 AS id, 'invalid-blob' AS name)
 TO 'tests.people' (FORMAT duckport_iceberg,
     CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse', APPEND, BLOB_COLUMNS ('name'));
 ----
-Iceberg COPY does not support BLOB_COLUMNS
+blob handle configuration
 
 statement ok
 COPY (SELECT 6 AS id, 'empty' AS name WHERE false)

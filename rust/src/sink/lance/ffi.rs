@@ -38,7 +38,7 @@ pub unsafe extern "C" fn duckport_lance_open(
             &string(mode)?,
             columns,
             &storage.read()?,
-            options.read()?,
+            options.read(column_count)?,
         ))?;
         *output = Box::into_raw(Box::new(sink));
         Ok(())

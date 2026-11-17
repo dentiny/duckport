@@ -49,8 +49,8 @@ char *duckport_lance_open(const char *path, const ArrowSchema *, const char *mod
 char *duckport_iceberg_open(const char *identifier, const ArrowSchema *, const char *mode, size_t column_count,
                             const char *catalog_uri, const char *warehouse, const char *storage_root,
                             const DuckportWriteOptions *, const DuckportStorageOptions *, DuckportSink **output);
-char *duckport_parquet_open(const char *path, const ArrowSchema *, const char *mode, const DuckportWriteOptions *,
-                            const DuckportStorageOptions *, DuckportSink **output);
+char *duckport_parquet_open(const char *path, const ArrowSchema *, const char *mode, size_t column_count,
+                            const DuckportWriteOptions *, const DuckportStorageOptions *, DuckportSink **output);
 
 // Common sink functions
 char *duckport_sink_write(DuckportSink *, ArrowArray *);

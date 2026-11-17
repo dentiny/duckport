@@ -308,7 +308,7 @@ async fn configured_thresholds_control_blob_layout() {
         blob_dedicated_size_threshold: 2,
         target_file_size: -1,
     }
-    .read()
+    .read(0)
     .unwrap();
     for (payload, kind) in [
         ("x", BlobKind::Inline),
@@ -353,7 +353,7 @@ async fn configured_thresholds_control_blob_layout() {
         }
         for blob in present {
             assert_eq!(blob.kind(), kind);
-            assert_eq!(blob.read().await.unwrap().as_ref(), payload.as_bytes());
+            assert_eq!(blob.read(0).await.unwrap().as_ref(), payload.as_bytes());
         }
     }
 }
@@ -361,15 +361,17 @@ async fn configured_thresholds_control_blob_layout() {
 #[test]
 fn size_options_validate_boundaries_and_preserve_defaults() {
     let defaults = DuckportWriteOptions::default();
-    let options = defaults.read().unwrap();
+    let options = defaults.read(0).unwrap();
     assert!(options.blob_handle.is_none());
     assert!(options.target_file_size.is_none());
+    // Selecting a URL column must request blob capability even without thresholds.
+    assert!(defaults.read(1).unwrap().blob_handle.is_some());
     assert!(
         DuckportWriteOptions {
             blob_inline_size_threshold: 0,
             ..defaults
         }
-        .read()
+        .read(0)
         .is_ok()
     );
     for invalid in [
@@ -390,7 +392,7 @@ fn size_options_validate_boundaries_and_preserve_defaults() {
             ..defaults
         },
     ] {
-        assert!(invalid.read().is_err());
+        assert!(invalid.read(0).is_err());
     }
 }
 
@@ -427,7 +429,7 @@ async fn target_file_size_rotates_files_without_losing_rows() {
             target_file_size,
             ..Default::default()
         }
-        .read()
+        .read(0)
         .unwrap();
         let mut writer = super::open(
             path.to_str().unwrap(),

@@ -29,12 +29,7 @@ pub unsafe extern "C" fn duckport_iceberg_open(
         let mode = string(mode)?;
         let catalog_uri = string(catalog_uri)?;
         let storage_root = string(storage_root)?;
-        validation::validate_iceberg_write_options(
-            &mode,
-            column_count,
-            &catalog_uri,
-            &storage_root,
-        )?;
+        validation::validate_iceberg_write_options(&mode, &catalog_uri, &storage_root)?;
         let options = validation::required(options.as_ref(), "null sink write options")?;
         let sink = RUNTIME.block_on(super::open(
             &string(identifier)?,
@@ -43,7 +38,7 @@ pub unsafe extern "C" fn duckport_iceberg_open(
             &string(warehouse)?,
             &storage_root,
             &storage.read()?,
-            options.read()?,
+            options.read(column_count)?,
         ))?;
         *output = Box::into_raw(Box::new(sink));
         Ok(())

@@ -31,25 +31,12 @@ COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, ${op
 ----
 ${option}
 
-foreach format duckport_parquet duckport_iceberg
+endloop
 
 statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid' (FORMAT ${format}, ${option} 1);
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, BLOB_DEDICATED_SIZE_THRESHOLD 0);
 ----
-Unrecognized option
-
-endloop
-
-endloop
-
-foreach option blob_dedicated_size_threshold
-
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid.lance' (FORMAT duckport_lance, ${option} 0);
-----
-${option}
-
-endloop
+blob_dedicated_size_threshold
 
 restart no_extension_load
 

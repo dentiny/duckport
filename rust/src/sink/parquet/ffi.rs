@@ -13,6 +13,7 @@ pub unsafe extern "C" fn duckport_parquet_open(
     path: *const c_char,
     schema: *const FFI_ArrowSchema,
     mode: *const c_char,
+    column_count: usize,
     options: *const DuckportWriteOptions,
     storage: *const crate::options::DuckportStorageOptions,
     output: *mut *mut DuckportSink,
@@ -28,7 +29,7 @@ pub unsafe extern "C" fn duckport_parquet_open(
             Arc::new(Schema::try_from(schema)?),
             &string(mode)?,
             &storage.read()?,
-            options.read()?,
+            options.read(column_count)?,
         ))?;
         *output = Box::into_raw(Box::new(sink));
         Ok(())

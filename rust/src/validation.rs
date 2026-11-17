@@ -234,7 +234,6 @@ pub(crate) fn validate_sink_batch_schema(
 
 pub(crate) fn validate_iceberg_write_options(
     mode: &str,
-    column_count: usize,
     catalog_uri: &str,
     storage_root: &str,
 ) -> Result<()> {
@@ -243,9 +242,6 @@ pub(crate) fn validate_iceberg_write_options(
     }
     if catalog_uri.is_empty() || storage_root.is_empty() {
         return Err("Iceberg COPY requires CATALOG_URI and STORAGE_ROOT".into());
-    }
-    if column_count != 0 {
-        return Err("Iceberg COPY does not support BLOB_COLUMNS".into());
     }
     Ok(())
 }
