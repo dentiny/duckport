@@ -1,4 +1,5 @@
-use crate::{iceberg::open_catalog, storage};
+use super::open_catalog;
+use crate::storage;
 use arrow_array::{ArrayRef, Int32Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
 use futures::TryStreamExt;
@@ -162,7 +163,8 @@ async fn invalid_schema_and_required_nulls_do_not_publish() {
 #[test]
 fn ffi_failure_clears_output_and_validates_pointers() {
     use crate::{
-        error::ffi_result, ffi::sink::duckport_iceberg_open, options::DuckportStorageOptions,
+        error::ffi_result, options::DuckportStorageOptions,
+        sink::iceberg::ffi::duckport_iceberg_open,
     };
     use arrow_schema::ffi::FFI_ArrowSchema;
     use std::{ffi::CString, ptr};

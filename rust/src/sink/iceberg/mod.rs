@@ -106,3 +106,7 @@ pub(crate) async fn open_catalog(
         output_schema: Some(output_schema),
     })
 }
+
+mod ffi;
+#[cfg(test)]
+mod tests;
