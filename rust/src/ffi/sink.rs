@@ -28,6 +28,11 @@ pub unsafe extern "C" fn duckport_validate_byte_size(
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn duckport_validate_file_count(value: i64, preserve_order: bool) -> *mut c_char {
+    call(|| validation::validate_file_count(value, preserve_order))
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn duckport_validate_sample_percent(value: f64) -> *mut c_char {
     call(|| validation::sample_percent(value))
 }

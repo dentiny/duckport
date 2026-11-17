@@ -34,7 +34,8 @@ Use the same directories for additional backends. SQL round-trip tests live in
 ```sql
 COPY (SELECT * FROM input_table ORDER BY id)
 TO 'ordered.lance' (FORMAT duckport_lance, PRESERVE_ORDER true);
-COPY input_table TO 'output_dataset' (FORMAT duckport_parquet, PRESERVE_ORDER false);
+COPY input_table TO 'output_dataset'
+(FORMAT duckport_parquet, PRESERVE_ORDER false, FILE_COUNT 4);
 ```
 
 All three sinks (Lance, Parquet and Iceberg) support both modes.
@@ -46,10 +47,17 @@ data files. This does not sort the source: use `ORDER BY` in the source query fo
 a specific sort order.
 
 With `false`, upstream execution may run in parallel and the backend uses a
-bounded pool of independent writers, sized by DuckDB's `threads` setting. Writers
-share one publication session. The library overlaps I/O; Parquet and Iceberg
+bounded pool of independent writers. `FILE_COUNT` sets the writer count; when
+omitted it defaults to DuckDB's `threads` setting. Writers share one publication
+session. The library overlaps I/O; Parquet and Iceberg
 encoding runs in the calling task, while Lance also uses background workers.
 Rows may be reordered but are neither dropped nor duplicated by this mode.
+
+`FILE_COUNT` accepts a positive integer and applies to every sink. With
+`PRESERVE_ORDER true`, it defaults to 1 and only 1 is accepted. It controls writer
+streams, rather than an exact final file count: `TARGET_FILE_SIZE` or backend
+limits can roll each stream into several data files, and idle writers may produce
+none. Blob objects and metadata files are not counted.
 
 This option controls write scheduling, not a reader's dataset scan order.
 Parquet directory listing, Iceberg scan planning and parallel readers can choose

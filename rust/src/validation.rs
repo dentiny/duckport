@@ -331,3 +331,13 @@ pub(crate) fn validate_structural_encoding_path(path: &[String]) -> Result<()> {
     }
     Ok(())
 }
+
+pub(crate) fn validate_file_count(value: i64, preserve_order: bool) -> Result<()> {
+    if value <= 0 || usize::try_from(value).is_err() {
+        return Err("FILE_COUNT must be a positive integer that fits in the platform size".into());
+    }
+    if preserve_order && value != 1 {
+        return Err("PRESERVE_ORDER true requires FILE_COUNT 1".into());
+    }
+    Ok(())
+}

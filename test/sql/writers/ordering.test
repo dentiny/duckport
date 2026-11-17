@@ -15,11 +15,11 @@ foreach sink lance parquet
 
 statement ok
 COPY (SELECT i AS id FROM range(131072) t(i) ORDER BY i DESC)
-TO '{TEST_DIR}/ordered_${sink}' (FORMAT duckport_${sink}, PRESERVE_ORDER true);
+TO '{TEST_DIR}/ordered_${sink}' (FORMAT duckport_${sink}, PRESERVE_ORDER true, FILE_COUNT 1);
 
 statement ok
 COPY (SELECT i AS id FROM range(131072) t(i))
-TO '{TEST_DIR}/unordered_${sink}' (FORMAT duckport_${sink}, PRESERVE_ORDER false);
+TO '{TEST_DIR}/unordered_${sink}' (FORMAT duckport_${sink}, PRESERVE_ORDER false, FILE_COUNT 2);
 
 endloop
 
@@ -27,14 +27,14 @@ statement ok
 COPY (SELECT -1::BIGINT AS id) TO '{TEST_DIR}/ordered_lance'
 (FORMAT duckport_lance, APPEND, PRESERVE_ORDER true);
 
-foreach mode,preserve_order ordered,true unordered,false
+foreach mode,preserve_order,file_count ordered,true,1 unordered,false,2
 
 statement ok
 SET VARIABLE iceberg_catalog = duckport_iceberg_fixture('{TEST_DIR}/${mode}_iceberg', 'start');
 
 statement ok
 COPY (SELECT i::INTEGER AS id, i::VARCHAR AS name FROM range(131072) t(i) ORDER BY i DESC)
-TO 'tests.people' (FORMAT duckport_iceberg, APPEND, PRESERVE_ORDER ${preserve_order},
+TO 'tests.people' (FORMAT duckport_iceberg, APPEND, PRESERVE_ORDER ${preserve_order}, FILE_COUNT ${file_count},
     CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/${mode}_iceberg');
 
 statement ok

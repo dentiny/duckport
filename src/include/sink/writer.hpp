@@ -2,6 +2,7 @@
 
 #include "duckdb.hpp"
 #include "duckdb/common/arrow/arrow.hpp"
+#include "duckdb/common/optional.hpp"
 #include "duckport.h"
 #include <functional>
 #include <tuple>
@@ -35,6 +36,7 @@ struct IndexOptions {
 struct SinkWriteOptions {
 	SinkWriteMode mode = SinkWriteMode::CREATE;
 	bool preserve_order = false;
+	optional<int64_t> file_count;
 	vector<string> blob_columns;
 	DuckportWriteOptions write_options {
 	    .blob_inline_size_threshold = -1,
