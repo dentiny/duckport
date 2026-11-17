@@ -1,9 +1,6 @@
 //! Explicit nested BLOB_COLUMNS selection; downloads remain native sink work.
 use crate::{error::Result, utils, validation};
-use arrow_array::{
-    Array, ArrayRef, StringArray, StructArray, cast::AsArray, make_array, new_null_array,
-};
-use arrow_buffer::NullBuffer;
+use arrow_array::{ArrayRef, StructArray, make_array, new_null_array};
 use arrow_schema::{DataType, Field, Schema};
 use lance::{BlobFieldOptions, blob_field_with_options};
 use open_arrow_sink_core::{Error, WriteOptions};
@@ -46,25 +43,13 @@ pub(super) fn parse(
     let remaps = schema
         .fields()
         .iter()
-        .filter_map(|source| {
-            let target = Arc::new(output_field(
-                source,
-                &[source.name().clone()],
-                &paths,
-                options,
-            ));
-            if source == &target {
-                return None;
-            }
+        .filter(|source| paths.iter().any(|path| path[0].eq(source.name())))
+        .map(|source| {
+            let target = output_field(source, &[source.name().clone()], &paths, options);
             let output = target.data_type().clone();
-            Some(FieldRemap::new(
-                source.name().clone(),
-                target,
-                move |array| {
-                    transform(array, &output, None)
-                        .map_err(|error| Error::InvalidInput(error.to_string()))
-                },
-            ))
+            FieldRemap::new(source.name().clone(), target, move |array| {
+                transform(array, &output).map_err(|error| Error::InvalidInput(error.to_string()))
+            })
         })
         .collect();
     Ok(BlobColumns {
@@ -116,48 +101,31 @@ fn output_field(
     field.clone().with_data_type(data_type)
 }
 
-fn transform(array: ArrayRef, target: &DataType, parent: Option<NullBuffer>) -> Result<ArrayRef> {
+fn transform(array: ArrayRef, target: &DataType) -> Result<ArrayRef> {
     if array.data_type() == target {
         return Ok(array);
     }
-    let visible = NullBuffer::union(array.nulls(), parent.as_ref());
     if matches!(
         array.data_type(),
         DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View
     ) {
-        return blob_uris(array, target, visible);
+        return blob_uris(array, target);
     }
-    let data = array.to_data();
-    let children = match target {
-        DataType::Struct(fields) => fields
-            .iter()
-            .zip(data.child_data())
-            .map(|(field, child)| {
-                let child_type = field.data_type();
-                transform(make_array(child.clone()), child_type, visible.clone())
-                    .map(|array| array.to_data())
-            })
-            .collect::<Result<Vec<_>>>()?,
+    let fields: &[Arc<Field>] = match target {
+        DataType::Struct(fields) => fields,
         DataType::List(field) | DataType::LargeList(field) | DataType::FixedSizeList(field, _) => {
-            let offset = |row| match data.data_type() {
-                DataType::List(_) => data.buffer::<i32>(0)[row] as usize,
-                DataType::LargeList(_) => data.buffer::<i64>(0)[row] as usize,
-                DataType::FixedSizeList(_, width) => (data.offset() + row) * *width as usize,
-                _ => unreachable!("Blob parent must retain its list type"),
-            };
-            let child = &data.child_data()[0];
-            let mut mask = vec![false; child.len()];
-            for row in 0..array.len() {
-                if visible.as_ref().is_none_or(|nulls| nulls.is_valid(row)) {
-                    mask[offset(row)..offset(row + 1)].fill(true);
-                }
-            }
-            let child_type = field.data_type();
-            let child = transform(make_array(child.clone()), child_type, Some(mask.into()))?;
-            vec![child.to_data()]
+            std::slice::from_ref(field)
         }
         _ => unreachable!("Blob parent must be a struct or list"),
     };
+    let data = array.to_data();
+    let children = fields
+        .iter()
+        .zip(data.child_data())
+        .map(|(field, child)| {
+            transform(make_array(child.clone()), field.data_type()).map(|array| array.to_data())
+        })
+        .collect::<Result<Vec<_>>>()?;
     Ok(make_array(
         data.into_builder()
             .data_type(target.clone())
@@ -166,23 +134,16 @@ fn transform(array: ArrayRef, target: &DataType, parent: Option<NullBuffer>) -> 
     ))
 }
 
-fn blob_uris(array: ArrayRef, target: &DataType, visible: Option<NullBuffer>) -> Result<ArrayRef> {
+fn blob_uris(array: ArrayRef, target: &DataType) -> Result<ArrayRef> {
     let array = arrow_cast::cast(&array, &DataType::Utf8)?;
-    let paths = array.as_string::<i32>();
-    let uris = StringArray::new(
-        paths.offsets().clone(),
-        paths.values().clone(),
-        visible.clone(),
-    );
+    let len = array.len();
+    let nulls = array.nulls().cloned();
     let DataType::Struct(fields) = target else {
         unreachable!("Blob target is a struct")
     };
     Ok(Arc::new(StructArray::try_new(
         fields.clone(),
-        vec![
-            new_null_array(&DataType::LargeBinary, array.len()),
-            Arc::new(uris),
-        ],
-        visible,
+        vec![new_null_array(&DataType::LargeBinary, len), array],
+        nulls,
     )?))
 }

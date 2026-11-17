@@ -6,11 +6,10 @@ use crate::{
     sink::DuckportSink,
 };
 use arrow_array::{
-    Array, ArrayRef, Int64Array, ListArray, RecordBatch, StringArray, StructArray, cast::AsArray,
+    Array, ArrayRef, Int64Array, RecordBatch, StringArray, StructArray, cast::AsArray,
     types::Int64Type,
 };
-use arrow_buffer::OffsetBuffer;
-use arrow_schema::{Field, ffi::FFI_ArrowSchema};
+use arrow_schema::ffi::FFI_ArrowSchema;
 use open_arrow_sink_core::WriteOptions;
 use open_arrow_sink_lance::{LanceDatasetSink, Url};
 use std::{ffi::CString, path::Path, ptr, sync::Arc};
@@ -281,20 +280,13 @@ async fn nested_blob_columns_preserve_payloads_and_nulls() {
     let temp = tempdir().await;
     let image = temp.path().join("image.bin");
     tokio::fs::write(&image, b"payload").await.unwrap();
-    let entries = StructArray::from(blob_input(Url::from_file_path(&image).unwrap().as_str()));
-    let entries = StructArray::new(
-        entries.fields().clone(),
-        entries.columns().to_vec(),
+    let input = StructArray::from(blob_input(Url::from_file_path(&image).unwrap().as_str()));
+    let nested = StructArray::new(
+        input.fields().clone(),
+        input.columns().to_vec(),
         Some(vec![true, false].into()),
     );
-    let field = Field::new("item", entries.data_type().clone(), true);
-    let list = ListArray::new(
-        Arc::new(field),
-        OffsetBuffer::new(vec![0, 1, 2].into()),
-        Arc::new(entries),
-        None,
-    );
-    let input = RecordBatch::try_from_iter([("media", Arc::new(list) as ArrayRef)]).unwrap();
+    let input = RecordBatch::try_from_iter([("media", Arc::new(nested) as ArrayRef)]).unwrap();
     let destination = temp.path().join("dataset");
     let mut writer = open(&destination, &input, "create", &["MEDIA.BLOB"])
         .await
@@ -303,7 +295,7 @@ async fn nested_blob_columns_preserve_payloads_and_nulls() {
     writer.commit().await.unwrap();
     tokio::fs::remove_file(image).await.unwrap();
     let actual = read(&destination).await.unwrap();
-    let media = actual.column(0).as_list::<i32>().values().as_struct();
+    let media = actual.column(0).as_struct();
     assert_eq!(media.column(0).as_binary::<i64>().value(0), b"payload");
     assert!(media.is_null(1));
     assert_eq!(media.column(1).as_string::<i32>().value(0), "keep");
