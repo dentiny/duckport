@@ -43,3 +43,34 @@ from 0 to DuckDB's maximum sample size (currently 1,000,000,000) and selects tha
 many rows uniformly, or all rows when the source contains fewer. Both methods
 read the source; fixed-row sampling buffers the sample. The options are mutually
 exclusive and do not promise output order.
+
+# Column compression and encoding
+
+All DuckPort COPY formats accept the same STRUCT option syntax as
+`duckdb_lance_conversion`. Support is checked against the native sink's
+compression capability.
+
+```sql
+COPY input_table TO 'output.lance' (
+    FORMAT duckport_lance,
+    COLUMN_COMPRESSION {'body': 'zstd', 'nested.messages.text': 'lz4'},
+    COLUMN_COMPRESSION_LEVEL {'body': 3},
+    COLUMN_STRUCTURAL_ENCODING {'body': 'fullzip', 'nested': 'miniblock'}
+);
+```
+
+Column names match DuckDB identifiers without ASCII case sensitivity. Compression
+and level options support dotted nested paths through STRUCTs and LIST/ARRAY
+containers, omitting list item names. Exact top-level column names take precedence,
+including names containing dots. Structural encoding accepts `miniblock` and
+`fullzip` for top-level columns and applies recursively to their children.
+
+`COLUMN_COMPRESSION_LEVEL` requires an explicit `zstd` codec for the same column;
+other codecs and level-only settings fail instead of silently ignoring the level.
+Native backends validate supported levels. Omitted settings preserve backend defaults.
+
+Lance supports `none`/`uncompressed`, `zstd`, `lz4`/`lz4_raw`, nested compression
+and both structural encodings. Parquet supports top-level codec overrides, including
+`snappy` and `gzip` when enabled, but rejects nested paths and structural encodings.
+The current Iceberg sink rejects per-column compression and structural encoding.
+These restrictions come from sink capabilities, rather than format-name checks.

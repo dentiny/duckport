@@ -4,9 +4,24 @@
 #include "duckdb/common/arrow/arrow.hpp"
 #include "duckport.h"
 #include <functional>
+#include <tuple>
 
 namespace duckdb {
 enum class SinkWriteMode : uint8_t { CREATE, APPEND, OVERWRITE };
+
+struct ColumnEncodingOptions {
+	string column;
+	string compression;
+	bool has_compression_level = false;
+	int32_t compression_level = 0;
+	string structural_encoding;
+
+	bool operator==(const ColumnEncodingOptions &other) const {
+		return std::tie(column, compression, has_compression_level, compression_level, structural_encoding) ==
+		       std::tie(other.column, other.compression, other.has_compression_level, other.compression_level,
+		                other.structural_encoding);
+	}
+};
 
 struct SinkWriteOptions {
 	SinkWriteMode mode = SinkWriteMode::CREATE;
@@ -16,14 +31,30 @@ struct SinkWriteOptions {
 	    .blob_dedicated_size_threshold = -1,
 	    .target_file_size = -1,
 	    .storage_version = nullptr,
+	    .column_encodings = nullptr,
+	    .column_encoding_count = 0,
 	};
 	string catalog_uri;
 	string warehouse;
 	string storage_root;
 	string storage_version;
+	vector<ColumnEncodingOptions> column_encodings;
 
-	DuckportWriteOptions ToFfi() const {
+	DuckportWriteOptions ToFfi(vector<DuckportColumnEncoding> &encodings) const {
+		encodings.clear();
+		encodings.reserve(column_encodings.size());
+		for (const auto &entry : column_encodings) {
+			encodings.push_back(DuckportColumnEncoding {
+			    .column = entry.column.c_str(),
+			    .compression = entry.compression.empty() ? nullptr : entry.compression.c_str(),
+			    .has_compression_level = entry.has_compression_level,
+			    .compression_level = entry.compression_level,
+			    .structural_encoding = entry.structural_encoding.empty() ? nullptr : entry.structural_encoding.c_str(),
+			});
+		}
 		auto result = write_options;
+		result.column_encodings = encodings.data();
+		result.column_encoding_count = encodings.size();
 		result.storage_version = storage_version.empty() ? nullptr : storage_version.c_str();
 		return result;
 	}

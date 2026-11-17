@@ -1,0 +1,29 @@
+# name: test/sql/writers/encoding.test
+# description: Column codecs, levels, nested paths and structural encodings round-trip through Lance
+# group: [sql]
+
+require duckport
+
+statement ok
+COPY (
+    SELECT id, name, {'messages': [{'body': name}]} AS nested, name AS "literal.dot"
+    FROM duckport_scan_parquet('testdata/parquet/people.parquet')
+) TO '{TEST_DIR}/encoded.lance' (
+    FORMAT duckport_lance,
+    COLUMN_COMPRESSION {'NAME': 'zstd', 'nested.messages.body': 'lz4', 'literal.dot': 'lz4'},
+    COLUMN_COMPRESSION_LEVEL {'name': 3},
+    COLUMN_STRUCTURAL_ENCODING {'name': 'fullzip', 'nested': 'miniblock'}
+);
+
+restart no_extension_load
+
+statement ok
+LOAD '{BUILD_DIRECTORY}/extension/lance/lance.duckdb_extension';
+
+query ITTT
+SELECT id, name, nested.messages[1].body, "literal.dot"
+FROM '{TEST_DIR}/encoded.lance' ORDER BY id;
+----
+1	Alice	Alice	Alice
+2	NULL	NULL	NULL
+3	Charlie	Charlie	Charlie

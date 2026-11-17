@@ -32,13 +32,15 @@ pub unsafe extern "C" fn duckport_lance_open(
             .iter()
             .map(|column| string(*column))
             .collect::<crate::error::Result<std::collections::HashSet<_>>>()?;
+        let schema = Arc::new(Schema::try_from(schema)?);
+        let write_options = options.convert(column_count, &schema)?;
         let sink = RUNTIME.block_on(super::open(
             &string(path)?,
-            Arc::new(Schema::try_from(schema)?),
+            schema,
             &string(mode)?,
             columns,
             &storage.read()?,
-            options.convert(column_count)?,
+            write_options,
         ))?;
         *output = Box::into_raw(Box::new(sink));
         Ok(())
