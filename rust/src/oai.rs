@@ -64,7 +64,8 @@ pub async fn open<P: OaiProvider>(
         until_date.as_deref(),
         set_spec.as_deref(),
     )?;
-    let connection = Connection::new(endpoint)?;
+    let connection =
+        Connection::new(endpoint)?.with_http_config(storage_options.policy.config()?)?;
     let connection = if let Some(token) = storage_options.token {
         connection.with_header("authorization", &format!("Bearer {token}"))?
     } else {

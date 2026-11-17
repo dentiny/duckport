@@ -1,0 +1,121 @@
+# name: test/sql/storage_options.test
+# description: Shared storage settings, validation, and reader/COPY policy validation
+# group: [sql]
+
+require duckport
+
+query IIIIIR
+SELECT current_setting('conversion_storage_timeout_ms'),
+       current_setting('conversion_storage_io_timeout_ms'),
+       current_setting('conversion_storage_retry_max_times'),
+       current_setting('conversion_storage_retry_min_delay_ms'),
+       current_setting('conversion_storage_retry_max_delay_ms'),
+       current_setting('conversion_storage_retry_factor');
+----
+30000	30000	5	500	10000	2.0
+
+statement ok
+SET conversion_storage_timeout_ms = 1000;
+
+statement ok
+SET conversion_storage_io_timeout_ms = 2000;
+
+statement ok
+SET conversion_storage_retry_max_times = 0;
+
+statement ok
+SET conversion_storage_retry_min_delay_ms = 10;
+
+statement ok
+SET conversion_storage_retry_max_delay_ms = 100;
+
+statement ok
+SET conversion_storage_retry_factor = 1.5;
+
+query IIIIIR
+SELECT current_setting('conversion_storage_timeout_ms'),
+       current_setting('conversion_storage_io_timeout_ms'),
+       current_setting('conversion_storage_retry_max_times'),
+       current_setting('conversion_storage_retry_min_delay_ms'),
+       current_setting('conversion_storage_retry_max_delay_ms'),
+       current_setting('conversion_storage_retry_factor');
+----
+1000	2000	0	10	100	1.5
+
+# Opening readers and writers accepts a valid policy, including disabled retries.
+query I
+SELECT count(*) FROM duckport_scan_parquet('testdata/parquet/people.parquet');
+----
+3
+
+statement ok
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/storage_policy' (FORMAT duckport_parquet);
+
+foreach setting timeout_ms io_timeout_ms retry_min_delay_ms retry_max_delay_ms
+
+statement error
+SET conversion_storage_${setting} = 0;
+----
+must be positive
+
+statement error
+SET conversion_storage_${setting} = -1;
+----
+must be positive
+
+statement error
+SET conversion_storage_${setting} = NULL;
+----
+must be positive
+
+endloop
+
+statement error
+SET conversion_storage_retry_max_times = -1;
+----
+must be non-negative
+
+statement error
+SET conversion_storage_retry_max_times = NULL;
+----
+must be non-negative
+
+foreach factor 0.5 'NaN' 'Infinity' '-Infinity' 1e40 NULL
+
+statement error
+SET conversion_storage_retry_factor = ${factor};
+----
+must be finite and between 1 and f32::MAX
+
+endloop
+
+# Validate the combination at open, allowing related settings to be changed in any order.
+statement ok
+SET conversion_storage_retry_min_delay_ms = 200;
+
+statement error
+SELECT * FROM duckport_scan_parquet('testdata/parquet/people.parquet');
+----
+conversion_storage_retry_max_delay_ms must be at least retry_min_delay_ms
+
+statement error
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid_storage_policy' (FORMAT duckport_parquet);
+----
+conversion_storage_retry_max_delay_ms must be at least retry_min_delay_ms
+
+foreach setting timeout_ms io_timeout_ms retry_max_times retry_min_delay_ms retry_max_delay_ms retry_factor
+
+statement ok
+RESET conversion_storage_${setting};
+
+endloop
+
+query IIIIIR
+SELECT current_setting('conversion_storage_timeout_ms'),
+       current_setting('conversion_storage_io_timeout_ms'),
+       current_setting('conversion_storage_retry_max_times'),
+       current_setting('conversion_storage_retry_min_delay_ms'),
+       current_setting('conversion_storage_retry_max_delay_ms'),
+       current_setting('conversion_storage_retry_factor');
+----
+30000	30000	5	500	10000	2.0

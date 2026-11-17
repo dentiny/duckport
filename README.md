@@ -41,6 +41,42 @@ Parquet can skip unselected column data, while WARC must still parse and consume
 record bodies even when they are omitted from Arrow output. Schema binding may
 still inspect unselected fields.
 
+## Storage timeouts and retries
+
+The current connection's settings are copied when a reader or COPY writer opens.
+Remote HTTP(S)/S3 file readers and all three sinks' S3 destination operations
+share this policy, including provider-owned directory reads (arXiv, Common Crawl,
+PMC inventory). Provider HTTP metadata and attachment requests, including Hugging
+Face discovery and Parquet reads, use the same policy through the upstream HTTP
+transport. Auxiliary provider connections also inherit it.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `conversion_storage_timeout_ms` | `30000` | Control operation timeout per attempt, such as `stat`; provider HTTP request timeout |
+| `conversion_storage_io_timeout_ms` | `30000` | Timeout per I/O operation and reader/writer body method |
+| `conversion_storage_retry_max_times` | `5` | Retries after the initial attempt; `0` disables retries |
+| `conversion_storage_retry_min_delay_ms` | `500` | Initial exponential backoff |
+| `conversion_storage_retry_max_delay_ms` | `10000` | Maximum exponential backoff before jitter |
+| `conversion_storage_retry_factor` | `2.0` | Backoff multiplier, finite and between `1` and `f32::MAX` |
+
+```sql
+SET conversion_storage_timeout_ms = 30000;
+SET conversion_storage_io_timeout_ms = 30000;
+SET conversion_storage_retry_max_times = 5;
+SET conversion_storage_retry_min_delay_ms = 500;
+SET conversion_storage_retry_max_delay_ms = 10000;
+SET conversion_storage_retry_factor = 2.0;
+```
+
+Timeouts and delays must be positive; the maximum delay must be at least the
+minimum delay when opening a reader or writer. `RESET` restores each default.
+Timeouts apply to each attempt, rather than to the entire query. OpenDAL retries
+temporary errors with exponential backoff and jitter, with timeout inside retry.
+Provider HTTP transports apply retry safety rules and do not replay a response
+body after bytes have been delivered. Local filesystem operations, Iceberg REST
+catalog requests, and backend-owned `BLOB_COLUMNS` URL downloads retain their
+library defaults. Other DuckDB extensions use their own settings.
+
 ## Write
 
 ```sql

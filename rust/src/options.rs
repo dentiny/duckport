@@ -1,3 +1,4 @@
+use crate::storage_policy::DuckportStoragePolicy;
 use crate::{error::Result, utils, utils::optional_string};
 use open_arrow_access::ReadOptions;
 use std::ffi::c_char;
@@ -13,6 +14,7 @@ pub struct DuckportStorageOptions {
     pub token: *const c_char,
     pub virtual_host_style: i32,
     pub allow_anonymous: i32,
+    pub policy: DuckportStoragePolicy,
 }
 
 #[repr(C)]
@@ -31,10 +33,12 @@ pub struct StorageConfig {
     pub token: Option<String>,
     pub virtual_host_style: bool,
     pub allow_anonymous: bool,
+    pub policy: DuckportStoragePolicy,
 }
 
 impl DuckportStorageOptions {
     pub(crate) unsafe fn read(&self) -> Result<StorageConfig> {
+        self.policy.config()?;
         Ok(StorageConfig {
             endpoint: unsafe { optional_string(self.endpoint) }?,
             region: unsafe { optional_string(self.region) }?,
@@ -44,6 +48,7 @@ impl DuckportStorageOptions {
             token: unsafe { optional_string(self.token) }?,
             virtual_host_style: utils::boolean("virtual_host_style", self.virtual_host_style)?,
             allow_anonymous: utils::boolean("allow_anonymous", self.allow_anonymous)?,
+            policy: self.policy,
         })
     }
 }
