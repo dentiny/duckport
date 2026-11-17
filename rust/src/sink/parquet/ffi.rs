@@ -29,7 +29,7 @@ pub unsafe extern "C" fn duckport_parquet_open(
             Arc::new(Schema::try_from(schema)?),
             &string(mode)?,
             &storage.read()?,
-            options.read(column_count)?,
+            options.convert(column_count)?,
         ))?;
         *output = Box::into_raw(Box::new(sink));
         Ok(())
