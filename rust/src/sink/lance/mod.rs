@@ -17,17 +17,12 @@ pub(crate) async fn open(
     mode: &str,
     columns: HashSet<String>,
     config: &StorageConfig,
+    options: WriteOptions,
 ) -> Result<DuckportSink> {
-    let mode = utils::sink_mode(mode)?;
+    let options = options.with_mode(utils::sink_mode(mode)?);
     let destination = storage::sink_storage(path, config)?;
     let sink = LanceDatasetSink::new(destination.storage).layer(DownloadBlobLayer::new(columns));
-    let writer = sink
-        .open(
-            destination.url,
-            schema.clone(),
-            WriteOptions::default().with_mode(mode),
-        )
-        .await?;
+    let writer = sink.open(destination.url, schema.clone(), options).await?;
     Ok(DuckportSink {
         writer: Some(writer),
         schema,

@@ -1,5 +1,6 @@
 //! Lance Arrow C ABI opener.
 use super::super::DuckportSink;
+use crate::ffi::sink::DuckportWriteOptions;
 use crate::{error::call, ffi::common::RUNTIME, utils, utils::string, validation};
 use arrow_schema::{Schema, ffi::FFI_ArrowSchema};
 use std::{ffi::c_char, ptr, sync::Arc};
@@ -7,7 +8,8 @@ use std::{ffi::c_char, ptr, sync::Arc};
 /// # Safety
 /// Strings are NUL-terminated UTF-8; schema and storage are live and borrowed.
 /// Columns points to column_count readable string pointers (or is null for zero columns).
-/// Output points to writable sink-pointer storage. No inputs are retained.
+/// Write options and output are non-null. Output points to writable sink-pointer storage.
+/// No inputs are retained.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duckport_lance_open(
     path: *const c_char,
@@ -15,6 +17,7 @@ pub unsafe extern "C" fn duckport_lance_open(
     mode: *const c_char,
     columns: *const *const c_char,
     column_count: usize,
+    options: *const DuckportWriteOptions,
     storage: *const crate::options::DuckportStorageOptions,
     output: *mut *mut DuckportSink,
 ) -> *mut c_char {
@@ -23,6 +26,7 @@ pub unsafe extern "C" fn duckport_lance_open(
         *output = ptr::null_mut();
         let schema = validation::required(schema.as_ref(), "null sink schema")?;
         let storage = validation::required(storage.as_ref(), "null Lance options")?;
+        let options = validation::required(options.as_ref(), "null Lance write options")?;
         let columns = utils::ffi_slice(columns, column_count, "null Lance columns")?;
         let columns = columns
             .iter()
@@ -34,6 +38,7 @@ pub unsafe extern "C" fn duckport_lance_open(
             &string(mode)?,
             columns,
             &storage.read()?,
+            options.convert(column_count)?,
         ))?;
         *output = Box::into_raw(Box::new(sink));
         Ok(())

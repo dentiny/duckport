@@ -45,9 +45,12 @@ struct CopyBindData : FunctionData {
 	bool Equals(const FunctionData &other) const override {
 		auto &bind = other.Cast<CopyBindData>();
 		return types == bind.types && names == bind.names && path == bind.path && options.mode == bind.options.mode &&
-		       options.blob_columns == bind.options.blob_columns && options.catalog_uri == bind.options.catalog_uri &&
-		       options.warehouse == bind.options.warehouse && options.storage_root == bind.options.storage_root &&
-		       info == bind.info;
+		       options.blob_columns == bind.options.blob_columns &&
+		       options.write_options.blob_inline_size_threshold == bind.options.write_options.blob_inline_size_threshold &&
+		       options.write_options.blob_dedicated_size_threshold == bind.options.write_options.blob_dedicated_size_threshold &&
+		       options.write_options.target_file_size == bind.options.write_options.target_file_size &&
+		       options.catalog_uri == bind.options.catalog_uri && options.warehouse == bind.options.warehouse &&
+		       options.storage_root == bind.options.storage_root && info == bind.info;
 	}
 };
 struct CopyGlobalState : GlobalFunctionData {
@@ -94,7 +97,7 @@ vector<string> ParseBlobColumns(const vector<Value> &values, const vector<Identi
 	return selected;
 }
 
-bool ParseTextOption(const string &name, const vector<Value> &values, SinkWriteOptions &options) {
+bool ParseTextOption(const Identifier &name, const vector<Value> &values, SinkWriteOptions &options) {
 	string *target = nullptr;
 	if (name == "catalog_uri") {
 		target = &options.catalog_uri;
@@ -113,6 +116,34 @@ bool ParseTextOption(const string &name, const vector<Value> &values, SinkWriteO
 	return true;
 }
 
+bool ParseSizeOption(const Identifier &name, const vector<Value> &values, DuckportWriteOptions &options) {
+	int64_t *target = nullptr;
+	if (name == "blob_inline_size_threshold") {
+		target = &options.blob_inline_size_threshold;
+	} else if (name == "blob_dedicated_size_threshold") {
+		target = &options.blob_dedicated_size_threshold;
+	} else if (name == "target_file_size") {
+		target = &options.target_file_size;
+	} else {
+		return false;
+	}
+	if (values.size() != 1 || values[0].IsNull() || !values[0].type().IsIntegral()) {
+		throw BinderException("%s requires one integer byte size", name);
+	}
+	auto value = values[0].DefaultTryCastAs(LogicalType::BIGINT);
+	if (!value) {
+		throw BinderException("%s requires an integer byte size that fits in BIGINT", name);
+	}
+	unique_ptr<char, decltype(&duckport_source_error_free)> error(
+	    duckport_validate_byte_size(name.GetIdentifierName().c_str(), value->GetValue<int64_t>()),
+	    duckport_source_error_free);
+	if (error) {
+		throw BinderException("%s", error.get());
+	}
+	*target = value->GetValue<int64_t>();
+	return true;
+}
+
 unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput &input, const vector<Identifier> &names,
                                   const vector<LogicalType> &types) {
 	CheckWriteAccess(context);
@@ -126,6 +157,9 @@ unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput 
 	result->info = input.function_info;
 	bool has_mode = false;
 	for (auto &entry : input.info.options) {
+		if (ParseSizeOption(entry.first, entry.second, result->options.write_options)) {
+			continue;
+		}
 		if (ParseTextOption(entry.first, entry.second, result->options)) {
 			continue;
 		}
@@ -223,19 +257,24 @@ BoundStatement PlanCopy(Binder &binder, CopyStatement &statement) {
 	result.plan = std::move(copy);
 	return result;
 }
+void CommonCopyOptions(ClientContext &, CopyOptionsInput &input) {
+	for (const auto &name : {"catalog_uri", "warehouse", "storage_root"}) {
+		input.options[name] = CopyOption(LogicalType::VARCHAR, CopyOptionMode::WRITE_ONLY);
+	}
+	input.options["blob_columns"] = CopyOption(LogicalType::LIST(LogicalType::VARCHAR), CopyOptionMode::WRITE_ONLY);
+	input.options["append"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
+	input.options["overwrite"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
+	// Validate the original value instead of rounding fractional byte sizes.
+	for (const auto &option : {"target_file_size", "blob_inline_size_threshold", "blob_dedicated_size_threshold"}) {
+		input.options[option] = CopyOption(LogicalType::ANY, CopyOptionMode::WRITE_ONLY);
+	}
+}
 } // namespace
 
 void RegisterCopyFunction(ExtensionLoader &loader, const string &name, WriterOpen open) {
 	CopyFunction function {Identifier(name)};
 	function.function_info = make_shared_ptr<WriterInfo>(std::move(open));
-	function.copy_options = [](ClientContext &, CopyOptionsInput &input) {
-		for (const auto &name : {"catalog_uri", "warehouse", "storage_root"}) {
-			input.options[name] = CopyOption(LogicalType::VARCHAR, CopyOptionMode::WRITE_ONLY);
-		}
-		input.options["blob_columns"] = CopyOption(LogicalType::LIST(LogicalType::VARCHAR), CopyOptionMode::WRITE_ONLY);
-		input.options["append"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
-		input.options["overwrite"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
-	};
+	function.copy_options = CommonCopyOptions;
 	function.copy_to_bind = BindCopy;
 	function.copy_to_initialize_global = InitCopy;
 	function.copy_to_initialize_local = [](ExecutionContext &, FunctionData &) -> unique_ptr<LocalFunctionData> {

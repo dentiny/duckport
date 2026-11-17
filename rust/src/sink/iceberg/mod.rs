@@ -20,6 +20,7 @@ pub(crate) async fn open(
     warehouse: &str,
     storage_root: &str,
     config: &StorageConfig,
+    options: WriteOptions,
 ) -> Result<DuckportSink> {
     let uri = url::Url::parse(catalog_uri)?;
     validation::validate_iceberg_catalog_uri(&uri)?;
@@ -40,14 +41,20 @@ pub(crate) async fn open(
         .with_storage_factory(Arc::new(factory))
         .load("duckport", props)
         .await?;
-    open_catalog(Arc::new(catalog), identifier, schema).await
+    open_catalog(Arc::new(catalog), identifier, schema, options).await
 }
 
 pub(crate) async fn open_catalog(
     catalog: Arc<dyn Catalog>,
     identifier: TableIdent,
     schema: SchemaRef,
+    options: WriteOptions,
 ) -> Result<DuckportSink> {
+    let options = options
+        .with_mode(WriteMode::Append)
+        .with_ordering(Ordering::Unordered);
+    let sink = IcebergTableSink::new(catalog.clone());
+    open_arrow_sink_core::validation::validate_options(&schema, &options, sink.capability())?;
     let table = catalog.load_table(&identifier).await?;
     validation::validate_iceberg_table(&table)?;
     let output_schema = Arc::new(iceberg::arrow::schema_to_arrow_schema(
@@ -56,14 +63,8 @@ pub(crate) async fn open_catalog(
     // DuckDB does not export Iceberg field IDs. Match names and types first,
     // then attach the catalog schema, including IDs and requiredness.
     validation::validate_iceberg_schema(&schema, &output_schema)?;
-    let writer = IcebergTableSink::new(catalog)
-        .open(
-            identifier,
-            output_schema.clone(),
-            WriteOptions::default()
-                .with_mode(WriteMode::Append)
-                .with_ordering(Ordering::Unordered),
-        )
+    let writer = sink
+        .open(identifier, output_schema.clone(), options)
         .await?;
     Ok(DuckportSink {
         writer: Some(writer),

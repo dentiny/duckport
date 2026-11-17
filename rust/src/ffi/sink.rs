@@ -1,8 +1,9 @@
-//! Shared Arrow C ABI write, commit and destruction.
+//! Shared Arrow C ABI write options, write, commit and destruction.
 use super::common::RUNTIME;
 use crate::{
-    error::{call, cleanup},
+    error::{Result, call, cleanup},
     sink::DuckportSink,
+    utils::string,
     validation,
 };
 use arrow_array::{
@@ -10,7 +11,65 @@ use arrow_array::{
     ffi::{FFI_ArrowArray, from_ffi},
 };
 use arrow_schema::ffi::FFI_ArrowSchema;
+use open_arrow_sink_core::{BlobHandleConfig, WriteOptions};
 use std::ffi::c_char;
+
+/// # Safety
+/// Name is a borrowed NUL-terminated UTF-8 write-option name.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn duckport_validate_byte_size(
+    name: *const c_char,
+    value: i64,
+) -> *mut c_char {
+    call(|| unsafe {
+        validation::byte_size(&string(name)?, value)?;
+        Ok(())
+    })
+}
+
+/// Byte sizes passed across the C ABI. -1 leaves a backend default unchanged.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct DuckportWriteOptions {
+    pub blob_inline_size_threshold: i64,
+    pub blob_dedicated_size_threshold: i64,
+    pub target_file_size: i64,
+}
+
+impl Default for DuckportWriteOptions {
+    fn default() -> Self {
+        Self {
+            blob_inline_size_threshold: -1,
+            blob_dedicated_size_threshold: -1,
+            target_file_size: -1,
+        }
+    }
+}
+
+impl DuckportWriteOptions {
+    // Selecting URL columns requests blob support even without explicit layout overrides.
+    pub(crate) fn convert(&self, blob_column_count: usize) -> Result<WriteOptions> {
+        let inline = validation::optional_byte_size(
+            "BLOB_INLINE_SIZE_THRESHOLD",
+            self.blob_inline_size_threshold,
+        )?;
+        let dedicated = validation::optional_byte_size(
+            "BLOB_DEDICATED_SIZE_THRESHOLD",
+            self.blob_dedicated_size_threshold,
+        )?;
+        let mut options = WriteOptions::default();
+        options.target_file_size =
+            validation::optional_byte_size("TARGET_FILE_SIZE", self.target_file_size)?;
+        if blob_column_count != 0 || inline.is_some() || dedicated.is_some() {
+            options.blob_handle = Some(BlobHandleConfig {
+                inline_size_threshold: inline,
+                dedicated_size_threshold: dedicated.and_then(std::num::NonZeroUsize::new),
+                ..Default::default()
+            });
+        }
+        Ok(options)
+    }
+}
 
 /// # Safety
 /// Sink is live. Array is an owned Arrow struct array; it is consumed even on error.

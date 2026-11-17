@@ -234,7 +234,6 @@ pub(crate) fn validate_sink_batch_schema(
 
 pub(crate) fn validate_iceberg_write_options(
     mode: &str,
-    column_count: usize,
     catalog_uri: &str,
     storage_root: &str,
 ) -> Result<()> {
@@ -244,8 +243,27 @@ pub(crate) fn validate_iceberg_write_options(
     if catalog_uri.is_empty() || storage_root.is_empty() {
         return Err("Iceberg COPY requires CATALOG_URI and STORAGE_ROOT".into());
     }
-    if column_count != 0 {
-        return Err("Iceberg COPY does not support BLOB_COLUMNS".into());
-    }
     Ok(())
+}
+
+/// Validate a configured write size; only Blob inline thresholds accept zero.
+pub(crate) fn byte_size(name: &str, value: i64) -> Result<usize> {
+    let inline_size = name.eq_ignore_ascii_case("blob_inline_size_threshold");
+    if value < 0 || (!inline_size && value == 0) {
+        let requirement = if inline_size {
+            "non-negative"
+        } else {
+            "greater than zero"
+        };
+        return Err(format!("{name} must be {requirement}").into());
+    }
+    Ok(usize::try_from(value).map_err(|_| format!("{name} exceeds platform size"))?)
+}
+
+/// Validate an optional byte count; -1 preserves the backend default.
+pub(crate) fn optional_byte_size(name: &str, value: i64) -> Result<Option<usize>> {
+    if value == -1 {
+        return Ok(None);
+    }
+    byte_size(name, value).map(Some)
 }

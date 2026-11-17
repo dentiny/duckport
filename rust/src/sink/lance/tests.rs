@@ -10,6 +10,7 @@ use arrow_array::{
     types::Int64Type,
 };
 use arrow_schema::ffi::FFI_ArrowSchema;
+use open_arrow_sink_core::WriteOptions;
 use open_arrow_sink_lance::{LanceDatasetSink, Url};
 use std::{ffi::CString, path::Path, ptr, sync::Arc};
 
@@ -18,9 +19,6 @@ async fn tempdir() -> tempfile::TempDir {
         .await
         .unwrap()
         .unwrap()
-}
-async fn remove_tempdir(temp: tempfile::TempDir) {
-    tokio::fs::remove_dir_all(temp.keep()).await.unwrap();
 }
 
 fn input() -> RecordBatch {
@@ -61,6 +59,7 @@ async fn open(
         mode,
         columns.iter().map(|s| s.to_string()).collect(),
         &StorageConfig::default(),
+        WriteOptions::default(),
     )
     .await
 }
@@ -113,7 +112,6 @@ async fn create_append_overwrite_and_empty_commit() {
     let mut writer = open(&path, &batch, "overwrite", &[]).await.unwrap();
     writer.commit().await.unwrap();
     assert_eq!(read(&path).await.unwrap().num_rows(), 0);
-    remove_tempdir(temp).await;
 }
 #[tokio::test]
 async fn invalid_inputs_and_abandoned_create_do_not_publish() {
@@ -135,7 +133,6 @@ async fn invalid_inputs_and_abandoned_create_do_not_publish() {
     assert!(writer.write(batch).await.is_err());
     assert!(writer.commit().await.is_err());
     assert!(read(&failed).await.is_err());
-    remove_tempdir(temp).await;
 }
 #[tokio::test]
 async fn aborted_writes_preserve_committed_rows() {
@@ -164,7 +161,6 @@ async fn aborted_writes_preserve_committed_rows() {
         assert!(writer.commit().await.is_err());
         assert_eq!(ids(&read(&path).await.unwrap()), vec![1, 2]);
     }
-    remove_tempdir(temp).await;
 }
 #[tokio::test]
 async fn ffi_ingests_urls_and_preserves_ownership_and_metadata() {
@@ -194,6 +190,7 @@ async fn ffi_ingests_urls_and_preserves_ownership_and_metadata() {
                 mode.as_ptr(),
                 [column.as_ptr()].as_ptr(),
                 1,
+                &DuckportWriteOptions::default(),
                 &DuckportStorageOptions::default(),
                 &mut writer,
             ))
@@ -226,7 +223,6 @@ async fn ffi_ingests_urls_and_preserves_ownership_and_metadata() {
         rows,
         [(Some("keep"), Some(payload.as_slice())), (Some("me"), None)]
     );
-    remove_tempdir(temp).await;
 }
 #[tokio::test]
 async fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
@@ -245,6 +241,7 @@ async fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
                     mode.as_ptr(),
                     ptr::null(),
                     0,
+                    &DuckportWriteOptions::default(),
                     &options,
                     &mut output
                 ))
@@ -258,6 +255,7 @@ async fn ffi_rejects_null_handles_and_consumes_rejected_arrays() {
                     mode.as_ptr(),
                     ptr::null(),
                     1,
+                    &DuckportWriteOptions::default(),
                     &options,
                     &mut output
                 ))
