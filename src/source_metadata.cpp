@@ -25,6 +25,10 @@ LogicalType ImportField(const LogicalType &type, const ArrowSchema &schema) {
 	} else if (type.id() == LogicalTypeId::LIST) {
 		result = LogicalType::LIST(ImportField(ListType::GetChildType(type), *schema.children[0]))
 		             .WithAlias(type.GetAlias());
+	} else if (type.id() == LogicalTypeId::ARRAY) {
+		result = LogicalType::ARRAY(ImportField(ArrayType::GetChildType(type), *schema.children[0]),
+		                            ArrayType::GetSize(type))
+		             .WithAlias(type.GetAlias());
 	}
 	if (metadata.GetOption(STORAGE_POLICY).empty() && metadata.GetOption(MEDIA_DOCUMENT).empty()) {
 		return type.HasExtensionInfo()
