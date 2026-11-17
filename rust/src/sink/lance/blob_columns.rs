@@ -21,7 +21,7 @@ pub(super) fn parse(
     let mut roots = HashSet::new();
     let mut paths = HashSet::new();
     for name in columns {
-        let path = utils::column_path(schema, &name, "BLOB_COLUMNS")?;
+        let path = utils::resolve_column_path(schema, &name, "BLOB_COLUMNS")?;
         let field = validation::required(
             open_arrow_sink_core::validation::nested_field(schema, &path),
             "BLOB_COLUMNS path not found",

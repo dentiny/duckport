@@ -125,7 +125,7 @@ impl DuckportWriteOptions {
             )
         }? {
             let column = unsafe { string(entry.column) }?;
-            let path = utils::column_path(schema, &column, "Column encoding")?;
+            let path = utils::resolve_column_path(schema, &column, "Column encoding")?;
             let level = utils::boolean("has_compression_level", entry.has_compression_level)?
                 .then_some(entry.compression_level);
             let codec = unsafe { optional_string(entry.compression) }?;
