@@ -1829,6 +1829,8 @@ dependencies = [
  "open-arrow-sink-core",
  "open-arrow-sink-lance",
  "open-arrow-sink-layer",
+ "open-arrow-sink-parquet",
+ "open-arrow-sink-storage",
  "opendal",
  "percent-encoding",
  "tempfile",
@@ -4215,6 +4217,20 @@ dependencies = [
  "async-trait",
  "futures",
  "open-arrow-sink-core",
+]
+
+[[package]]
+name = "open-arrow-sink-parquet"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54cebf971671afe0c5869b5ffdb9487b01a44d3a762c0a83f118f7f480ee86a9"
+dependencies = [
+ "bytes",
+ "futures",
+ "open-arrow-sink-core",
+ "open-arrow-sink-storage",
+ "parquet",
+ "uuid",
 ]
 
 [[package]]
