@@ -28,17 +28,8 @@ pub(crate) async fn open(
     let identifier = TableIdent::from_strs(identifier)?;
     let root = utils::sink_url(storage_root)?;
     validation::validate_iceberg_storage_root(&root)?;
-    // A trailing slash selects the directory itself as the operator namespace.
-    let operator = if root.scheme() == "file" {
-        storage::create_local_directory_operator(&utils::local_path(root.as_str())?)?
-    } else {
-        storage::operator(root.as_str(), config)?.0
-    };
-    let mut scope = root;
-    if scope.scheme() == "s3" {
-        scope.set_path("/");
-    }
-    let factory = OpenDalStorageFactory::new(Storage::new(operator, scope)?);
+    let operator = storage::directory_operator(root.as_str(), config)?;
+    let factory = OpenDalStorageFactory::new(Storage::new(operator, root)?);
     let mut props = HashMap::from([(REST_CATALOG_PROP_URI.into(), uri.to_string())]);
     if !warehouse.is_empty() {
         props.insert(REST_CATALOG_PROP_WAREHOUSE.into(), warehouse.into());
