@@ -5,12 +5,11 @@ use arrow_schema::SchemaRef;
 use open_arrow_sink_core::{SinkExt, WriteOptions};
 use open_arrow_sink_lance::LanceDatasetSink;
 use open_arrow_sink_layer::{DownloadBlobLayer, FieldRemap, SchemaEvolutionLayer};
-use open_arrow_sink_storage::{BlobDownloader, StorageResolver};
+use open_arrow_sink_storage::StorageResolver;
 use std::collections::HashSet;
 use std::sync::Arc;
 
 mod atif;
-mod download;
 mod ffi;
 #[allow(clippy::too_many_arguments)]
 async fn open_with_sources(
@@ -41,19 +40,10 @@ async fn open_with_sources(
     let columns = paths.into_iter().map(|path| path.join(".")).collect();
     let destination = storage::sink_storage(path, config)?;
     let mut resolver = StorageResolver::default();
-    let mut origins = Vec::new();
     for (document, config) in sources {
         let root = url::Url::parse(&document)?.join("/")?;
-        origins.push(root.clone());
         resolver = resolver.with_storage(storage::sink_storage_from_root(root, &config)?);
     }
-    let downloader = BlobDownloader::with_defaults()?;
-    let max_data_bytes = downloader.max_download_bytes();
-    let downloader = downloader.with_downloader(Arc::new(download::MediaDownloader {
-        max_data_bytes,
-        origins,
-        downloader: open_arrow_sink_storage::OpenDalDownloader::new(Default::default())?,
-    }));
     let remaps = schema
         .fields()
         .iter()
@@ -67,7 +57,6 @@ async fn open_with_sources(
         })
         .collect();
     let sink = LanceDatasetSink::new(destination.storage)
-        .with_blob_downloader(Arc::new(downloader))
         .with_source_resolver(Arc::new(resolver))
         .layer(DownloadBlobLayer::new(columns))
         .layer(SchemaEvolutionLayer::new(remaps));

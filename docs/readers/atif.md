@@ -32,8 +32,8 @@ COPY (
 COPY automatically selects tagged media URI fields for the sink's
 `DownloadBlobLayer`; no `BLOB_COLUMNS` is required for ATIF media. The Lance backend
 owns downloading, bounded payload buffers, concurrency and managed Blob v2
-storage. A small downloader adapter handles `data:` URIs and explicitly configured
-source stores; other downloads use the sink library's default OpenDAL downloader.
+storage. The sink library's downloader handles `data:` URIs and all storage
+backends, including explicitly configured source stores.
 Missing media and invalid data URI payloads fail COPY rather than SELECT.
 
 ATIF storage metadata survives DuckDB tables, projection and renaming. Tagged text
