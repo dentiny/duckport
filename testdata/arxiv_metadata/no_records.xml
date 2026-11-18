@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">
+  <error code="noRecordsMatch">No records in this date range</error>
+</OAI-PMH>

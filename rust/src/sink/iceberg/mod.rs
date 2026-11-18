@@ -34,7 +34,9 @@ pub(crate) async fn open(
     let identifier = TableIdent::from_strs(identifier)?;
     let root = utils::sink_url(storage_root)?;
     validation::validate_iceberg_storage_root(&root)?;
-    let factory = OpenDalStorageFactory::new(storage::sink_storage_from_root(root, config)?);
+    let metrics = open_arrow_sink_core::IoMetrics::default();
+    let storage = storage::sink_storage_from_root(root, config)?.with_io_metrics(metrics.clone());
+    let factory = OpenDalStorageFactory::new(storage);
     let mut props = HashMap::from([(
         REST_CATALOG_PROP_URI.into(),
         uri.as_str().trim_end_matches('/').to_owned(),
@@ -42,12 +44,9 @@ pub(crate) async fn open(
     if !warehouse.is_empty() {
         props.insert(REST_CATALOG_PROP_WAREHOUSE.into(), warehouse.into());
     }
-    if catalog_security.token.as_deref() == Some("") {
-        return Err("Iceberg catalog BEARER_TOKEN must not be empty".into());
-    }
-    if let Some(token) = catalog_security
-        .token
-        .clone()
+    let token = validation::iceberg_catalog_token(catalog_security)?;
+    if let Some(token) = token
+        .map(str::to_owned)
         .or_else(|| std::env::var("DUCKPORT_ICEBERG_TOKEN").ok())
     {
         props.insert("token".into(), token);
@@ -56,7 +55,15 @@ pub(crate) async fn open(
         .with_storage_factory(Arc::new(factory))
         .load("duckport", props)
         .await?;
-    open_catalog(Arc::new(catalog), identifier, schema, options, writer_count).await
+    open_catalog(
+        Arc::new(catalog),
+        identifier,
+        schema,
+        options,
+        writer_count,
+        metrics,
+    )
+    .await
 }
 
 pub(crate) async fn open_catalog(
@@ -65,6 +72,7 @@ pub(crate) async fn open_catalog(
     schema: SchemaRef,
     options: WriteOptions,
     writer_count: usize,
+    metrics: open_arrow_sink_core::IoMetrics,
 ) -> Result<DuckportSink> {
     let options = options.with_mode(WriteMode::Append);
     let sink = IcebergTableSink::new(catalog.clone());
@@ -86,6 +94,7 @@ pub(crate) async fn open_catalog(
     )
     .await?;
     Ok(DuckportSink {
+        metrics,
         writer: Some(writer),
         schema,
         output_schema: Some(output_schema),

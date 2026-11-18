@@ -1,5 +1,6 @@
 #include "source_metadata.hpp"
 #include "sink/copy.hpp"
+#include "sink/writer_context.hpp"
 #include "duckdb/catalog/catalog.hpp"
 #include "duckdb/catalog/catalog_entry/copy_function_catalog_entry.hpp"
 #include "duckdb/common/arrow/arrow_converter.hpp"
@@ -10,6 +11,7 @@
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/main/query_result.hpp"
 #include "duckdb/main/settings.hpp"
+#include "duckdb/main/query_profiler.hpp"
 #include "duckdb/parallel/task_scheduler.hpp"
 #include "duckdb/parser/expression/star_expression.hpp"
 #include "duckdb/parser/parsed_data/sample_options.hpp"
@@ -339,13 +341,10 @@ unique_ptr<GlobalFunctionData> InitCopy(ClientContext &context, FunctionData &da
 	}
 	StorageParameters storage(context, bind.options.storage_root.empty() ? path : bind.options.storage_root, {});
 	auto options = bind.options;
-    options.blob_secrets = CaptureBlobSecrets(context);
-    if (!options.catalog_uri.empty()) {
-        options.catalog_security = make_shared_ptr<StorageParameters>(context, options.catalog_uri, "http");
-    }
 	options.write_options.writer_count = options.file_count.value_or(
 	    options.preserve_order ? 1 : TaskScheduler::GetScheduler(context).NumberOfThreads());
-	state->writer = bind.info->Cast<WriterInfo>().open(path, storage.config, options, schema.arrow_schema);
+	WriterOpenContext open_context(context, storage.config);
+	state->writer = bind.info->Cast<WriterInfo>().open(path, open_context, options, schema.arrow_schema);
 	if (!state->writer) {
 		throw InternalException("DuckPort sink opener returned no writer");
 	}
@@ -362,11 +361,15 @@ void SinkCopy(ExecutionContext &, FunctionData &, GlobalFunctionData &global, Lo
 }
 void CombineCopy(ExecutionContext &, FunctionData &, GlobalFunctionData &, LocalFunctionData &) {
 }
-void FinalizeCopy(ClientContext &, FunctionData &, GlobalFunctionData &global) {
+void FinalizeCopy(ClientContext &context, FunctionData &, GlobalFunctionData &global) {
 	auto &state = global.Cast<CopyGlobalState>();
 	// Once publication starts, cleanup belongs to Commit, even if it throws.
 	state.terminal = true;
 	state.writer->Commit();
+	const auto metrics = state.writer->Metrics();
+	auto &profiler = QueryProfiler::Get(context);
+	profiler.TrackBytesRead(metrics.bytes_read);
+	profiler.TrackBytesWritten(metrics.bytes_written);
 }
 unique_ptr<SampleOptions> TakeSampleOptions(ClientContext &context, CopyInfo &info) {
 	auto percent = info.options.find(Identifier("sample_percent"));

@@ -23,6 +23,8 @@ struct DuckportHttpHeader {
     const char *value;
 };
 
+// Use one authentication family. Static S3 keys must be paired; anonymous S3
+// must not include keys. HTTP tokens/headers cannot be mixed with S3 credentials.
 struct DuckportSecurityOptions {
     const char *access_key_id;
     const char *secret_access_key;
@@ -33,6 +35,12 @@ struct DuckportSecurityOptions {
     int32_t allow_anonymous;
 };
 
+// Scoped HTTP credentials are borrowed during open and copied into Rust-owned storage.
+struct DuckportHttpSecret {
+    const char *scope;
+    DuckportSecurityOptions security;
+};
+
 // Optional strings are null when unset and borrowed only for the open call.
 struct DuckportStorageOptions {
     const char *endpoint;
@@ -40,6 +48,8 @@ struct DuckportStorageOptions {
     int32_t virtual_host_style;
     DuckportStoragePolicy policy;
     DuckportSecurityOptions security;
+    const DuckportHttpSecret *http_secrets;
+    size_t http_secret_count;
 };
 // Borrowed during open; Rust owns independent copies for asynchronous downloads.
 struct DuckportBlobSecret {
@@ -74,6 +84,18 @@ struct DuckportWriteOptions {
 	size_t index_count;
 	size_t writer_count;
 };
+struct DuckportReadMetrics {
+	uint64_t bytes_read;
+	uint64_t rows_read;
+	uint64_t total_bytes;
+	uint64_t progress_bytes;
+	bool total_bytes_known;
+	bool finished;
+};
+struct DuckportWriteMetrics {
+	uint64_t bytes_read;
+	uint64_t bytes_written;
+};
 extern "C" {
 // Common FFI support
 DuckportStoragePolicy duckport_default_storage_policy();
@@ -88,6 +110,7 @@ char *duckport_source_get_schema(const DuckportSource *, ArrowSchema *);
 // Projection names are borrowed for this call; zero columns preserves row counts.
 char *duckport_source_get_stream(const DuckportSource *, const char *const *columns, size_t column_count,
                                 ArrowArrayStream *);
+char *duckport_source_get_metrics(const DuckportSource *, DuckportReadMetrics *);
 void duckport_source_destroy(DuckportSource *);
 
 // Format-related functions
@@ -107,5 +130,6 @@ char *duckport_parquet_open(const char *path, const ArrowSchema *, const char *m
 // Common sink functions
 char *duckport_sink_write(DuckportSink *, ArrowArray *);
 char *duckport_sink_commit(DuckportSink *);
+char *duckport_sink_get_metrics(const DuckportSink *, DuckportWriteMetrics *);
 void duckport_sink_destroy(DuckportSink *);
 }

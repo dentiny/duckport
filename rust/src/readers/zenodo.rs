@@ -25,6 +25,7 @@ pub unsafe extern "C" fn duckport_zenodo_open(
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
     let open = |locator: String, storage_options: StorageConfig, scan_options| async move {
+        crate::provider_auth::reject_http_headers(storage_options.security.http()?, "Zenodo")?;
         let file_name = crate::validation::nonempty(
             unsafe { optional_string(reader_options.file_name) }?,
             "file_name is required",
@@ -37,11 +38,22 @@ pub unsafe extern "C" fn duckport_zenodo_open(
         let attachment_options = crate::utils::attachment_options(&format, record_path.as_deref())?;
         let mut service = ZenodoService::with_endpoint(&endpoint)?
             .with_http_config(storage_options.policy.config()?)?;
-        if let Some(token) = storage_options.security.token.as_deref() {
+        if let Some(token) = storage_options
+            .security
+            .http()?
+            .and_then(|credentials| credentials.token())
+        {
             service = service.with_token(token)?;
         }
         let files = service.record(locator.parse()?).await?;
-        crate::service_files::open(files, file_name, attachment_options, scan_options).await
+        crate::service_files::open(
+            files,
+            file_name,
+            attachment_options,
+            scan_options,
+            storage_options.metrics.clone(),
+        )
+        .await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }

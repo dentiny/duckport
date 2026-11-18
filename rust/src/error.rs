@@ -33,3 +33,8 @@ pub unsafe extern "C" fn duckport_source_error_free(error: *mut c_char) {
         }
     }
 }
+
+/// Keep source URLs and credentials out of errors exposed by the HTTP transport.
+pub(crate) fn http_source_error(message: &'static str) -> opendal::Error {
+    opendal::Error::new(opendal::ErrorKind::Unexpected, message)
+}

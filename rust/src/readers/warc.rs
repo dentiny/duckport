@@ -25,6 +25,7 @@ pub unsafe extern "C" fn duckport_warc_open(
             ReadRequest::new(path).with_options(scan_options),
             format,
             OuterCompression::Auto,
+            &storage_options.metrics,
         )
         .await?)
     };

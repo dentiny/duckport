@@ -1,6 +1,6 @@
 # DuckPort
 
-Read file formats and dataset service providers into DuckDB through [open-arrow-access 0.3.1](https://crates.io/crates/open-arrow-access/0.3.1).
+Read file formats and dataset service providers into DuckDB through [open-arrow-access 0.7.0](https://crates.io/crates/open-arrow-access/0.7.0).
 
 ## Build
 
@@ -112,9 +112,20 @@ CREATE SECRET custom_http_auth (
 | Zenodo, OpenStax, and bearer-enabled provider APIs | `TYPE http`: `BEARER_TOKEN`, scoped to the provider API endpoint. |
 | Figshare | `TYPE http`: raw token in `BEARER_TOKEN`; the adapter uses Figshare's `Authorization: token` scheme. |
 | Dataverse | `TYPE http`: `EXTRA_HTTP_HEADERS MAP {'X-Dataverse-key': 'api-token'}`; use `BEARER_TOKEN` for OIDC installations instead. |
-| Semantic Scholar, BHL, Regulations.gov, USPTO | `TYPE http`: API key stored in `BEARER_TOKEN`; the adapter maps it to the provider's required header/query field. |
+| Semantic Scholar, Regulations.gov, USPTO | `TYPE http`: API key in `BEARER_TOKEN` or `EXTRA_HTTP_HEADERS` under `X-API-Key`. |
+| BHL | `TYPE http`: API key in `BEARER_TOKEN`; the adapter maps it to the `apikey` query field. |
 | Internet Archive | `TYPE s3`: `KEY_ID` and `SECRET`, scoped to its HTTP endpoint; the adapter uses LOW authentication. |
 | Iceberg REST catalog | `TYPE http`: `BEARER_TOKEN` scoped to `CATALOG_URI`, independently of the secret for `STORAGE_ROOT`. |
+
+Connection-based provider adapters (Figshare, OpenStax, bioRxiv, Federal Register,
+GovInfo, HathiFiles, Library of Congress, OAI-PMH, BHL, Semantic Scholar,
+Regulations.gov, and USPTO) also apply `EXTRA_HTTP_HEADERS` to their primary
+origin. Duplicate headers, transport-header overrides, and a token combined with
+its mapped authentication header are rejected before I/O.
+
+Dataverse accepts `X-Dataverse-key` as its only extra header, or `BEARER_TOKEN`
+for OIDC; configuring both is rejected. Zenodo, Hugging Face, and Internet Archive
+do not support extra headers and reject them rather than silently ignoring them.
 
 For example, Dataverse API-key and Figshare secrets use the standard HTTP type:
 
@@ -138,6 +149,11 @@ Provider credentials stay on their intended origin. COPY source credentials are
 resolved independently of the destination; an S3 destination key or catalog token
 is not a credential for an unrelated media URL.
 
+For HTTP file reads and HTTP Blob downloads, same-origin redirects reselect the
+longest matching credential scope. Leaving a scope removes its credentials. Any
+cross-origin hop disables credentials for the rest of that redirect chain, even
+if it returns to the original origin. HTTPS-to-HTTP redirects are rejected.
+
 ## Write
 
 ```sql
@@ -151,6 +167,24 @@ dataset directories with create and APPEND. Builds require `protoc`.
 The [Iceberg sink](docs/writers/iceberg.md) appends to existing tables through a REST catalog.
 Native `FORMAT PARQUET` writes individual files. All three sinks support
 [COPY sampling](docs/writers/README.md#copy-sampling) with `SAMPLE_PERCENT` and `SAMPLE_ROWS`.
+
+## Progress and profiling
+
+Enable the progress bar with `SET enable_progress_bar = true`. Single-file scans
+and provider attachments report estimated encoded-byte progress when their size
+is known; other scans remain indeterminate. Progress reaches 100% at reader EOF.
+
+Readers report scanned rows and observed input bytes to DuckDB's profiler.
+COPY reports sink read/write bytes after a successful commit, including APPEND
+metadata reads and finalization writes. Byte counts exclude provider discovery
+and hidden transports such as Hugging Face discovery/shards.
+
+```sql
+SET profiling_coverage = 'ALL';
+SET tracked_metrics = ['operator.type', 'operator.rows_scanned',
+                       'io.total_bytes_read', 'io.total_bytes_written'];
+PRAGMA enable_profiling = 'json';
+```
 
 [Tests](test/README.md) · [Development](docs/UPDATING.md)
 
@@ -476,3 +510,24 @@ retain that prefix. `endpoint` defaults to `https://library.oapen.org`.
 To obtain the next resumption token, scan the envelope with
 `record_path := '/oai:OAI-PMH/oai:ListRecords'` and select `"oai:resumptionToken"`.
 Automatic pagination is not enabled. Scoped HTTP bearer tokens are supported.
+
+### arXiv metadata
+
+```sql
+SELECT * FROM duckport_scan_arxiv_metadata('records', from_date := '2026-01-01',
+    until_date := '2026-01-31', set_spec := 'cs');
+-- Pass the upstream resumption token as the locator to read the next page.
+```
+
+Reads one arXiv OAI-PMH metadata page using the upstream `arXivRaw` prefix.
+The `from_date`, `until_date`, `set_spec`, `endpoint`, and `record_path` options
+match the DOAB/OAPEN metadata readers; the default endpoint is
+`https://oaipmh.arxiv.org`. The inferred XML records preserve deleted headers
+and nested metadata. Set `record_path := '/oai:OAI-PMH/oai:ListRecords'` to
+read the envelope and its `"oai:resumptionToken"` for explicit continuation.
+A continuation token cannot be combined with date/set selectors.
+Public metadata needs no key; scoped HTTP bearer secrets are supported for
+custom endpoints. `duckport_scan_arxiv` continues to read bulk TAR members.
+Empty pages, including `noRecordsMatch`, bind with the standard OAI header columns
+`identifier`, `datestamp`, `status`, and `set_specs` and return zero rows. An explicit
+`record_path` continues to select the requested XML envelope.

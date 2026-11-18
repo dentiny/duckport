@@ -1,0 +1,34 @@
+# name: test/sql/readers/provider_security.test
+# description: Dataverse API keys authenticate restricted files without leaking across origins
+# group: [sql]
+
+require duckport
+
+require duckport_test_fixture
+
+set ignore_error_messages
+
+statement ok
+SET VARIABLE auth_endpoint = duckport_fixture('dataverse_api_key', 'start_anonymous');
+
+statement ok
+CREATE SECRET dataverse_key (TYPE http, EXTRA_HTTP_HEADERS MAP {'X-Dataverse-key': 'fixture-key'}, SCOPE getvariable('auth_endpoint'));
+
+query I
+SELECT octet_length(data) FROM duckport_scan_dataverse('doi:10.7910/DVN/A&B+', file_name := 'cross.csv', endpoint := getvariable('auth_endpoint'), version := '1.0');
+----
+23
+
+query T
+SELECT count(*) > 0 AND bool_and(NOT has_authorization AND NOT contains(headers, 'fixture-key'))
+FROM duckport_fixture_requests('dataverse_api_key') WHERE origin = 'download';
+----
+true
+
+statement ok
+DROP SECRET dataverse_key;
+
+query T
+SELECT duckport_fixture('dataverse_api_key', 'stop');
+----
+stopped

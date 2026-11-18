@@ -1,7 +1,9 @@
 mod error;
 mod blob_auth;
 mod ffi;
+mod metrics;
 mod oai;
+mod provider_auth;
 pub mod options;
 pub mod security;
 mod readers;
