@@ -288,8 +288,8 @@ pub(crate) fn validate_iceberg_write_options(
     catalog_uri: &str,
     storage_root: &str,
 ) -> Result<()> {
-    if mode != "append" {
-        return Err("Iceberg COPY requires APPEND to an existing table; create and overwrite are unsupported".into());
+    if !matches!(mode, "create" | "append") {
+        return Err("Iceberg COPY supports create or APPEND; overwrite is unsupported".into());
     }
     if catalog_uri.is_empty() || storage_root.is_empty() {
         return Err("Iceberg COPY requires CATALOG_URI and STORAGE_ROOT".into());

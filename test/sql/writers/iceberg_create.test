@@ -1,0 +1,80 @@
+# name: test/sql/writers/iceberg_create.test
+# description: Create Iceberg tables from COPY schemas and append to them
+# group: [sql]
+
+require duckport
+
+require duckport_test_fixture
+
+require iceberg
+
+statement ok
+SET VARIABLE iceberg_catalog = duckport_iceberg_fixture('{TEST_DIR}/iceberg_create', 'start_empty');
+
+# APPEND must never implicitly create a missing table.
+statement error
+COPY (SELECT 1 AS id) TO 'tests.people' (FORMAT duckport_iceberg,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_create', APPEND);
+----
+TableNotFound
+
+# Invalid options must fail before creating the destination.
+statement error
+COPY (SELECT 'payload' AS body) TO 'tests.people' (FORMAT duckport_iceberg,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_create', BLOB_COLUMNS ('body'));
+----
+blob handle configuration
+
+# Infer the table schema and field IDs from the query.
+statement ok
+COPY (SELECT 1 AS id, 'Alice' AS name)
+TO 'tests.people' (FORMAT duckport_iceberg,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_create', PRESERVE_ORDER false, FILE_COUNT 2);
+
+statement error
+COPY (SELECT 99 AS id, 'duplicate' AS name)
+TO 'tests.people' (FORMAT duckport_iceberg,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_create');
+----
+TableAlreadyExists
+
+statement ok
+COPY (SELECT 2 AS id, NULL::VARCHAR AS name)
+TO 'tests.people' (FORMAT duckport_iceberg,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_create', APPEND);
+
+query IT
+SELECT id, name
+FROM iceberg_scan('{TEST_DIR}/iceberg_create/people/metadata/current.metadata.json') ORDER BY id;
+----
+1	Alice
+2	NULL
+
+query T
+SELECT duckport_iceberg_fixture('{TEST_DIR}/iceberg_create', 'stop');
+----
+stopped
+
+# Empty COPY still creates the table schema; subsequent APPEND uses it.
+statement ok
+SET VARIABLE iceberg_catalog = duckport_iceberg_fixture('{TEST_DIR}/iceberg_create_empty', 'start_empty');
+
+statement ok
+COPY (SELECT 1 AS id, 'unused' AS name WHERE false)
+TO 'tests.people' (FORMAT duckport_iceberg,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_create_empty');
+
+statement ok
+COPY (SELECT 7 AS id, 'created empty' AS name)
+TO 'tests.people' (FORMAT duckport_iceberg,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_create_empty', APPEND);
+
+query IT
+SELECT id, name FROM iceberg_scan('{TEST_DIR}/iceberg_create_empty/people/metadata/current.metadata.json');
+----
+7	created empty
+
+query T
+SELECT duckport_iceberg_fixture('{TEST_DIR}/iceberg_create_empty', 'stop');
+----
+stopped

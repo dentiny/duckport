@@ -45,9 +45,10 @@ void Put(yyjson_mut_doc *doc, yyjson_mut_val *object, const char *key, yyjson_mu
 	yyjson_mut_obj_put(object, yyjson_mut_strcpy(doc, key), value);
 }
 
-class IcebergFixture {
+// One fixed-schema table; the catalog fixture serializes access under its mutex.
+class IcebergTableFixture {
 public:
-	explicit IcebergFixture(const string &root, bool authenticated = false) : metadata(nullptr, yyjson_mut_doc_free) {
+	explicit IcebergTableFixture(const string &root, bool empty) : metadata(nullptr, yyjson_mut_doc_free) {
 		std::ifstream seed(string(DUCKPORT_TESTDATA_DIR) + "/iceberg/table.metadata.json");
 		if (!seed) {
 			throw IOException("Cannot open Iceberg metadata fixture");
@@ -62,50 +63,44 @@ public:
 		Put(metadata.get(), response, "metadata", yyjson_mut_doc_get_root(metadata.get()));
 		Put(metadata.get(), response, "metadata-location", yyjson_mut_strcpy(metadata.get(), metadata_file.c_str()));
 		yyjson_mut_doc_set_root(metadata.get(), response);
+		exists = !empty;
+		if (exists) {
+			Publish(metadata.get());
+		}
+	}
+
+	bool Exists() const {
+		return exists;
+	}
+
+	string Response() const {
+		return Encode(yyjson_mut_doc_get_root(metadata.get()));
+	}
+
+	// Creation tests use the same fixed people schema as append tests.
+	bool Create(const string &body) {
+		auto request = Parse(body);
+		auto schema = yyjson_mut_obj_get(yyjson_mut_doc_get_root(request.get()), "schema");
+		auto table = yyjson_mut_obj_get(yyjson_mut_doc_get_root(metadata.get()), "metadata");
+		auto expected = yyjson_mut_arr_get(yyjson_mut_obj_get(table, "schemas"), 0);
+		if (!yyjson_mut_equals(yyjson_mut_obj_get(schema, "fields"), yyjson_mut_obj_get(expected, "fields"))) {
+			return false;
+		}
 		Publish(metadata.get());
-        server.set_pre_routing_handler([authenticated](const duckdb_httplib::Request &req, duckdb_httplib::Response &res) {
-            if (authenticated && req.get_header_value("Authorization") != "Bearer fixture-catalog-key") {
-                res.status = 401;
-                res.set_content("catalog token required", "text/plain");
-                return duckdb_httplib::Server::HandlerResponse::Handled;
-            }
-            return duckdb_httplib::Server::HandlerResponse::Unhandled;
-        });
-		server.Get("/v1/config", [](const duckdb_httplib::Request &, duckdb_httplib::Response &res) {
-			res.set_content(R"({"defaults":{},"overrides":{}})", "application/json");
-		});
-		server.Get(TABLE_ROUTE, [this](const duckdb_httplib::Request &, duckdb_httplib::Response &res) {
-			annotated_lock_guard<annotated_mutex> guard(mutex);
-			res.set_content(Encode(yyjson_mut_doc_get_root(metadata.get())), "application/json");
-		});
-		server.Post(TABLE_ROUTE, [this](const duckdb_httplib::Request &req, duckdb_httplib::Response &res) {
-			annotated_lock_guard<annotated_mutex> guard(mutex);
-			Commit(req.body);
-			res.set_content(Encode(yyjson_mut_doc_get_root(metadata.get())), "application/json");
-		});
-		auto port = server.bind_to_any_port("127.0.0.1");
-		if (port < 0) {
-			throw IOException("Cannot bind Iceberg catalog fixture");
-		}
-		endpoint = "http://127.0.0.1:" + std::to_string(port);
-		worker = std::thread([this] { server.listen_after_bind(); });
-		server.wait_until_ready();
+		exists = true;
+		return true;
 	}
 
-	~IcebergFixture() {
-		server.stop();
-		if (worker.joinable()) {
-			worker.join();
-		}
-	}
-
-	const string &Endpoint() const {
-		return endpoint;
+	// Publish only after every update has been validated and applied to a copy.
+	void Commit(const string &body) {
+		auto request = Parse(body);
+		Document next(yyjson_mut_doc_mut_copy(metadata.get(), nullptr), yyjson_mut_doc_free);
+		ApplyUpdates(next.get(), yyjson_mut_doc_get_root(request.get()));
+		Publish(next.get());
+		metadata = std::move(next);
 	}
 
 private:
-	static constexpr const char *TABLE_ROUTE = "/v1/namespaces/tests/tables/people";
-
 	void Publish(yyjson_mut_doc *doc) {
 		std::ofstream output(metadata_file);
 		output << Encode(yyjson_mut_obj_get(yyjson_mut_doc_get_root(doc), "metadata"));
@@ -115,13 +110,8 @@ private:
 		}
 	}
 
-	// Single-writer fixture: publish the main-branch snapshot produced by COPY.
-	void Commit(const string &body) DUCKDB_REQUIRES(mutex) {
-		auto request = Parse(body);
-		Document next(yyjson_mut_doc_mut_copy(metadata.get(), nullptr), yyjson_mut_doc_free);
-		auto doc = next.get();
-		auto root = yyjson_mut_obj_get(yyjson_mut_doc_get_root(doc), "metadata");
-		auto updates = yyjson_mut_obj_get(yyjson_mut_doc_get_root(request.get()), "updates");
+	static void ApplyUpdates(yyjson_mut_doc *doc, yyjson_mut_val *request) {
+		auto updates = yyjson_mut_obj_get(request, "updates");
 		yyjson_mut_val *snapshot = nullptr, *ref = nullptr, *item;
 		size_t index, count;
 		yyjson_mut_arr_foreach(updates, index, count, item) {
@@ -138,6 +128,11 @@ private:
 		if (!snapshot || !ref) {
 			throw InvalidInputException("Expected an Iceberg snapshot and main ref");
 		}
+		ApplySnapshot(doc, snapshot, ref);
+	}
+
+	static void ApplySnapshot(yyjson_mut_doc *doc, yyjson_mut_val *snapshot, yyjson_mut_val *ref) {
+		auto root = yyjson_mut_obj_get(yyjson_mut_doc_get_root(doc), "metadata");
 		yyjson_mut_arr_append(yyjson_mut_obj_get(root, "snapshots"), snapshot);
 		Put(doc, root, "last-sequence-number",
 		    yyjson_mut_val_mut_copy(doc, yyjson_mut_obj_get(snapshot, "sequence-number")));
@@ -151,32 +146,125 @@ private:
 		Put(doc, log, "snapshot-id", yyjson_mut_val_mut_copy(doc, yyjson_mut_obj_get(snapshot, "snapshot-id")));
 		Put(doc, log, "timestamp-ms", yyjson_mut_val_mut_copy(doc, yyjson_mut_obj_get(snapshot, "timestamp-ms")));
 		yyjson_mut_arr_append(yyjson_mut_obj_get(root, "snapshot-log"), log);
-		Publish(doc);
-		metadata = std::move(next);
+	}
+
+	Document metadata;
+	string metadata_file;
+	bool exists;
+};
+
+class IcebergCatalogFixture {
+public:
+	explicit IcebergCatalogFixture(const string &root, bool authenticated = false, bool empty = false) : table(root, empty) {
+		ConfigureAuthentication(authenticated);
+		RegisterRoutes();
+		Start();
+	}
+
+	~IcebergCatalogFixture() {
+		server.stop();
+		if (worker.joinable()) {
+			worker.join();
+		}
+	}
+
+	const string &Endpoint() const {
+		return endpoint;
+	}
+
+private:
+	static constexpr const char *TABLE_ROUTE = "/v1/namespaces/tests/tables/people";
+
+	void ConfigureAuthentication(bool authenticated) {
+		server.set_pre_routing_handler(
+		    [authenticated](const duckdb_httplib::Request &req, duckdb_httplib::Response &res) {
+			    if (authenticated && req.get_header_value("Authorization") != "Bearer fixture-catalog-key") {
+				    res.status = 401;
+				    res.set_content("catalog token required", "text/plain");
+				    return duckdb_httplib::Server::HandlerResponse::Handled;
+			    }
+			    return duckdb_httplib::Server::HandlerResponse::Unhandled;
+		    });
+	}
+
+	void RegisterRoutes() {
+		server.Get("/v1/config", [](const duckdb_httplib::Request &, duckdb_httplib::Response &res) {
+			res.set_content(R"({"defaults":{},"overrides":{}})", "application/json");
+		});
+		server.Get(TABLE_ROUTE,
+		           [this](const duckdb_httplib::Request &, duckdb_httplib::Response &res) { LoadTable(res); });
+		server.Post(
+		    "/v1/namespaces/tests/tables",
+		    [this](const duckdb_httplib::Request &req, duckdb_httplib::Response &res) { CreateTable(req.body, res); });
+		server.Post(TABLE_ROUTE, [this](const duckdb_httplib::Request &req, duckdb_httplib::Response &res) {
+			CommitTable(req.body, res);
+		});
+	}
+
+	void LoadTable(duckdb_httplib::Response &res) {
+		annotated_lock_guard<annotated_mutex> guard(mutex);
+		if (!table.Exists()) {
+			res.status = 404;
+			res.set_content(R"({"error":{"message":"Table not found","type":"NoSuchTableException","code":404}})",
+			                "application/json");
+			return;
+		}
+		res.set_content(table.Response(), "application/json");
+	}
+
+	void CreateTable(const string &body, duckdb_httplib::Response &res) {
+		annotated_lock_guard<annotated_mutex> guard(mutex);
+		if (table.Exists()) {
+			res.status = 409;
+			res.set_content(
+			    R"({"error":{"message":"Table already exists","type":"AlreadyExistsException","code":409}})",
+			    "application/json");
+			return;
+		}
+		if (!table.Create(body)) {
+			res.status = 400;
+			return;
+		}
+		res.set_content(table.Response(), "application/json");
+	}
+
+	void CommitTable(const string &body, duckdb_httplib::Response &res) {
+		annotated_lock_guard<annotated_mutex> guard(mutex);
+		table.Commit(body);
+		res.set_content(table.Response(), "application/json");
+	}
+
+	void Start() {
+		auto port = server.bind_to_any_port("127.0.0.1");
+		if (port < 0) {
+			throw IOException("Cannot bind Iceberg catalog fixture");
+		}
+		endpoint = "http://127.0.0.1:" + std::to_string(port);
+		worker = std::thread([this] { server.listen_after_bind(); });
+		server.wait_until_ready();
 	}
 
 	duckdb_httplib::Server server;
 	std::thread worker;
 	annotated_mutex mutex;
-	Document metadata DUCKDB_GUARDED_BY(mutex);
+	IcebergTableFixture table DUCKDB_GUARDED_BY(mutex);
 	string endpoint;
-	string metadata_file;
 };
 
 string FixtureCommand(const string &root, const string &command) {
 	static annotated_mutex mutex;
-	static unordered_map<string, unique_ptr<IcebergFixture>> fixtures DUCKDB_GUARDED_BY(mutex);
+	static unordered_map<string, unique_ptr<IcebergCatalogFixture>> fixtures DUCKDB_GUARDED_BY(mutex);
 	annotated_lock_guard<annotated_mutex> guard(mutex);
 	if (command == "stop") {
 		fixtures.erase(root);
 		return "stopped";
 	}
-	if (command != "start" && command != "start_authenticated") {
+	if (command != "start" && command != "start_authenticated" && command != "start_empty") {
 		throw InvalidInputException("Unknown Iceberg fixture command: %s", command);
 	}
 	auto &fixture = fixtures[root];
 	if (!fixture) {
-		fixture = make_uniq<IcebergFixture>(root, command == "start_authenticated");
+		fixture = make_uniq<IcebergCatalogFixture>(root, command == "start_authenticated", command == "start_empty");
 	}
 	return fixture->Endpoint();
 }
