@@ -15,6 +15,36 @@
     {
       "path": "/src/arXiv_src_2410_001.tar",
       "file": "src/arXiv_src_2410_001.tar"
+    },
+    {
+      "path": "/arxiv-test/pdf/arXiv_pdf_manifest.xml",
+      "file": "pdf/arXiv_pdf_manifest.xml"
+    },
+    {
+      "path": "/arxiv-test/pdf/arXiv_pdf_2410_001.tar",
+      "file": "pdf/arXiv_pdf_2410_001.tar"
+    },
+    {
+      "path": "/pdf/arXiv_pdf_manifest.xml",
+      "file": "pdf/arXiv_pdf_manifest.xml"
+    },
+    {
+      "path": "/pdf/arXiv_pdf_2410_001.tar",
+      "file": "pdf/arXiv_pdf_2410_001.tar"
+    },
+    {
+      "path": "/arxiv-metadata/2410.parquet",
+      "file": "metadata.parquet",
+      "auth_header": "Authorization",
+      "auth_value": "AWS4-HMAC-SHA256 Credential=snapshot-key/",
+      "auth_match": "prefix",
+      "session_token": "snapshot-session"
+    },
+    {
+      "path": "/snapshot.parquet",
+      "file": "metadata.parquet",
+      "auth_header": "Authorization",
+      "auth_value": "Bearer snapshot-http"
     }
   ]
 }
