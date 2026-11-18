@@ -88,6 +88,56 @@ impl Default for DuckportWriteOptions {
     }
 }
 
+impl DuckportColumnEncoding {
+    /// # Safety
+    /// String pointers follow the same requirements as DuckportWriteOptions::convert.
+    unsafe fn apply(
+        &self,
+        schema: &arrow_schema::Schema,
+        options: &mut WriteOptions,
+    ) -> Result<()> {
+        let column = unsafe { string(self.column) }?;
+        let path = utils::resolve_column_path(schema, &column, "Column encoding")?;
+        let level = utils::boolean("has_compression_level", self.has_compression_level)?
+            .then_some(self.compression_level);
+        let codec = unsafe { optional_string(self.compression) }?;
+        if let Some(compression) = utils::column_compression(&column, codec.as_deref(), level)? {
+            if path.len() == 1 {
+                options
+                    .compression
+                    .columns
+                    .insert(path[0].clone(), compression);
+            } else {
+                options
+                    .compression
+                    .nested_columns
+                    .insert(path.clone(), compression);
+            }
+        }
+        if let Some(encoding) = unsafe { optional_string(self.structural_encoding) }? {
+            let encoding = utils::column_structural_encoding(&column, &path, &encoding)?;
+            options
+                .compression
+                .column_encodings
+                .insert(path[0].clone(), encoding);
+        }
+        Ok(())
+    }
+}
+
+impl DuckportIndexOptions {
+    /// # Safety
+    /// Column and option point to live NUL-terminated UTF-8 strings.
+    unsafe fn convert(
+        &self,
+        schema: &arrow_schema::Schema,
+    ) -> Result<open_arrow_sink_core::IndexSpec> {
+        let column = unsafe { string(self.column) }?;
+        let option = unsafe { string(self.option) }?;
+        utils::index_spec(schema, &column, &option)
+    }
+}
+
 impl DuckportWriteOptions {
     // Selecting URL columns requests blob support even without explicit layout overrides.
     /// # Safety
@@ -124,41 +174,12 @@ impl DuckportWriteOptions {
                 "null column encodings",
             )
         }? {
-            let column = unsafe { string(entry.column) }?;
-            let path = utils::resolve_column_path(schema, &column, "Column encoding")?;
-            let level = utils::boolean("has_compression_level", entry.has_compression_level)?
-                .then_some(entry.compression_level);
-            let codec = unsafe { optional_string(entry.compression) }?;
-            if let Some(compression) = utils::column_compression(&column, codec.as_deref(), level)?
-            {
-                if path.len() == 1 {
-                    options
-                        .compression
-                        .columns
-                        .insert(path[0].clone(), compression);
-                } else {
-                    options
-                        .compression
-                        .nested_columns
-                        .insert(path.clone(), compression);
-                }
-            }
-            if let Some(encoding) = unsafe { optional_string(entry.structural_encoding) }? {
-                let encoding = utils::column_structural_encoding(&column, &path, &encoding)?;
-                options
-                    .compression
-                    .column_encodings
-                    .insert(path[0].clone(), encoding);
-            }
+            unsafe { entry.apply(schema, &mut options) }?;
         }
         for entry in
             unsafe { utils::ffi_slice(self.indexes, self.index_count, "null index options") }?
         {
-            options.indexes.push(utils::index_spec(
-                schema,
-                &unsafe { string(entry.column) }?,
-                &unsafe { string(entry.option) }?,
-            )?);
+            options.indexes.push(unsafe { entry.convert(schema) }?);
         }
         open_arrow_sink_core::validation::validate_indexes(schema, &options.indexes)?;
         Ok(options)

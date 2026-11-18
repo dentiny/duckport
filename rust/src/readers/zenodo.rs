@@ -26,16 +26,15 @@ pub unsafe extern "C" fn duckport_zenodo_open(
 ) -> *mut c_char {
     let open = |locator: String, storage_options: StorageConfig, scan_options| async move {
         crate::provider_auth::reject_http_headers(storage_options.security.http()?, "Zenodo")?;
-        let file_name = crate::validation::nonempty(
-            unsafe { optional_string(reader_options.file_name) }?,
-            "file_name is required",
-        )?;
-        let format =
-            unsafe { optional_string(reader_options.format) }?.unwrap_or_else(|| "binary".into());
-        let record_path = unsafe { optional_string(reader_options.record_path) }?;
+        let attachment = unsafe {
+            crate::service_files::SelectedAttachment::read(
+                reader_options.file_name,
+                reader_options.format,
+                reader_options.record_path,
+            )
+        }?;
         let endpoint = unsafe { optional_string(reader_options.endpoint) }?
             .unwrap_or_else(|| "https://zenodo.org".into());
-        let attachment_options = crate::utils::attachment_options(&format, record_path.as_deref())?;
         let mut service = ZenodoService::with_endpoint(&endpoint)?
             .with_http_config(storage_options.policy.config()?)?;
         if let Some(token) = storage_options
@@ -46,14 +45,9 @@ pub unsafe extern "C" fn duckport_zenodo_open(
             service = service.with_token(token)?;
         }
         let files = service.record(locator.parse()?).await?;
-        crate::service_files::open(
-            files,
-            file_name,
-            attachment_options,
-            scan_options,
-            storage_options.metrics.clone(),
-        )
-        .await
+        attachment
+            .open(files, scan_options, storage_options.metrics.clone())
+            .await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }

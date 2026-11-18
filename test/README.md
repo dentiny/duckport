@@ -56,3 +56,9 @@ The fixture-only Rust `test-fixtures` feature exposes read-only native Lance
 Blob descriptor/field-metadata diagnostics to `duckport_test_fixture`, allowing
 SQL to check physical layouts. File helpers create/remove temporary inputs.
 Production builds with `DUCKPORT_BUILD_TEST_FIXTURES=OFF` exclude these diagnostics.
+
+Provider response routes are declared in `testdata/<provider>/http.json`, including
+Internet Archive and arXiv. Add response data there instead of provider-specific
+branches in the server. `fixture_support` owns the common HTTP server, environment
+restoration and command registration; `provider_fixture` handles HTTP behavior
+and request snapshots, while `provider_functions` exposes them to SQL.

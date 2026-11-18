@@ -7,10 +7,7 @@ use futures::stream;
 use open_arrow_access::{
     Accessor, ReadOptions, ReadRequest, RecordCapability, RecordReader, StreamReader, async_trait,
     file_format::xml::{NamespaceBinding, XmlFormat},
-    service::{
-        common::Connection,
-        oai::{OaiHarvestRequest, OaiHarvester, OaiProvider, OaiProviderService},
-    },
+    service::oai::{OaiHarvestRequest, OaiHarvester, OaiProvider, OaiProviderService},
 };
 use std::{ffi::c_char, num::NonZeroUsize};
 
@@ -84,11 +81,9 @@ pub async fn open<P: OaiProvider>(
         until_date.as_deref(),
         set_spec.as_deref(),
     )?;
-    let connection =
-        Connection::new(endpoint)?.with_http_config(storage_options.policy.config()?)?;
-    let connection = crate::provider_auth::apply(
-        connection,
-        storage_options.security.http()?,
+    let connection = crate::provider_auth::connection(
+        endpoint,
+        &storage_options,
         crate::provider_auth::HttpAuth::Bearer,
     )?;
     let service = OaiProviderService::<P>::with_connection(connection)?;

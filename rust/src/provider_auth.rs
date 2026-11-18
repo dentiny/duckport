@@ -1,5 +1,5 @@
 //! Explicit provider token mappings and shared validation of HTTP credential headers.
-use crate::{error::Result, security::HttpCredentials, validation};
+use crate::{error::Result, options::StorageConfig, security::HttpCredentials, validation};
 use open_arrow_access::service::common::{ApiKey, Connection};
 
 #[derive(Clone, Copy)]
@@ -10,9 +10,23 @@ pub(crate) enum HttpAuth {
     ApiKeyQuery(&'static str),
 }
 
+/// Construct the primary provider connection using DuckDB's storage policy and secret.
+/// Secondary connections must be built separately without these credentials.
+pub(crate) fn connection(
+    endpoint: &str,
+    config: &StorageConfig,
+    auth: HttpAuth,
+) -> Result<Connection> {
+    apply(
+        Connection::new(endpoint)?.with_http_config(config.policy.config()?)?,
+        config.security.http()?,
+        auth,
+    )
+}
+
 /// Apply credentials only to the provider's primary connection. The upstream
 /// connection keeps headers/query credentials on its origin during downloads.
-pub(crate) fn apply(
+fn apply(
     mut connection: Connection,
     security: Option<&HttpCredentials>,
     auth: HttpAuth,

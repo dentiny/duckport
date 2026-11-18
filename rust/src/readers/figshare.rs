@@ -3,7 +3,6 @@ use crate::{
     options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
     utils::optional_string,
 };
-use open_arrow_access::service::common::Connection;
 use open_arrow_access::service::figshare::FigshareService;
 use std::ffi::c_char;
 
@@ -27,23 +26,20 @@ pub unsafe extern "C" fn duckport_figshare_open(
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
     let open = |locator: String, storage_options: StorageConfig, scan_options| async move {
-        let file_name = crate::validation::nonempty(
-            unsafe { optional_string(reader_options.file_name) }?,
-            "file_name is required",
-        )?;
-        let format =
-            unsafe { optional_string(reader_options.format) }?.unwrap_or_else(|| "binary".into());
-        let record_path = unsafe { optional_string(reader_options.record_path) }?;
+        let attachment = unsafe {
+            crate::service_files::SelectedAttachment::read(
+                reader_options.file_name,
+                reader_options.format,
+                reader_options.record_path,
+            )
+        }?;
         let endpoint = unsafe { optional_string(reader_options.endpoint) }?
             .unwrap_or_else(|| "https://api.figshare.com".into());
         let version =
             unsafe { optional_string(reader_options.version) }?.unwrap_or_else(|| "".into());
-        let attachment_options = crate::utils::attachment_options(&format, record_path.as_deref())?;
-        let connection =
-            Connection::new(&endpoint)?.with_http_config(storage_options.policy.config()?)?;
-        let connection = crate::provider_auth::apply(
-            connection,
-            storage_options.security.http()?,
+        let connection = crate::provider_auth::connection(
+            &endpoint,
+            &storage_options,
             crate::provider_auth::HttpAuth::FigshareToken,
         )?;
         let files = FigshareService::with_connection(connection)
@@ -56,14 +52,9 @@ pub unsafe extern "C" fn duckport_figshare_open(
                 },
             )
             .await?;
-        crate::service_files::open(
-            files,
-            file_name,
-            attachment_options,
-            scan_options,
-            storage_options.metrics.clone(),
-        )
-        .await
+        attachment
+            .open(files, scan_options, storage_options.metrics.clone())
+            .await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }
