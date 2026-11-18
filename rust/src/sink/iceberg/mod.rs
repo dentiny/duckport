@@ -5,7 +5,7 @@ use crate::{
     sink::{DuckportSink, open_writer},
     storage, utils, validation,
 };
-use arrow_schema::SchemaRef;
+use arrow_schema::{Schema, SchemaRef};
 use iceberg_catalog_rest::{
     REST_CATALOG_PROP_URI, REST_CATALOG_PROP_WAREHOUSE, RestCatalogBuilder,
 };
@@ -62,6 +62,30 @@ pub(crate) async fn open(
     .await
 }
 
+async fn load_or_create_table(
+    catalog: &dyn Catalog,
+    identifier: &TableIdent,
+    schema: &Schema,
+    create: bool,
+) -> Result<iceberg::table::Table> {
+    if !create {
+        return Ok(catalog.load_table(identifier).await?);
+    }
+    let iceberg_schema = iceberg::arrow::arrow_schema_to_schema_auto_assign_ids(schema)?;
+    // Check the round trip before mutating the catalog (e.g. generated columns).
+    let output = iceberg::arrow::schema_to_arrow_schema(&iceberg_schema)?;
+    validation::validate_iceberg_schema(schema, &output)?;
+    Ok(catalog
+        .create_table(
+            &identifier.namespace,
+            TableCreation::builder()
+                .name(identifier.name.clone())
+                .schema(iceberg_schema)
+                .build(),
+        )
+        .await?)
+}
+
 pub(crate) async fn open_catalog(
     catalog: Arc<dyn Catalog>,
     identifier: TableIdent,
@@ -76,23 +100,7 @@ pub(crate) async fn open_catalog(
     let options = options.with_mode(WriteMode::Append);
     let sink = IcebergTableSink::new(catalog.clone());
     open_arrow_sink_core::validation::validate_options(&schema, &options, sink.capability())?;
-    let table = if create {
-        let iceberg_schema = iceberg::arrow::arrow_schema_to_schema_auto_assign_ids(&schema)?;
-        // Check the round trip before mutating the catalog (e.g. generated columns).
-        let output = iceberg::arrow::schema_to_arrow_schema(&iceberg_schema)?;
-        validation::validate_iceberg_schema(&schema, &output)?;
-        catalog
-            .create_table(
-                &identifier.namespace,
-                TableCreation::builder()
-                    .name(identifier.name.clone())
-                    .schema(iceberg_schema)
-                    .build(),
-            )
-            .await?
-    } else {
-        catalog.load_table(&identifier).await?
-    };
+    let table = load_or_create_table(catalog.as_ref(), &identifier, &schema, create).await?;
     validation::validate_iceberg_table(&table)?;
     let output_schema = Arc::new(iceberg::arrow::schema_to_arrow_schema(
         table.metadata().current_schema(),
