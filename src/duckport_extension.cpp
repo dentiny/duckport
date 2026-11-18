@@ -113,7 +113,7 @@ void LoadInternal(ExtensionLoader &loader) {
 		options.Add("record_path", LogicalType::VARCHAR);
 		options.Add("endpoint", LogicalType::VARCHAR);
 		options.Add("revision", LogicalType::VARCHAR);
-        options.Add("archive_endpoint", LogicalType::VARCHAR);
+		options.Add("archive_endpoint", LogicalType::VARCHAR);
 	});
 	RegisterReader(loader, "duckport_scan_semantic_scholar", OpenSemanticScholar, [](TypedKwargs &options) {
 		options.Add("file_name", LogicalType::VARCHAR);
@@ -180,7 +180,9 @@ void LoadInternal(ExtensionLoader &loader) {
 	RegisterReader(loader, "duckport_scan_commoncrawl", duckport_commoncrawl_open);
 	RegisterReader(loader, "duckport_scan_commoncrawl_segment", duckport_commoncrawl_segment_open);
 	RegisterReader(loader, "duckport_scan_atif", duckport_atif_open);
-	auto add_csv_options = [](TypedKwargs &options) { options.Add("header", LogicalType::BOOLEAN); };
+	auto add_csv_options = [](TypedKwargs &options) {
+		options.Add("header", LogicalType::BOOLEAN);
+	};
 	RegisterFileReader(loader, "duckport_scan_csv", OpenCsv, [](TypedKwargs &options) {
 		options.Add("header", LogicalType::BOOLEAN);
 		options.Add("delimiter", LogicalType::VARCHAR);
@@ -190,7 +192,7 @@ void LoadInternal(ExtensionLoader &loader) {
 	RegisterFileReader(loader, "duckport_scan_jsonl", duckport_json_open);
 	RegisterFileReader(loader, "duckport_scan_ndjson", duckport_json_open);
 	RegisterFileReader(loader, "duckport_scan_xml", OpenXml,
-				   [](TypedKwargs &options) { options.Add("record_path", LogicalType::VARCHAR); });
+	                   [](TypedKwargs &options) { options.Add("record_path", LogicalType::VARCHAR); });
 	RegisterReader(loader, "duckport_scan_huggingface", OpenHuggingFace, [](TypedKwargs &options) {
 		options.Add("revision", LogicalType::VARCHAR);
 		options.Add("config", LogicalType::VARCHAR);
@@ -199,8 +201,12 @@ void LoadInternal(ExtensionLoader &loader) {
 	});
 }
 } // namespace
-void DuckportExtension::Load(ExtensionLoader &loader) { LoadInternal(loader); }
-string DuckportExtension::Name() { return "duckport"; }
+void DuckportExtension::Load(ExtensionLoader &loader) {
+	LoadInternal(loader);
+}
+string DuckportExtension::Name() {
+	return "duckport";
+}
 string DuckportExtension::Version() const {
 #ifdef EXT_VERSION_DUCKPORT
 	return EXT_VERSION_DUCKPORT;
@@ -210,5 +216,7 @@ string DuckportExtension::Version() const {
 }
 } // namespace duckdb
 extern "C" {
-DUCKDB_CPP_EXTENSION_ENTRY(duckport, loader) { duckdb::LoadInternal(loader); }
+DUCKDB_CPP_EXTENSION_ENTRY(duckport, loader) {
+	duckdb::LoadInternal(loader);
+}
 }

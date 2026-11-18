@@ -1,5 +1,8 @@
 # Development
 
+This guide is for contributors building a local extension. To install the
+community package, follow the [README](../README.md#start-here).
+
 ## Build and load
 
 Use CMake 3.20+, a C++17 toolchain, Rust with edition-2024 support compatible
@@ -22,8 +25,7 @@ LOAD 'build/release/extension/duckport/duckport.duckdb_extension';
 Use `make EXT_FLAGS='-DDUCKPORT_CARGO_PROFILE=dev'` for the Cargo dev profile;
 release is the default. Cross builds require a matching DUCKPORT_RUST_TARGET (or
 Rust_CARGO_TARGET). Build macOS architectures separately. Build paths and flags
-are controlled by CMake and extension-ci-tools; no prebuilt Community Extension
-installation is assumed.
+are controlled by CMake and extension-ci-tools.
 
 ## Source layout
 
@@ -79,16 +81,26 @@ upgrading. Update Cargo.toml/Cargo.lock together and keep the C ABI in sync.
 A DuckDB upgrade also requires reviewing internal C++ headers and updating the
 DuckDB/extension-ci-tools submodule pins.
 
+Install clang-format 11.0.1 (matching the pinned DuckDB formatter), cmake-format,
+Taplo 0.10.0 and the Rust formatting component. From the repository root:
+
 ```sh
-cargo fmt --manifest-path rust/Cargo.toml -- --check
-taplo fmt --check
+make format-all        # Apply CMake, C/C++, TOML and Rust formatting.
+make format-check      # Check those formats without changing files.
+make toml-format-check # Check only rust/Cargo.toml.
 git diff --check
-make test
 ```
 
-Formatting commands do not compile. `make` and `make test` can compile: run them
-only when builds are allowed. [Test setup](../test/README.md) describes loopback
-and independent-reader requirements. Documentation changes also need local-link,
+`make format` applies CMake and C/C++ formatting; `make format-fix` aliases
+`format-all`. Formatter executables can be selected with `CLANG_FORMAT`,
+`CMAKE_FORMAT` and `TAPLO`, for example `make format-check TAPLO=/path/to/taplo`.
+Formatting-only targets do not load the build Makefile and work without initialized
+build submodules. The standalone `.clang-format` matches the pinned DuckDB style;
+keep it aligned when updating that pin.
+
+These commands do not compile. `make` and `make test` can compile: run them only
+when builds are allowed. [Test setup](../test/README.md) describes loopback and
+independent-reader requirements. Documentation changes also need local-link,
 SQL function/option-name and capability checks against implementation/tests.
 Taplo configuration is scoped to this repository's Cargo manifest, excluding
 submodules; `make toml-format` applies it and `make toml-format-check` checks it.

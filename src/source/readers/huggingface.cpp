@@ -5,8 +5,8 @@
 
 namespace duckdb {
 char *OpenHuggingFace(ClientContext &context, const string &locator, const DuckportScanOptions &scan,
-					  const TableFunctionBindInput &input, DuckportSource **output) {
-	HuggingFaceDatasetOptions reader_options{};
+                      const TableFunctionBindInput &input, DuckportSource **output) {
+	HuggingFaceDatasetOptions reader_options {};
 	auto revision = ReadStringOption(input, "revision");
 	reader_options.revision = revision ? revision->c_str() : nullptr;
 	auto config = ReadStringOption(input, "config");

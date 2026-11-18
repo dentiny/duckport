@@ -41,7 +41,7 @@ every source.
 
 | Reference interface | DuckPort interface |
 | --- | --- |
-| `LOAD lance_conversion` | Load the built `duckport` extension |
+| `LOAD lance_conversion` | `FORCE INSTALL duckport FROM community; LOAD duckport;` |
 | `FORMAT LANCE` | `FORMAT duckport_lance` |
 | `read_huggingface` | `duckport_scan_huggingface` |
 | `read_warc` with a file | `duckport_scan_warc` |

@@ -9,6 +9,6 @@ struct CsvOptions {
 
 extern "C" {
 char *duckport_csv_open(const char *locator, const DuckportStorageOptions &storage_options,
-						const DuckportScanOptions &scan_options, const CsvOptions &reader_options,
-						DuckportSource **output);
+                        const DuckportScanOptions &scan_options, const CsvOptions &reader_options,
+                        DuckportSource **output);
 }

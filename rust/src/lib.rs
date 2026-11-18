@@ -1,13 +1,13 @@
-mod error;
-mod files;
 mod blob_auth;
+mod error;
 mod ffi;
+mod files;
 mod metrics;
 mod oai;
-mod provider_auth;
 pub mod options;
-pub mod security;
+mod provider_auth;
 mod readers;
+pub mod security;
 mod service_files;
 mod source;
 mod storage;

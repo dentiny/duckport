@@ -5,9 +5,14 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_program(CARGO_EXECUTABLE cargo REQUIRED)
-# Respect the target selected by the DuckDB build, rather than silently building for the host.
-set(DUCKPORT_RUST_TARGET "" CACHE STRING "Rust target triple (empty uses the host)")
-set(DUCKPORT_CARGO_PROFILE "release" CACHE STRING "Cargo build profile: release or dev")
+# Respect the target selected by the DuckDB build, rather than silently building
+# for the host.
+set(DUCKPORT_RUST_TARGET
+    ""
+    CACHE STRING "Rust target triple (empty uses the host)")
+set(DUCKPORT_CARGO_PROFILE
+    "release"
+    CACHE STRING "Cargo build profile: release or dev")
 if(NOT DUCKPORT_RUST_TARGET AND Rust_CARGO_TARGET)
   set(DUCKPORT_RUST_TARGET "${Rust_CARGO_TARGET}")
 endif()
@@ -22,11 +27,15 @@ if(CMAKE_CROSSCOMPILING AND NOT DUCKPORT_RUST_TARGET)
   message(FATAL_ERROR "Cross builds require DUCKPORT_RUST_TARGET")
 endif()
 if(APPLE AND CMAKE_OSX_ARCHITECTURES MATCHES ";")
-  message(FATAL_ERROR "Build one macOS Rust target at a time; universal archives are not supported")
+  message(
+    FATAL_ERROR
+      "Build one macOS Rust target at a time; universal archives are not supported"
+  )
 endif()
 set(RUST_BUILD_ENV)
 if(APPLE AND CMAKE_OSX_DEPLOYMENT_TARGET)
-  list(APPEND RUST_BUILD_ENV "MACOSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+  list(APPEND RUST_BUILD_ENV
+       "MACOSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}")
 endif()
 set(RUST_TARGET_DIR "${CMAKE_CURRENT_BINARY_DIR}/rust-target")
 set(RUST_TARGET_ARGS)
@@ -44,24 +53,46 @@ else()
   set(RUST_LIBRARY_NAME libduckport_source.a)
 endif()
 set(RUST_LIBRARY "${RUST_LIBRARY_DIR}/${RUST_PROFILE_DIR}/${RUST_LIBRARY_NAME}")
-file(GLOB_RECURSE RUST_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/rust/src/*.rs")
+file(GLOB_RECURSE RUST_SOURCES CONFIGURE_DEPENDS
+     "${CMAKE_CURRENT_SOURCE_DIR}/rust/src/*.rs")
 add_custom_command(
   OUTPUT "${RUST_LIBRARY}"
-  COMMAND "${CMAKE_COMMAND}" -E env ${RUST_BUILD_ENV} "${CARGO_EXECUTABLE}" build --locked --profile "${DUCKPORT_CARGO_PROFILE}"
-          --manifest-path "${CMAKE_CURRENT_SOURCE_DIR}/rust/Cargo.toml"
-          --target-dir "${RUST_TARGET_DIR}" ${RUST_TARGET_ARGS}
+  COMMAND
+    "${CMAKE_COMMAND}" -E env ${RUST_BUILD_ENV} "${CARGO_EXECUTABLE}" build
+    --locked --profile "${DUCKPORT_CARGO_PROFILE}" --manifest-path
+    "${CMAKE_CURRENT_SOURCE_DIR}/rust/Cargo.toml" --target-dir
+    "${RUST_TARGET_DIR}" ${RUST_TARGET_ARGS}
   DEPENDS ${RUST_SOURCES} rust/Cargo.toml rust/Cargo.lock
   WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
   COMMENT "Building open-arrow-access source bridge"
   VERBATIM)
 add_custom_target(duckport_rust_build DEPENDS "${RUST_LIBRARY}")
 add_library(duckport_source_rust STATIC IMPORTED GLOBAL)
-set_target_properties(duckport_source_rust PROPERTIES IMPORTED_LOCATION "${RUST_LIBRARY}")
+set_target_properties(duckport_source_rust PROPERTIES IMPORTED_LOCATION
+                                                      "${RUST_LIBRARY}")
 add_dependencies(duckport_source_rust duckport_rust_build)
 
 include_directories(src/include rust/include)
-set(EXTENSION_SOURCES src/duckport_extension.cpp src/source_metadata.cpp src/error.cpp src/security_options.cpp src/storage_options.cpp src/blob_secrets.cpp src/source/options.cpp src/source/reader.cpp src/source/source_factory.cpp)
-list(APPEND EXTENSION_SOURCES src/sink/copy.cpp src/sink/copy_options.cpp src/sink/copy_query.cpp src/sink/writer.cpp src/sink/lance/writer.cpp src/sink/parquet/writer.cpp src/sink/iceberg/writer.cpp)
+set(EXTENSION_SOURCES
+    src/duckport_extension.cpp
+    src/source_metadata.cpp
+    src/error.cpp
+    src/security_options.cpp
+    src/storage_options.cpp
+    src/blob_secrets.cpp
+    src/source/options.cpp
+    src/source/reader.cpp
+    src/source/source_factory.cpp)
+list(
+  APPEND
+  EXTENSION_SOURCES
+  src/sink/copy.cpp
+  src/sink/copy_options.cpp
+  src/sink/copy_query.cpp
+  src/sink/writer.cpp
+  src/sink/lance/writer.cpp
+  src/sink/parquet/writer.cpp
+  src/sink/iceberg/writer.cpp)
 list(APPEND EXTENSION_SOURCES src/source/readers/csv.cpp)
 list(APPEND EXTENSION_SOURCES src/source/readers/huggingface.cpp)
 list(APPEND EXTENSION_SOURCES src/source/readers/xml.cpp)
@@ -89,18 +120,33 @@ build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
 find_package(Threads REQUIRED)
 foreach(EXTENSION_TARGET duckport_extension duckport_loadable_extension)
   add_dependencies(${EXTENSION_TARGET} duckport_rust_build)
-  target_link_libraries(${EXTENSION_TARGET} "$<BUILD_INTERFACE:duckport_source_rust>"
-    "$<INSTALL_INTERFACE:$<INSTALL_PREFIX>/${INSTALL_LIB_DIR}/${RUST_LIBRARY_NAME}>" Threads::Threads ${CMAKE_DL_LIBS})
+  target_link_libraries(
+    ${EXTENSION_TARGET}
+    "$<BUILD_INTERFACE:duckport_source_rust>"
+    "$<INSTALL_INTERFACE:$<INSTALL_PREFIX>/${INSTALL_LIB_DIR}/${RUST_LIBRARY_NAME}>"
+    Threads::Threads
+    ${CMAKE_DL_LIBS})
   if(APPLE)
-    target_link_libraries(${EXTENSION_TARGET} "-framework Security" "-framework CoreFoundation" "-framework SystemConfiguration" "-framework IOKit")
+    target_link_libraries(
+      ${EXTENSION_TARGET} "-framework Security" "-framework CoreFoundation"
+      "-framework SystemConfiguration" "-framework IOKit")
   elseif(WIN32)
-    target_link_libraries(${EXTENSION_TARGET} ws2_32 userenv bcrypt ntdll secur32 crypt32)
+    target_link_libraries(
+      ${EXTENSION_TARGET}
+      ws2_32
+      userenv
+      bcrypt
+      ntdll
+      secur32
+      crypt32)
   elseif(UNIX)
     target_link_libraries(${EXTENSION_TARGET} m)
   endif()
 endforeach()
-install(TARGETS duckport_extension EXPORT "${DUCKDB_EXPORT_SET}"
-        LIBRARY DESTINATION "${INSTALL_LIB_DIR}" ARCHIVE DESTINATION "${INSTALL_LIB_DIR}")
-
+install(
+  TARGETS duckport_extension
+  EXPORT "${DUCKDB_EXPORT_SET}"
+  LIBRARY DESTINATION "${INSTALL_LIB_DIR}"
+  ARCHIVE DESTINATION "${INSTALL_LIB_DIR}")
 
 install(FILES "${RUST_LIBRARY}" DESTINATION "${INSTALL_LIB_DIR}")
