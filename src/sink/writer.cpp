@@ -1,7 +1,15 @@
 #include "sink/writer.hpp"
+#include "sink/writer_context.hpp"
 #include "error.hpp"
 
 namespace duckdb {
+const vector<BlobSecret> &WriterOpenContext::BlobSecrets() {
+	if (!blob_secrets) {
+		blob_secrets = CaptureBlobSecrets(client);
+	}
+	return *blob_secrets;
+}
+
 namespace {
 class RustSinkWriter final : public SinkWriter {
 public:
@@ -12,6 +20,11 @@ public:
 	}
 	void Commit() override {
 		CheckError(duckport_sink_commit(writer.get()));
+	}
+	DuckportWriteMetrics Metrics() const override {
+		DuckportWriteMetrics metrics {};
+		CheckError(duckport_sink_get_metrics(writer.get(), &metrics));
+		return metrics;
 	}
 	void Abort() noexcept override {
 		writer.reset();

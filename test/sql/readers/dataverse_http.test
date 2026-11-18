@@ -257,7 +257,7 @@ statement error
 SELECT * FROM duckport_scan_dataverse('doi:10.7910/DVN/A&B+',
     file_name := 'papers/2026/paper #1%.pdf', endpoint := getvariable('fixture_endpoint'), version := '1.0');
 ----
-choose either
+choose BEARER_TOKEN or X-Dataverse-key
 
 statement ok
 DROP SECRET dataverse_api_test;

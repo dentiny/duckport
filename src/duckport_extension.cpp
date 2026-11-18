@@ -9,6 +9,7 @@
 #include "source/readers/oapen.hpp"
 #include "source/readers/doab.hpp"
 #include "source/readers/arxiv.hpp"
+#include "source/readers/arxiv_metadata.hpp"
 #include "readers/meca.h"
 #include "source/readers/courtlistener.hpp"
 #include "source/readers/biorxiv.hpp"
@@ -45,6 +46,13 @@ void LoadInternal(ExtensionLoader &loader) {
 		options.Add("record_path", LogicalType::VARCHAR);
 	});
 	RegisterReader(loader, "duckport_scan_doab", OpenDoab, [](TypedKwargs &options) {
+		options.Add("endpoint", LogicalType::VARCHAR);
+		options.Add("from_date", LogicalType::VARCHAR);
+		options.Add("until_date", LogicalType::VARCHAR);
+		options.Add("set_spec", LogicalType::VARCHAR);
+		options.Add("record_path", LogicalType::VARCHAR);
+	});
+	RegisterReader(loader, "duckport_scan_arxiv_metadata", OpenArxivMetadata, [](TypedKwargs &options) {
 		options.Add("endpoint", LogicalType::VARCHAR);
 		options.Add("from_date", LogicalType::VARCHAR);
 		options.Add("until_date", LogicalType::VARCHAR);

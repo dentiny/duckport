@@ -50,18 +50,25 @@ pub unsafe extern "C" fn duckport_biorxiv_open(
         let server = crate::utils::biorxiv_server(&server)?;
         let connection =
             Connection::new(&endpoint)?.with_http_config(storage_options.policy.config()?)?;
-        let connection = if let Some(token) = storage_options.security.token {
-            connection.with_header("authorization", &format!("Bearer {token}"))?
-        } else {
-            connection
-        };
+        let connection = crate::provider_auth::apply(
+            connection,
+            storage_options.security.http()?,
+            crate::provider_auth::HttpAuth::Bearer,
+        )?;
         let service = BiorxivService::with_connection(connection);
         let files = service.jats(
             service
                 .details(server, &locator, &until, cursor.parse()?)
                 .await?,
         )?;
-        crate::service_files::open(files, file_name, attachment_options, scan_options).await
+        crate::service_files::open(
+            files,
+            file_name,
+            attachment_options,
+            scan_options,
+            storage_options.metrics.clone(),
+        )
+        .await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }

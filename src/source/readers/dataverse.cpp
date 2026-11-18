@@ -1,5 +1,4 @@
 #include "readers/dataverse.h"
-#include "duckdb/common/string_util.hpp"
 #include "source/options.hpp"
 #include "source/readers/dataverse.hpp"
 #include "storage_options.hpp"
@@ -18,8 +17,7 @@ char *OpenDataverse(ClientContext &context, const string &locator, const Duckpor
 	reader_options.endpoint = endpoint ? endpoint->c_str() : nullptr;
 	auto version = ReadStringOption(input, "version");
 	reader_options.version = version ? version->c_str() : nullptr;
-	auto scope = StringUtil::Format("%s/", endpoint.value_or("https://dataverse.harvard.edu"));
-    StorageParameters storage(context, scope, /*secret_type=*/ {});
+	StorageParameters storage(context, endpoint.value_or("https://dataverse.harvard.edu") + "/", /*secret_type=*/ {});
 	return duckport_dataverse_open(locator.c_str(), storage.config, scan, reader_options, output);
 }
 } // namespace duckdb
