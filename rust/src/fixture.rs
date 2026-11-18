@@ -21,15 +21,11 @@ fn count(array: &dyn Array, row: usize, path: &[&str], kinds: &mut [u64; 6]) -> 
     match array.data_type() {
         DataType::List(_) => {
             let values = array.as_list::<i32>().value(row);
-            for row in 0..values.len() {
-                count(values.as_ref(), row, path, kinds)?;
-            }
+            count_rows(values.as_ref(), path, kinds)?;
         }
         DataType::LargeList(_) => {
             let values = array.as_list::<i64>().value(row);
-            for row in 0..values.len() {
-                count(values.as_ref(), row, path, kinds)?;
-            }
+            count_rows(values.as_ref(), path, kinds)?;
         }
         DataType::Struct(_) if !path.is_empty() => {
             let child = array
@@ -52,6 +48,69 @@ fn count(array: &dyn Array, row: usize, path: &[&str], kinds: &mut [u64; 6]) -> 
     Ok(())
 }
 
+fn count_rows(array: &dyn Array, path: &[&str], kinds: &mut [u64; 6]) -> Result<()> {
+    for row in 0..array.len() {
+        count(array, row, path, kinds)?;
+    }
+    Ok(())
+}
+
+fn dataset_url(locator: &str) -> Result<url::Url> {
+    url::Url::from_directory_path(utils::local_path(locator)?)
+        .map_err(|_| "invalid fixture path".into())
+}
+
+async fn blob_layout(locator: &str, field: &str) -> Result<String> {
+    let dataset = LanceDatasetSink::default()
+        .dataset_builder(dataset_url(locator)?)?
+        .load()
+        .await?;
+    // The native scanner defaults to physical Blob descriptions, not bytes.
+    let batch = dataset.scan().try_into_batch().await?;
+    let root = StructArray::from(batch);
+    let mut kinds = [0_u64; 6];
+    let field = field.split('.').collect::<Vec<_>>();
+    count_rows(&root, &field, &mut kinds)?;
+    Ok(format!(
+        "{{\"inline\":{},\"packed\":{},\"dedicated\":{},\"external\":{},\"managed\":{}}}",
+        kinds[0],
+        kinds[1],
+        kinds[2],
+        kinds[3],
+        kinds[4] + kinds[5]
+    ))
+}
+
+async fn field_metadata(locator: &str, field: &str, key: &str) -> Result<String> {
+    let dataset = LanceDatasetSink::default()
+        .dataset_builder(dataset_url(locator)?)?
+        .load()
+        .await?;
+    Ok(dataset
+        .schema()
+        .field(field)
+        .ok_or("unknown fixture field")?
+        .metadata
+        .get(key)
+        .cloned()
+        .unwrap_or_default())
+}
+
+/// # Safety
+/// Output is writable and initially unowned. Success transfers an owned CString.
+unsafe fn string_output(
+    output: *mut *mut c_char,
+    read: impl FnOnce() -> Result<String>,
+) -> *mut c_char {
+    call(|| {
+        validation::non_null(output, "null fixture output")?;
+        unsafe { *output = ptr::null_mut() };
+        let value = CString::new(read()?)?;
+        unsafe { *output = value.into_raw() };
+        Ok(())
+    })
+}
+
 /// # Safety
 /// Inputs are borrowed NUL-terminated strings; output is writable and initially
 /// unowned. Success returns an owned CString, freed with duckport_source_error_free.
@@ -61,40 +120,13 @@ pub unsafe extern "C" fn duckport_fixture_blob_layout(
     field: *const c_char,
     output: *mut *mut c_char,
 ) -> *mut c_char {
-    call(|| unsafe {
-        validation::non_null(output, "null fixture output")?;
-        *output = ptr::null_mut();
-        let locator = utils::string(locator)?;
-        let path = utils::local_path(&locator)?;
-        let field = utils::string(field)?;
-        let kinds = RUNTIME.block_on(async {
-            let dataset = LanceDatasetSink::default()
-                .dataset_builder(
-                    url::Url::from_directory_path(path).map_err(|_| "invalid fixture path")?,
-                )?
-                .load()
-                .await?;
-            // The native scanner defaults to physical Blob descriptions, not bytes.
-            let batch = dataset.scan().try_into_batch().await?;
-            let root = StructArray::from(batch);
-            let mut kinds = [0_u64; 6];
-            let field = field.split('.').collect::<Vec<_>>();
-            for row in 0..root.len() {
-                count(&root, row, &field, &mut kinds)?;
-            }
-            Ok::<_, Box<dyn std::error::Error + Send + Sync>>(kinds)
-        })?;
-        let json = format!(
-            "{{\"inline\":{},\"packed\":{},\"dedicated\":{},\"external\":{},\"managed\":{}}}",
-            kinds[0],
-            kinds[1],
-            kinds[2],
-            kinds[3],
-            kinds[4] + kinds[5]
-        );
-        *output = CString::new(json)?.into_raw();
-        Ok(())
-    })
+    unsafe {
+        string_output(output, || {
+            let locator = utils::string(locator)?;
+            let field = utils::string(field)?;
+            RUNTIME.block_on(blob_layout(&locator, &field))
+        })
+    }
 }
 
 /// # Safety
@@ -106,31 +138,12 @@ pub unsafe extern "C" fn duckport_fixture_field_metadata(
     key: *const c_char,
     output: *mut *mut c_char,
 ) -> *mut c_char {
-    call(|| unsafe {
-        validation::non_null(output, "null fixture output")?;
-        *output = ptr::null_mut();
-        let path = utils::local_path(&utils::string(locator)?)?;
-        let field = utils::string(field)?;
-        let key = utils::string(key)?;
-        let value = RUNTIME.block_on(async {
-            let dataset = LanceDatasetSink::default()
-                .dataset_builder(
-                    url::Url::from_directory_path(path).map_err(|_| "invalid fixture path")?,
-                )?
-                .load()
-                .await?;
-            Ok::<_, Box<dyn std::error::Error + Send + Sync>>(
-                dataset
-                    .schema()
-                    .field(&field)
-                    .ok_or("unknown fixture field")?
-                    .metadata
-                    .get(&key)
-                    .cloned()
-                    .unwrap_or_default(),
-            )
-        })?;
-        *output = CString::new(value)?.into_raw();
-        Ok(())
-    })
+    unsafe {
+        string_output(output, || {
+            let locator = utils::string(locator)?;
+            let field = utils::string(field)?;
+            let key = utils::string(key)?;
+            RUNTIME.block_on(field_metadata(&locator, &field, &key))
+        })
+    }
 }

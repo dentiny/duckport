@@ -4,7 +4,15 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include_directories(src/include)
 find_package(Threads REQUIRED)
-set(FIXTURE_SOURCE src/duckport_test_fixture_extension.cpp src/iceberg.cpp src/files_and_blobs.cpp)
+set(FIXTURE_SOURCE
+  src/duckport_test_fixture_extension.cpp
+  src/fixture_support.cpp
+  src/fixture_server.cpp
+  src/scoped_fixture_environment.cpp
+  src/provider_fixture.cpp
+  src/provider_functions.cpp
+  src/iceberg.cpp
+  src/files_and_blobs.cpp)
 build_static_extension(duckport_test_fixture ${FIXTURE_SOURCE})
 build_loadable_extension(duckport_test_fixture "" ${FIXTURE_SOURCE})
 foreach(FIXTURE_TARGET duckport_test_fixture_extension duckport_test_fixture_loadable_extension)

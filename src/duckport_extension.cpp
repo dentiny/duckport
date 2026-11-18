@@ -198,8 +198,8 @@ void LoadInternal(ExtensionLoader &loader) {
 }
 } // namespace
 void DuckportExtension::Load(ExtensionLoader &loader) { LoadInternal(loader); }
-std::string DuckportExtension::Name() { return "duckport"; }
-std::string DuckportExtension::Version() const {
+string DuckportExtension::Name() { return "duckport"; }
+string DuckportExtension::Version() const {
 #ifdef EXT_VERSION_DUCKPORT
 	return EXT_VERSION_DUCKPORT;
 #else

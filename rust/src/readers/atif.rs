@@ -1,28 +1,13 @@
 mod media;
 use crate::source::open_file_source;
-use crate::{
-    ffi::source::{DuckportSource, open_reader},
-    options::{DuckportScanOptions, DuckportStorageOptions},
-    storage,
-};
+use crate::storage;
 pub(crate) use media::MediaResolver;
 use open_arrow_access::{OuterCompression, ReadRequest, file_format::atif::AtifFormat};
 pub(crate) const STORAGE_POLICY: &str = "duckport:storage_policy";
-use std::ffi::c_char;
 
-/// # Safety
-/// Locator and optional strings are NUL-terminated UTF-8. Option structs are valid for
-/// this call; output points to writable source-pointer storage. No inputs are retained.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn duckport_atif_open(
-    locator: *const c_char,
-    storage_options: &DuckportStorageOptions,
-    scan_options: &DuckportScanOptions,
-    output: *mut *mut DuckportSource,
-) -> *mut c_char {
-    let open = |locator: String, storage, scan| async move { open(&locator, storage, scan).await };
-    unsafe { open_reader(locator, storage_options, scan_options, output, open) }
-}
+crate::ffi::reader::export_reader!(duckport_atif_open;
+    |locator, storage, scan| async move { open(&locator, storage, scan).await }
+);
 
 pub(crate) async fn open(
     locator: &str,

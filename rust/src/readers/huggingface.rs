@@ -1,9 +1,4 @@
-use crate::{
-    ffi::source::{DuckportSource, open_reader},
-    options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
-    source::DuckportSource as AsyncSource,
-    utils::optional_string,
-};
+use crate::{source::DuckportSource as AsyncSource, utils::optional_string};
 use open_arrow_access::service::huggingface::*;
 use std::ffi::c_char;
 
@@ -15,18 +10,8 @@ pub struct HuggingFaceDatasetOptions {
     pub allow_partial: i32,
 }
 
-/// # Safety
-/// Locator and optional strings are NUL-terminated UTF-8. Option structs are valid for
-/// this call; output points to writable source-pointer storage. No inputs are retained.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn duckport_huggingface_open(
-    locator: *const c_char,
-    storage_options: &DuckportStorageOptions,
-    scan_options: &DuckportScanOptions,
-    reader_options: &HuggingFaceDatasetOptions,
-    output: *mut *mut DuckportSource,
-) -> *mut c_char {
-    let open = |locator: String, storage_options: StorageConfig, scan_options| async move {
+crate::ffi::reader::export_reader!(duckport_huggingface_open, reader_options: HuggingFaceDatasetOptions;
+    |locator, storage_options, scan_options| async move {
         crate::provider_auth::reject_http_headers(
             storage_options.security.http()?,
             "Hugging Face",
@@ -73,6 +58,5 @@ pub unsafe extern "C" fn duckport_huggingface_open(
             .await?
             .with_http_config(storage_options.policy.config()?)?;
         AsyncSource::new(service, request.with_options(scan_options)).await
-    };
-    unsafe { open_reader(locator, storage_options, scan_options, output, open) }
-}
+    }
+);

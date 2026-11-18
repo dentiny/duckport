@@ -1,9 +1,5 @@
 use crate::{
-    error::Result,
-    ffi::source::{DuckportSource, open_reader},
-    options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
-    source::DuckportSource as AsyncSource,
-    storage,
+    error::Result, options::StorageConfig, source::DuckportSource as AsyncSource, storage,
 };
 use open_arrow_access::{
     AccessorExt, ReadOptions,
@@ -15,7 +11,6 @@ use open_arrow_access::{
     },
     storage::{OpenDalAccessor, opendal},
 };
-use std::ffi::c_char;
 
 enum Scope {
     Dataset,
@@ -62,30 +57,10 @@ async fn open_commoncrawl(
     }
 }
 
-/// # Safety
-/// Locator and optional strings are NUL-terminated UTF-8. Option structs are valid for
-/// this call; output points to writable source-pointer storage. No inputs are retained.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn duckport_commoncrawl_open(
-    locator: *const c_char,
-    storage_options: &DuckportStorageOptions,
-    scan_options: &DuckportScanOptions,
-    output: *mut *mut DuckportSource,
-) -> *mut c_char {
-    let open = |locator, options, scan| open_commoncrawl(locator, options, scan, Scope::Dataset);
-    unsafe { open_reader(locator, storage_options, scan_options, output, open) }
-}
+crate::ffi::reader::export_reader!(duckport_commoncrawl_open;
+    |locator, options, scan| open_commoncrawl(locator, options, scan, Scope::Dataset)
+);
 
-/// # Safety
-/// Locator and optional strings are NUL-terminated UTF-8. Option structs are valid for
-/// this call; output points to writable source-pointer storage. No inputs are retained.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn duckport_commoncrawl_segment_open(
-    locator: *const c_char,
-    storage_options: &DuckportStorageOptions,
-    scan_options: &DuckportScanOptions,
-    output: *mut *mut DuckportSource,
-) -> *mut c_char {
-    let open = |locator, options, scan| open_commoncrawl(locator, options, scan, Scope::Segment);
-    unsafe { open_reader(locator, storage_options, scan_options, output, open) }
-}
+crate::ffi::reader::export_reader!(duckport_commoncrawl_segment_open;
+    |locator, options, scan| open_commoncrawl(locator, options, scan, Scope::Segment)
+);
