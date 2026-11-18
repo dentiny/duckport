@@ -8,7 +8,8 @@ SELECT * FROM duckport_scan_commoncrawl_segment(
     'testdata/commoncrawl/crawl-data/CC-MAIN-2022-40/segments/1664030338280.51/');
 ```
 
-`duckport_scan_warc` selects one physical WARC object. The Common Crawl readers
+`duckport_scan_warc` accepts physical WARC objects and same-schema
+[file lists, directories and globs](files.md). The Common Crawl readers
 select one release or segment using `warc.paths.gz` under the normal
 `crawl-data/<crawl>/segments/<segment>/` layout. Selection follows upstream
 manifest order; a segment can contain multiple WARC files. Local mirrors must

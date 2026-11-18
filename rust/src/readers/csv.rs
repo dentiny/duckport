@@ -1,7 +1,6 @@
-use crate::source::open_file_source;
-use crate::storage;
+use crate::source::files::open as open_file_source;
 use open_arrow_access::{
-    OuterCompression, ReadRequest,
+    OuterCompression,
     file_format::csv::{CsvDialect, CsvFileFormat, CsvHeader},
 };
 
@@ -19,19 +18,18 @@ crate::ffi::reader::export_reader!(duckport_csv_open, reader_options: CsvOptions
             value => CsvHeader::from(crate::utils::boolean("header", value)?),
         };
 
-        let (operator, path) = storage::operator(&locator, &storage_options)?;
         let format = CsvFileFormat::infer().with_dialect(CsvDialect {
             header,
             delimiter: reader_options.delimiter,
             ..Default::default()
         });
-        Ok(open_file_source(
-            operator,
-            ReadRequest::new(path).with_options(scan_options),
+        open_file_source(
+            &locator,
+            &storage_options,
+            scan_options,
             format,
             OuterCompression::Auto,
-            &storage_options.metrics,
         )
-        .await?)
+        .await
     }
 );

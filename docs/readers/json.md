@@ -11,7 +11,7 @@ JSON objects, including newline-delimited objects. They do not provide different
 framing modes based on the SQL function name. Top-level arrays are unsupported.
 
 Schema inference uses a bounded sample; later incompatible values fail the
-query. Accepts one local/file/HTTP(S)/S3 object with applicable outer
-decompression. Use native DuckDB JSON readers for their additional file-list,
-glob and schema-control options. See [storage](../storage.md) and
+query. Accepts local/file/HTTP(S)/S3 objects with applicable outer decompression
+and same-schema [file lists, directories and globs](files.md). Use native DuckDB
+JSON readers for their additional schema-control options. See [storage](../storage.md) and
 [secrets](../secrets.md).

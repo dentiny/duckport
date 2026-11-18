@@ -57,3 +57,9 @@ Native fixtures are a separate test extension. Their server/environment classes
 own cleanup through destruction; servers are destroyed before request-handler
 state. Shared maps and request traces use DuckDB annotated mutexes and lock
 annotations. See the [test guide](../test/README.md).
+
+## Async boundary
+
+Runtime ownership and synchronous `block_on` calls belong only at FFI boundaries.
+Internal readers, storage and file discovery expose async APIs and never create
+or enter a runtime themselves.

@@ -9,20 +9,21 @@ from [session settings](../storage.md).
 
 | SQL function | Selection | Guide |
 | --- | --- | --- |
-| `duckport_scan_csv` | One CSV object; optional `header`, `delimiter` | [CSV](csv.md) |
-| `duckport_scan_tsv` | One TSV object; optional `header` | [TSV](tsv.md) |
-| `duckport_scan_json`, `duckport_scan_jsonl`, `duckport_scan_ndjson` | One stream of JSON objects | [JSON](json.md) |
-| `duckport_scan_parquet` | One Parquet object | [Parquet](parquet.md) |
-| `duckport_scan_xml` | One XML object; required `record_path` | [XML](xml.md) |
-| `duckport_scan_warc` | One WARC object | [WARC](warc.md) |
+| `duckport_scan_csv` | CSV files; optional `header`, `delimiter` | [CSV](csv.md) |
+| `duckport_scan_tsv` | TSV files; optional `header` | [TSV](tsv.md) |
+| `duckport_scan_json`, `duckport_scan_jsonl`, `duckport_scan_ndjson` | JSON object streams | [JSON](json.md) |
+| `duckport_scan_parquet` | Parquet files | [Parquet](parquet.md) |
+| `duckport_scan_xml` | XML files; required `record_path` | [XML](xml.md) |
+| `duckport_scan_warc` | WARC files | [WARC](warc.md) |
 | `duckport_scan_commoncrawl` | One crawl release root | [Common Crawl](warc.md) |
 | `duckport_scan_commoncrawl_segment` | One segment root | [Common Crawl](warc.md) |
 | `duckport_scan_atif` | One JSON/JSONL trajectory object | [ATIF](atif.md) |
 | `duckport_scan_huggingface` | One dataset config/split's Parquet export | [Hugging Face](huggingface.md) |
 | `duckport_scan_arxiv` | Manifest-selected bulk TAR shards; optional PDF metadata snapshot | [arXiv](arxiv.md) |
 
-File readers accept a single local/file/HTTP(S)/S3 object, not globs or file
-lists. Text/record readers use the enabled upstream outer-decompression support
+Standard file readers accept local/file/HTTP(S)/S3 objects and same-schema
+[file lists, directories and globs](files.md). ATIF and provider readers retain
+their own selection rules. Text/record readers use the enabled upstream outer-decompression support
 (gzip, bzip2, LZ4 and Zstd); standalone Parquet expects the Parquet object itself.
 Do not infer support for a particular format/container combination from a suffix.
 

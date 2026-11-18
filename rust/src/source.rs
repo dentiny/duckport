@@ -1,3 +1,4 @@
+pub(crate) mod files;
 use crate::error::Result;
 use arrow_schema::SchemaRef;
 use open_arrow_access::{

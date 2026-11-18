@@ -53,8 +53,8 @@ every source.
 Most COPY option names are familiar, but do not copy assumptions about defaults
 or accepted values. DuckPort's explicit Lance `STORAGE_VERSION` accepts `2.2` or
 `2.3`; its generic blob URL selections require `file://` for local files. DuckPort
-scan functions do not accept native Parquet glob/directory inputs; native
-`read_parquet` remains available in the source query.
+standard file readers support same-schema [lists, directories and globs](readers/files.md);
+native `read_parquet` remains available for its additional dataset options.
 
 Configure [scoped secrets](secrets.md) for every source namespace. A destination
 secret is not an authentication source for unrelated media or metadata URLs.

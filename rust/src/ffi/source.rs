@@ -1,18 +1,16 @@
 use super::common::RUNTIME;
-use crate::source::open_file_source;
+use crate::source::files::open as open_file_source;
 use crate::{
     error::{Result, call, cleanup},
     options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
     source::DuckportSource as AsyncSource,
-    storage,
     utils::{ffi_slice, string},
     validation,
 };
 use arrow_array::ffi_stream::FFI_ArrowArrayStream;
 use arrow_schema::ffi::FFI_ArrowSchema;
 use open_arrow_access::{
-    BlockingRecordBatchReader, OuterCompression, ReadOptions, ReadRequest,
-    file_format::parquet::ParquetFormat,
+    BlockingRecordBatchReader, OuterCompression, ReadOptions, file_format::parquet::ParquetFormat,
 };
 use std::{ffi::c_char, ptr, sync::Arc};
 
@@ -39,15 +37,14 @@ pub unsafe extern "C" fn duckport_parquet_source_open(
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
     let open = |locator: String, storage_options, scan_options| async move {
-        let (operator, path) = storage::operator(&locator, &storage_options)?;
-        Ok(open_file_source(
-            operator,
-            ReadRequest::new(path).with_options(scan_options),
+        open_file_source(
+            &locator,
+            &storage_options,
+            scan_options,
             ParquetFormat,
             OuterCompression::None,
-            &storage_options.metrics,
         )
-        .await?)
+        .await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }
@@ -126,7 +123,20 @@ where
         validation::non_null(output, "null source output")?;
         *output = ptr::null_mut();
         let locator = string(locator)?;
-        let storage = storage_options.read()?;
+        let mut storage = storage_options.read()?;
+        storage.files = ffi_slice(
+            scan_options.files,
+            scan_options.file_count,
+            "null selected files",
+        )?
+        .iter()
+        .map(|file| {
+            Ok(crate::options::SelectedFile {
+                locator: string(file.locator)?,
+                storage: file.storage.read()?,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
         let scan = scan_options.read()?;
         let metrics = storage.metrics.clone();
         let source = RUNTIME.block_on(open(locator, storage, scan))?;

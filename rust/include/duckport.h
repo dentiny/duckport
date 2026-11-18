@@ -57,9 +57,16 @@ struct DuckportBlobSecret {
 	const char *type;
 	DuckportStorageOptions config;
 };
+struct DuckportSelectedFile {
+	const char *locator;
+	DuckportStorageOptions storage;
+};
+struct DuckportFileList;
 struct DuckportScanOptions {
 	// Target rows per Arrow record batch; SQL default: 8192.
 	size_t batch_size;
+	const DuckportSelectedFile *files;
+	size_t file_count;
 };
 struct DuckportColumnEncoding {
 	const char *column;
@@ -109,6 +116,14 @@ char *duckport_validate_byte_size(const char *name, int64_t value);
 char *duckport_validate_file_count(int64_t value, bool preserve_order);
 char *duckport_validate_sample_percent(double value);
 char *duckport_validate_sample_rows(int64_t value, uint64_t max_rows);
+
+// File discovery owns its returned list until destroy; get returns borrowed strings.
+char *duckport_file_discovery_root(const char *locator, DuckportFileList **);
+char *duckport_resolve_files(const char *locator, const char *format, const DuckportStorageOptions &,
+                             DuckportFileList **);
+size_t duckport_file_list_count(const DuckportFileList *);
+const char *duckport_file_list_get(const DuckportFileList *, size_t index);
+void duckport_file_list_destroy(DuckportFileList *);
 
 // Source functions
 char *duckport_source_get_schema(const DuckportSource *, ArrowSchema *);

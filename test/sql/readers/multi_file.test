@@ -1,0 +1,161 @@
+# name: test/sql/readers/multi_file.test
+# description: File lists, directories and globs use strict schemas and per-file storage
+# group: [sql]
+
+require duckport
+
+require parquet
+
+statement ok
+SET threads = 1;
+
+# One small-batch scan checks list order, duplicate inputs and row contents.
+query IIT
+SELECT count(*), sum(id), string_agg(name, ',')
+FROM duckport_scan_csv(['testdata/multifile/b.csv', 'testdata/multifile/a.csv', 'testdata/multifile/a.csv'], header := true, batch_size := 1);
+----
+5	9	gamma,alpha,beta,alpha,beta
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_csv('testdata/multifile/*.csv', header := true);
+----
+3	6
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_csv('testdata/multifile/**/*.csv', header := true);
+----
+4	10
+
+# Directories recurse and include compressed CSV, with or without a trailing slash.
+foreach path testdata/multifile testdata/multifile/
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_csv('{path}', header := true);
+----
+6	13
+
+endloop
+
+query T
+SELECT name FROM duckport_scan_csv(['testdata/multifile/a.csv', 'testdata/multifile/b.csv'], header := true) WHERE id = 3;
+----
+gamma
+
+foreach format json jsonl ndjson
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_{format}('testdata/multifile/*.jsonl');
+----
+3	6
+
+endloop
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_tsv('testdata/multifile/*.tsv', header := true);
+----
+3	6
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_xml('testdata/multifile/*.xml', record_path := '/rows/row');
+----
+2	3
+
+query I
+SELECT count(*) FROM duckport_scan_warc(['testdata/warc/good_resources.warc', 'testdata/warc/good_resources.warc']);
+----
+4
+
+statement ok
+PREPARE multi_scan AS SELECT count(*) FROM duckport_scan_csv('testdata/multifile/*.csv', header := true);
+
+query I
+EXECUTE multi_scan;
+----
+3
+
+query I
+EXECUTE multi_scan;
+----
+3
+
+statement error
+SELECT * FROM duckport_scan_csv([], header := true);
+----
+file list cannot be empty
+
+statement error
+SELECT * FROM duckport_scan_csv(['testdata/multifile/a.csv', NULL], header := true);
+----
+DuckPort arguments cannot be NULL
+
+statement error
+SELECT * FROM duckport_scan_csv('testdata/multifile/missing*.csv', header := true);
+----
+file selection matched no files
+
+# Full-schema validation cannot be bypassed by COUNT(*) or projection.
+foreach projection count(*) id
+
+statement error
+SELECT {projection} FROM duckport_scan_csv(['testdata/multifile/a.csv', 'testdata/multifile/mismatch/extra.data'], header := true);
+----
+schema
+
+endloop
+
+# Discovery must preserve percent, space and fragment characters in local names.
+query II
+SELECT count(*), sum(id) FROM duckport_scan_csv('testdata/multifile/special %/*.data', header := true);
+----
+2	3
+
+foreach part,id a,10 b,20
+
+statement ok
+COPY (SELECT id FROM (VALUES ({id}::BIGINT), (NULL::BIGINT)) t(id)) TO '{TEST_DIR}/part-{part}.parquet' (FORMAT PARQUET);
+
+endloop
+
+statement ok
+COPY (SELECT 0::BIGINT AS id WHERE false) TO '{TEST_DIR}/part-empty.parquet' (FORMAT PARQUET);
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_parquet(['{TEST_DIR}/part-empty.parquet', '{TEST_DIR}/part-a.parquet', '{TEST_DIR}/part-b.parquet']);
+----
+4	30
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_parquet('{TEST_DIR}/part-*.parquet');
+----
+4	30
+
+# The result is a normal COPY source.
+statement ok
+COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true))
+TO '{TEST_DIR}/combined.parquet' (FORMAT PARQUET);
+
+query II
+SELECT count(*), sum(id) FROM read_parquet('{TEST_DIR}/combined.parquet');
+----
+3	6
+
+# Explicit dialect options are forwarded to each selected decoder.
+query II
+SELECT count(*), sum(id) FROM duckport_scan_csv(['testdata/multifile/custom-a.data', 'testdata/multifile/custom-b.data'], delimiter := ';', header := true);
+----
+3	6
+
+# Existing local filenames are literal, including valid and malformed glob syntax.
+statement ok
+COPY (SELECT 7 AS id) TO '{TEST_DIR}/literal[1].data' (FORMAT CSV, HEADER true);
+
+statement ok
+COPY (SELECT 99 AS id) TO '{TEST_DIR}/literal1.data' (FORMAT CSV, HEADER true);
+
+statement ok
+COPY (SELECT 8 AS id) TO '{TEST_DIR}/literal[.data' (FORMAT CSV, HEADER true);
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_csv(['{TEST_DIR}/literal[1].data', '{TEST_DIR}/literal[.data'], header := true);
+----
+2	15

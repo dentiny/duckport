@@ -6,6 +6,7 @@ read/query/write example.
 | Guide | What it covers |
 | --- | --- |
 | [Comparison and migration](comparison.md) | Shared features, additional sources/sinks, renamed interfaces and limits versus duckdb_lance_conversion |
+| [File selection](readers/files.md) | Same-schema lists, recursive directories, globs and scoped discovery |
 | [Reader catalog](readers/README.md) | Every scan function, options and output behavior |
 | [Secrets](secrets.md) | Scope selection, S3-compatible stores, HTTP/provider keys, Hugging Face and catalog authentication |
 | [Storage and profiling](storage.md) | Timeouts, retries, progress, projection and operational limits |

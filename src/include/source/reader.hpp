@@ -13,4 +13,8 @@ void RegisterReader(ExtensionLoader &loader, const string &name, ReaderOpen open
                     const std::function<void(TypedKwargs &)> &add_reader_options = {});
 void RegisterReader(ExtensionLoader &loader, const string &name, ReaderBind open,
                     const std::function<void(TypedKwargs &)> &add_reader_options = {});
+void RegisterFileReader(ExtensionLoader &loader, const string &name, ReaderOpen open,
+                        const std::function<void(TypedKwargs &)> &add_reader_options = {});
+void RegisterFileReader(ExtensionLoader &loader, const string &name, ReaderBind open,
+                        const std::function<void(TypedKwargs &)> &add_reader_options = {});
 } // namespace duckdb

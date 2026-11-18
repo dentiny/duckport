@@ -1,19 +1,17 @@
-use crate::source::open_file_source;
-use crate::storage;
-use open_arrow_access::{OuterCompression, ReadRequest, file_format::json::JsonFormat};
+use crate::source::files::open as open_file_source;
+use open_arrow_access::{OuterCompression, file_format::json::JsonFormat};
 
 crate::ffi::reader::export_reader!(duckport_json_open;
     |locator, storage_options, scan_options| async move {
-        let (operator, path) = storage::operator(&locator, &storage_options)?;
         let format = JsonFormat::infer();
-        Ok(open_file_source(
-            operator,
-            ReadRequest::new(path).with_options(scan_options),
+        open_file_source(
+            &locator,
+            &storage_options,
+            scan_options,
             format,
             OuterCompression::Auto,
-            &storage_options.metrics,
         )
-        .await?)
+        .await
     }
 );
 
@@ -39,7 +37,11 @@ mod tests {
                 duckport_json_open(
                     path.as_ptr(),
                     &DuckportStorageOptions::default(),
-                    &DuckportScanOptions { batch_size: 8 },
+                    &DuckportScanOptions {
+                        batch_size: 8,
+                        files: ptr::null(),
+                        file_count: 0
+                    },
                     &mut source,
                 )
                 .is_null()

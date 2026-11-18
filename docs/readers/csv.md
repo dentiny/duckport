@@ -15,5 +15,6 @@ incompatible with the inferred schema fail the scan.
 batch construction come from open-arrow-access. [TSV](tsv.md) uses the same
 implementation with a fixed tab delimiter.
 
-Accepts one local/file/HTTP(S)/S3 object. Use [secrets](../secrets.md) for remote
+Accepts local/file/HTTP(S)/S3 objects and same-schema
+[file lists, directories and globs](files.md). Use [secrets](../secrets.md) for remote
 credentials and [storage settings](../storage.md) for row targets and retries.

@@ -48,9 +48,8 @@ selection rules. Provider readers do not imply unrestricted discovery or a full
 dataset download.
 
 All readers accept `batch_size` (default 8192, range 1–1,048,576). Local paths,
-`file://`, HTTP(S) and S3 are supported by the applicable reader. Use DuckDB's
-native readers for globs, file lists and partitioned Parquet directories. DuckPort
-pushes top-level projections into its readers; filters execute in DuckDB.
+`file://`, HTTP(S) and S3 are supported by the applicable reader. Standard file readers accept [file lists, directories and globs](docs/readers/files.md)
+with matching schemas. DuckPort pushes top-level projections into its readers; filters execute in DuckDB.
 
 ## Write query results
 
