@@ -33,3 +33,26 @@ query I
 SELECT count(*) FROM read_parquet('{TEST_DIR}/empty/*.parquet');
 ----
 0
+
+# Check the published file codecs as well as independent-reader round trips.
+statement ok
+COPY (
+    SELECT 'z' AS zstd, 's' AS snappy, 'g' AS gzip, 'l' AS lz4, 'u' AS plain
+) TO '{TEST_DIR}/codecs' (
+    FORMAT duckport_parquet,
+    COLUMN_COMPRESSION {'zstd': 'zstd', 'snappy': 'snappy', 'gzip': 'gzip', 'lz4': 'lz4', 'plain': 'uncompressed'}
+);
+
+query TT rowsort
+SELECT path_in_schema, compression FROM parquet_metadata('{TEST_DIR}/codecs/*.parquet');
+----
+gzip	GZIP
+lz4	LZ4_RAW
+plain	UNCOMPRESSED
+snappy	SNAPPY
+zstd	ZSTD
+
+query T
+SELECT zstd || snappy || gzip || lz4 || plain FROM read_parquet('{TEST_DIR}/codecs/*.parquet');
+----
+zsglu
