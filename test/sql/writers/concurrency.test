@@ -1,0 +1,146 @@
+# name: test/sql/writers/concurrency.test
+# description: Automatic and explicit concurrency, scan overrides and order constraints
+# group: [sql]
+
+require duckport
+require parquet
+
+statement ok
+SET threads = 4;
+
+# Omission and explicit auto both support COPY and retain every row.
+statement ok
+COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true))
+TO '{TEST_DIR}/default' (FORMAT duckport_parquet);
+
+statement ok
+COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true, read_concurrency := 1))
+TO '{TEST_DIR}/auto' (FORMAT duckport_parquet, READ_CONCURRENCY 'AuTo', WRITE_CONCURRENCY 'auto', TARGET_FILE_SIZE 1048576);
+
+foreach path default auto
+
+query II
+SELECT count(*), sum(id) FROM read_parquet('{TEST_DIR}/{path}/*.parquet');
+----
+3	6
+
+endloop
+
+# Auto respects ordered output, and a fixed writer count still accepts a file target.
+statement ok
+COPY (SELECT i AS id FROM range(10000) t(i) ORDER BY i DESC)
+TO '{TEST_DIR}/ordered' (FORMAT duckport_parquet, WRITE_CONCURRENCY 'auto', PRESERVE_ORDER true);
+
+query I
+SELECT count(*) FILTER (WHERE id != 10000 - position)
+FROM (SELECT id, row_number() OVER () AS position FROM read_parquet('{TEST_DIR}/ordered/*.parquet'));
+----
+0
+
+statement ok
+COPY (SELECT i AS id FROM range(10000) t(i))
+TO '{TEST_DIR}/fixed' (FORMAT duckport_parquet, WRITE_CONCURRENCY 2, TARGET_FILE_SIZE 1048576);
+
+query II
+SELECT count(*), sum(id) FROM read_parquet('{TEST_DIR}/fixed/*.parquet');
+----
+10000	49995000
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_csv('testdata/multifile/*.csv', header := true, read_concurrency := 'auto');
+----
+3	6
+
+statement error
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid_order'
+(FORMAT duckport_parquet, WRITE_CONCURRENCY 2, PRESERVE_ORDER true);
+----
+PRESERVE_ORDER true requires WRITE_CONCURRENCY 1
+
+foreach value 0 -1 1.5 true '2' 'invalid' NULL
+
+statement error
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid_write'
+(FORMAT duckport_parquet, WRITE_CONCURRENCY {value});
+----
+WRITE_CONCURRENCY requires 'auto' or a positive integer
+
+statement error
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid_read'
+(FORMAT duckport_parquet, READ_CONCURRENCY {value});
+----
+READ_CONCURRENCY requires 'auto' or a positive integer
+
+statement error
+SELECT * FROM duckport_scan_csv('testdata/multifile/a.csv', header := true, read_concurrency := {value});
+----
+<REGEX>:.*(READ_CONCURRENCY requires|DuckPort arguments cannot be NULL).*
+
+endloop
+
+statement error
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/old_option' (FORMAT duckport_parquet, FILE_COUNT 2);
+----
+Unrecognized option "file_count"
+
+# EXPLAIN must not create/open a destination. Logical plans expose actual writer selection.
+statement ok
+SET explain_output = 'optimized_only';
+
+query TT
+EXPLAIN (FORMAT JSON) COPY (SELECT 1 AS id) TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet);
+----
+logical_opt	<REGEX>:.*Write concurrency.*4.*auto; thread budget.*
+
+query TT
+EXPLAIN (FORMAT JSON) COPY (SELECT 1 AS id) TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet, WRITE_CONCURRENCY 'auto', PRESERVE_ORDER true);
+----
+logical_opt	<REGEX>:.*Write concurrency.*1.*auto; preserve order.*
+
+query TT
+EXPLAIN (FORMAT JSON) COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true))
+TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet, TARGET_FILE_SIZE 1048576);
+----
+logical_opt	<REGEX>:.*Read concurrency.*4.*auto limit.*Write concurrency.*1.*auto; source byte estimate.*
+
+query TT
+EXPLAIN (FORMAT JSON) COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true, read_concurrency := 1))
+TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet, READ_CONCURRENCY 'auto', WRITE_CONCURRENCY 2, TARGET_FILE_SIZE 1048576);
+----
+logical_opt	<REGEX>:.*Read concurrency.*4.*auto limit.*Write concurrency.*2.*explicit.*
+
+query TT
+EXPLAIN (FORMAT JSON) COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true, read_concurrency := 1))
+TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet, READ_CONCURRENCY 2);
+----
+logical_opt	<REGEX>:.*Read concurrency.*2.*explicit limit.*
+
+# An omitted COPY read option inherits an explicit scan limit.
+query TT
+EXPLAIN (FORMAT JSON) COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true, read_concurrency := 1))
+TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet);
+----
+logical_opt	<REGEX>:.*Read concurrency.*1.*explicit limit.*
+
+# Unknown-size queries with a target still use the automatic thread-budget fallback.
+query TT
+EXPLAIN (FORMAT JSON) COPY (SELECT 1 AS id)
+TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet, TARGET_FILE_SIZE 1048576);
+----
+logical_opt	<REGEX>:.*Write concurrency.*4.*auto; thread budget.*
+
+statement ok
+SET threads = 1;
+
+query TT
+EXPLAIN (FORMAT JSON) COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true))
+TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet);
+----
+logical_opt	<REGEX>:.*Read concurrency.*1.*auto limit.*Write concurrency.*1.*auto; thread budget.*
+
+# A create succeeds at the explained destination: EXPLAIN did not open it.
+statement ok
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet);
+
+statement ok
+SET explain_output = 'physical_only';

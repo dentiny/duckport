@@ -78,7 +78,7 @@ SELECT count(*), sum(id) FROM read_parquet('{TEST_DIR}/planned_parallel/*.parque
 statement error
 COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid_read_concurrency' (FORMAT duckport_parquet, READ_CONCURRENCY 0);
 ----
-READ_CONCURRENCY requires a positive integer
+READ_CONCURRENCY requires 'auto' or a positive integer
 
 restart no_extension_load
 

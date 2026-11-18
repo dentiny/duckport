@@ -4,13 +4,22 @@
 
 namespace duckdb {
 
-SourceFactory::SourceFactory(SourcePtr source_p) : source(std::move(source_p)) {
+SourceFactory::SourceFactory(SourcePtr source_p, idx_t read_concurrency_p, bool automatic)
+    : source(std::move(source_p)), read_concurrency(read_concurrency_p), automatic_reads(automatic) {
 }
 
-optional<uint64_t> SourceFactory::ConfigureCopy(idx_t read_concurrency, bool inspect_size) {
+string SourceFactory::ReadConcurrencyDescription() const {
+	return to_string(read_concurrency) + (automatic_reads ? " (auto limit)" : " (explicit limit)");
+}
+
+optional<uint64_t> SourceFactory::ConfigureCopy(idx_t read_concurrency, bool inspect_size, bool automatic) {
 	uint64_t bytes = 0;
 	bool known = false;
 	CheckError(duckport_source_configure_copy(source.get(), read_concurrency, inspect_size, &bytes, &known));
+	if (read_concurrency > 0) {
+		this->read_concurrency = read_concurrency;
+		automatic_reads = automatic;
+	}
 	return known ? optional<uint64_t>(bytes) : nullopt;
 }
 

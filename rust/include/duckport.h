@@ -117,6 +117,7 @@ DuckportStoragePolicy duckport_default_storage_policy();
 void duckport_source_error_free(char *);
 char *duckport_validate_byte_size(const char *name, int64_t value);
 char *duckport_validate_write_concurrency(int64_t value, bool preserve_order);
+char *duckport_plan_write_concurrency(const DuckportWriteOptions *, size_t *writers);
 char *duckport_validate_sample_percent(double value);
 char *duckport_validate_sample_rows(int64_t value, uint64_t max_rows);
 

@@ -35,6 +35,22 @@ pub extern "C" fn duckport_validate_write_concurrency(
     call(|| validation::validate_write_concurrency(value, preserve_order))
 }
 
+/// Plan without opening a destination or consuming input.
+/// # Safety
+/// Options is live and writers is writable for the duration of the call.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn duckport_plan_write_concurrency(
+    options: *const DuckportWriteOptions,
+    writers: *mut usize,
+) -> *mut c_char {
+    call(|| unsafe {
+        let options = validation::required(options.as_ref(), "null write options")?;
+        validation::non_null(writers, "null writer count output")?;
+        *writers = options.ingestion()?.plan().writers.get();
+        Ok(())
+    })
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn duckport_validate_sample_percent(value: f64) -> *mut c_char {
     call(|| validation::sample_percent(value))

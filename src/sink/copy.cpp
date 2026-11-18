@@ -1,5 +1,6 @@
 #include "source_metadata.hpp"
 #include "source/reader.hpp"
+#include "source/options.hpp"
 #include "sink/copy.hpp"
 #include "sink/copy_options.hpp"
 #include "sink/copy_query.hpp"
@@ -58,6 +59,7 @@ struct CopyBindData : FunctionData {
 		       path == bind.path && options.mode == bind.options.mode &&
 		       options.blob_columns == bind.options.blob_columns &&
 		       options.read_concurrency == bind.options.read_concurrency &&
+		       options.read_concurrency_set == bind.options.read_concurrency_set &&
 		       options.preserve_order == bind.options.preserve_order &&
 		       options.write_concurrency == bind.options.write_concurrency &&
 		       options.write_options.blob_inline_size_threshold ==
@@ -97,6 +99,8 @@ unique_ptr<FunctionData> BindCopy(ClientContext &context, CopyFunctionBindInput 
 	}
 	result->info = input.function_info;
 	result->options = ParseCopyOptions(context, input.info);
+	result->options.write_options.writer_count = result->options.write_concurrency.value_or(
+	    result->options.preserve_order ? 1 : TaskScheduler::GetScheduler(context).NumberOfThreads());
 	return std::move(result);
 }
 void ExportGeneratedExpressions(ArrowSchema &schema, const vector<string> &expressions) {
@@ -128,8 +132,6 @@ unique_ptr<GlobalFunctionData> InitCopy(ClientContext &context, FunctionData &da
 	ExportGeneratedExpressions(schema.arrow_schema, bind.generated_expressions);
 	StorageParameters storage(context, bind.options.storage_root.empty() ? path : bind.options.storage_root, {});
 	auto options = bind.options;
-	options.write_options.writer_count = options.write_concurrency.value_or(
-	    options.preserve_order ? 1 : TaskScheduler::GetScheduler(context).NumberOfThreads());
 	WriterOpenContext open_context(context, storage.config);
 	state->writer = bind.info->Cast<WriterInfo>().open(path, open_context, options, schema.arrow_schema);
 	if (!state->writer) {
@@ -158,10 +160,34 @@ void FinalizeCopy(ClientContext &context, FunctionData &, GlobalFunctionData &gl
 	profiler.TrackBytesRead(metrics.bytes_read);
 	profiler.TrackBytesWritten(metrics.bytes_written);
 }
+class LogicalDuckportCopy final : public LogicalCopyToFile {
+public:
+	using LogicalCopyToFile::LogicalCopyToFile;
+
+	InsertionOrderPreservingMap<string> ParamsToString() const override {
+		const auto &options = bind_data->Cast<CopyBindData>().options;
+		size_t writers = 1;
+		CheckCopyOptionError(duckport_plan_write_concurrency(&options.write_options, &writers));
+		InsertionOrderPreservingMap<string> result;
+		result["Write concurrency"] =
+		    to_string(writers) + (options.write_concurrency                  ? " (explicit)"
+		                          : options.preserve_order                   ? " (auto; preserve order)"
+		                          : options.write_options.source_bytes_known ? " (auto; source byte estimate)"
+		                                                                     : " (auto; thread budget)");
+		result["Writer budget"] = to_string(options.write_options.writer_count);
+		result["Read concurrency"] =
+		    options.read_concurrency_set
+		        ? (options.read_concurrency ? to_string(*options.read_concurrency) + " (explicit limit)"
+		                                    : "auto (thread limit; at most 4)")
+		        : "scan setting (default auto)";
+		return result;
+	}
+};
+
 BoundStatement CreateCopyPlan(Binder &binder, const CopyFunction &function, unique_ptr<CopyInfo> info,
                               unique_ptr<FunctionData> data, BoundStatement source, const string &path) {
 	auto preserve_order = data->Cast<CopyBindData>().options.preserve_order;
-	auto copy = make_uniq<LogicalCopyToFile>(function, std::move(data), std::move(info), binder.GenerateTableIndex());
+	auto copy = make_uniq<LogicalDuckportCopy>(function, std::move(data), std::move(info), binder.GenerateTableIndex());
 	copy->file_path = path;
 	copy->file_extension = function.extension;
 	copy->use_tmp_file = false;
@@ -214,7 +240,9 @@ BoundStatement PlanCopy(Binder &binder, CopyStatement &statement) {
 	const auto automatic = !options.preserve_order && !options.write_concurrency &&
 	                       options.write_options.target_file_size > 0 && options.blob_columns.empty() &&
 	                       generated.empty();
-	auto bytes = ConfigureCopySources(*source.plan, options.read_concurrency.value_or(0), automatic);
+	const auto read_concurrency =
+	    options.read_concurrency_set ? options.read_concurrency.value_or(AutoReadConcurrency(binder.context)) : 0;
+	auto bytes = ConfigureCopySources(*source.plan, read_concurrency, automatic, !options.read_concurrency);
 	if (bytes) {
 		options.write_options.source_bytes = *bytes;
 		options.write_options.source_bytes_known = true;

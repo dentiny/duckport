@@ -48,39 +48,75 @@ COPY events TO 'parallel_dataset'
 (FORMAT duckport_parquet, WRITE_CONCURRENCY 4);
 ```
 
-`PRESERVE_ORDER` defaults to false. DuckDB delivers COPY batches serially; Rust
-uses the upstream bounded writer pool when order need not be preserved. The
-writer count defaults to DuckDB's `threads` setting. `WRITE_CONCURRENCY` is a positive
-integer, configuring independent writer streams rather than an exact final file
-count: each stream can roll multiple files or receive no rows.
+`READ_CONCURRENCY` and `WRITE_CONCURRENCY` each accept `'auto'` (the default)
+or a positive integer. Omitting an option is equivalent to `'auto'`; the one
+exception is that an omitted COPY `READ_CONCURRENCY` inherits each scan's setting.
+The old `FILE_COUNT` option is no longer accepted: concurrency controls writer
+streams, not an exact final file count. A writer can roll multiple files or
+receive no rows.
 
-With `PRESERVE_ORDER true`, one writer preserves incoming batch/row order and
-only `WRITE_CONCURRENCY 1` is accepted. This does not sort the source; use ORDER BY for
-a desired input sequence. Reader planning/directory listing can still reorder
+`PRESERVE_ORDER` defaults to false. With `PRESERVE_ORDER true`, automatic write
+concurrency selects one writer; an explicit `WRITE_CONCURRENCY` must be 1.
+This preserves incoming batch/row order, without sorting the input. Use ORDER BY
+for a desired input sequence. Reader planning/directory listing can still reorder
 later scans. Always use ORDER BY when a query result must be sorted.
 
 ## Parallel reads and automatic writer planning
 
 ```sql
+-- Automatic concurrency is enabled by default, with or without TARGET_FILE_SIZE.
 COPY (SELECT * FROM duckport_scan_parquet(['a.parquet', 'b.parquet']))
-TO 'parallel.lance' (FORMAT duckport_lance, READ_CONCURRENCY 8,
-    WRITE_CONCURRENCY 4, TARGET_FILE_SIZE 536870912);
+TO 'parallel.lance' (FORMAT duckport_lance, READ_CONCURRENCY 'auto',
+    WRITE_CONCURRENCY 'auto', TARGET_FILE_SIZE 536870912);
+
+-- Set integers to control concurrency explicitly; 1 selects serial execution.
+COPY (SELECT * FROM duckport_scan_parquet(['a.parquet', 'b.parquet']))
+TO 'controlled.lance' (FORMAT duckport_lance,
+    READ_CONCURRENCY 8, WRITE_CONCURRENCY 4);
 ```
 
-`READ_CONCURRENCY` overrides DuckPort scans in this COPY query. It controls
-independent file/format partitions and arXiv TAR shards; providers without a
-partition planner remain serial. The equivalent scan argument is
-`read_concurrency := 8` (default 1). Native DuckDB readers use DuckDB's settings.
+Automatic reads use at most `min(threads, 4)` concurrent partitions. An explicit
+integer sets the maximum number of concurrent read partitions. Actual concurrency
+also depends on available independent file/format partitions or arXiv TAR shards;
+providers without a partition planner remain serial. Scan functions accept the
+same values, for example `read_concurrency := 'auto'` or `read_concurrency := 1`.
+An explicit COPY `READ_CONCURRENCY`, including `'auto'`, overrides all DuckPort scans
+in the query. Native DuckDB readers use DuckDB's settings.
 The upstream reader preserves logical partition order and limits resident
-partitions, but streaming-file queues are not byte bounded.
+partitions, but streaming-file queues are not byte bounded. The automatic cap is
+conservative, not a memory limit.
 
-When `WRITE_CONCURRENCY` is omitted and `TARGET_FILE_SIZE` is supplied, a direct
-DuckPort file scan (optionally projected) supplies pre-consumption source byte
-statistics to the upstream ingestion planner. Writer count is capped by DuckDB's
-`threads` setting. Encoded input bytes are a coarse output-size proxy, not a
-promise of equal compression or exact file counts. Explicit writer counts,
-`PRESERVE_ORDER`, blob downloads, generated columns and queries whose size is
-unknown retain fixed writer concurrency. No row-counting scan is performed.
+Automatic writes use DuckDB's `threads` as the writer budget, so omitting
+`WRITE_CONCURRENCY` does not force serial writing. With `TARGET_FILE_SIZE` and a
+direct DuckPort file scan (optionally projected), source byte statistics let the
+upstream ingestion planner choose fewer writers within that budget. Without a
+usable size hint or target, auto falls back to the thread budget. Ordered output
+uses one writer. Blob downloads, generated columns and queries whose output size
+is unknown use the thread-budget fallback. No row-counting scan is performed.
+DuckDB delivers COPY batches serially; the Rust upstream writer pool handles
+concurrent writes.
+
+`TARGET_FILE_SIZE` remains a soft output-file size target in both automatic and
+explicit concurrency modes. Encoded input bytes are a coarse output-size proxy,
+not a promise of equal compression or exact file counts. An explicit
+`WRITE_CONCURRENCY N` fixes the number of writer streams and bypasses automatic
+writer selection, while file rotation still follows `TARGET_FILE_SIZE`.
+
+To inspect the initial writer count and selection reason without writing data,
+include the logical plan in EXPLAIN:
+
+```sql
+SET explain_output = 'all';
+EXPLAIN COPY (SELECT * FROM duckport_scan_parquet('input.parquet'))
+TO 'output.lance' (FORMAT duckport_lance, TARGET_FILE_SIZE 536870912);
+```
+
+The logical COPY node shows `Write concurrency` and `Writer budget`. Scan nodes
+show their configured `Read concurrency` limit, including COPY overrides.
+DuckDB's physical COPY node has no extension-specific detail callback, so writer
+planning details are shown in the logical plan. Planning can read source metadata
+but does not consume rows or open the destination. Concurrency is resolved when
+the statement is bound; re-prepare after changing `threads`.
 
 ## COPY sampling
 

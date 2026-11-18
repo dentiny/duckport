@@ -20,11 +20,16 @@ struct Files<F> {
     compression: OuterCompression,
     metrics: crate::metrics::ReadMetrics,
 }
-impl<F: Clone> Files<F> {
-    fn file(
-        &self,
-        request: &mut ReadRequest,
-    ) -> open_arrow_access::Result<FileAccessor<Arc<dyn ByteAccessor>, F>> {
+// Erase the concrete accessor before awaiting its methods so the async-trait
+// futures do not capture a generic trait-object lifetime in their Send bound.
+type FileReader = dyn ScanPlanner<Request = ReadRequest, Reader = dyn RecordReader>;
+
+impl<F> Files<F>
+where
+    F: ReaderFactory<Request = ReadRequest, Reader = dyn RecordReader> + Clone + 'static,
+    FileAccessor<Arc<dyn ByteAccessor>, F>: ScanPlanner<Request = ReadRequest>,
+{
+    fn file(&self, request: &mut ReadRequest) -> open_arrow_access::Result<Box<FileReader>> {
         let input = self
             .inputs
             .get(request.object.locator())
@@ -38,7 +43,10 @@ impl<F: Clone> Files<F> {
             OuterCompression::None => Arc::new(bytes),
             OuterCompression::Auto => Arc::new(bytes.layer(AutoDecompressionLayer::new())),
         };
-        Ok(FileAccessor::from_format(bytes, self.format.clone()))
+        Ok(Box::new(FileAccessor::from_format(
+            bytes,
+            self.format.clone(),
+        )))
     }
 }
 #[async_trait]
@@ -61,13 +69,15 @@ where
         &self,
         mut request: ReadRequest,
     ) -> open_arrow_access::Result<RecordMetadata> {
-        self.file(&mut request)?.metadata(request).await
+        let file = self.file(&mut request)?;
+        file.metadata(request).await
     }
     async fn open(
         &self,
         mut request: ReadRequest,
     ) -> open_arrow_access::Result<Box<dyn RecordReader>> {
-        self.file(&mut request)?.open(request).await
+        let file = self.file(&mut request)?;
+        file.open(request).await
     }
 }
 
@@ -78,7 +88,8 @@ where
     FileAccessor<Arc<dyn ByteAccessor>, F>: ScanPlanner<Request = ReadRequest>,
 {
     async fn plan_scan(&self, mut request: ReadRequest) -> open_arrow_access::Result<ScanPlan> {
-        self.file(&mut request)?.plan_scan(request).await
+        let file = self.file(&mut request)?;
+        file.plan_scan(request).await
     }
 }
 #[async_trait]

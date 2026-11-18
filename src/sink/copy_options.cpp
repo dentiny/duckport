@@ -1,4 +1,5 @@
 #include "sink/copy_options.hpp"
+#include "source/options.hpp"
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/function/copy_function.hpp"
 #include "duckdb/parser/parsed_data/copy_info.hpp"
@@ -156,15 +157,12 @@ bool ParseIndexOption(const Identifier &name, const vector<Value> &values, SinkW
 	return true;
 }
 
-int64_t ParseConcurrency(const Identifier &name, const vector<Value> &values) {
-	if (values.size() != 1 || values[0].IsNull() || !values[0].type().IsIntegral()) {
-		throw BinderException("%s requires one integer", name);
+optional<int64_t> ParseConcurrency(const Identifier &name, const vector<Value> &values) {
+	if (values.size() != 1) {
+		throw BinderException("%s requires 'auto' or one positive integer",
+		                      StringUtil::Upper(name.GetIdentifierName()));
 	}
-	auto value = values[0].DefaultTryCastAs(LogicalType::BIGINT);
-	if (!value || value->GetValue<int64_t>() <= 0) {
-		throw BinderException("%s requires a positive integer that fits in BIGINT", name);
-	}
-	return value->GetValue<int64_t>();
+	return ReadConcurrency(name, values[0]);
 }
 
 bool ParseBooleanOption(ClientContext &context, const Identifier &name, const vector<Value> &values) {
@@ -200,6 +198,7 @@ void ParseCopyOption(ClientContext &context, const Identifier &name, const vecto
 		options.write_concurrency = ParseConcurrency(name, values);
 	} else if (name == "read_concurrency") {
 		options.read_concurrency = ParseConcurrency(name, values);
+		options.read_concurrency_set = true;
 	} else if (name == "preserve_order") {
 		options.preserve_order = ParseBooleanOption(context, Identifier("PRESERVE_ORDER"), values);
 	} else {
