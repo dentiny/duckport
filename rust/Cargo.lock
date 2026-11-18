@@ -506,12 +506,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d2050892d4691cf110586070786712b504985a4d37ed64a9cd8a402718e1706"
 
 [[package]]
-name = "asyncband"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e53c31fb18f42e765610b2146531390e56966f601d8ffca530d292a34fe4218"
-
-[[package]]
 name = "atif-arrow"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4404,7 +4398,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0bd9da6291f93eb19b7987dac17617de0131760a6ba97a4cd8d6b1a07fa89783"
 dependencies = [
  "async-trait",
- "asyncband 0.7.4",
+ "asyncband",
  "bytes",
  "chrono",
  "futures",
@@ -4434,9 +4428,9 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 
 [[package]]
 name = "open-arrow-access"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c36452bb75e7a8270bca16243aeb330ccaaee48016b2640226174c78d5ee84b9"
+checksum = "c62fb560d5d3fe24b0e4cbb056ff8506e9a3ba4cb50d2414c31521c9790d6e25"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -4452,9 +4446,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-core"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ef603b41cf5d2e16e059d8b62b360b62ec481423a341bcbf2f2c4bf11e00ddd"
+checksum = "4c7846f8bb541ab6ab1af4d04188517e065247df23a22ca857f8a503fd9d5d35"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -4467,9 +4461,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-dataset"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd75d1b29d4df8e308681f569207f7f9672fd109ce86867cb8154dfad1c324ee"
+checksum = "aad29331be277b490bd44a68fcb43cf6c3d0fe507d6caee28d848cadd9e30695"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -4484,9 +4478,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-decompression"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55df986f12d01818fdeb37188959eae813361e347a8f8f1ac4bf50dd96ea3085"
+checksum = "a5d6032ab4c4e65025c7b4926918f21dd07fb049a01ca0d0a801f04da8b4f5b8"
 dependencies = [
  "async-compression",
  "async_zip",
@@ -4497,9 +4491,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-file-format"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4bf780fb7b089798fb2190ccd80c8ecd9bda02236fd1f9c5fb93e359bc8ef16e"
+checksum = "451f708e45a920db8a7a85e55632e15e47e62b38095bc60b4b54716b29125248"
 dependencies = [
  "arrow-array",
  "arrow-csv",
@@ -4522,9 +4516,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-layers"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e54e56c94b6a3caf3a89d49f7e02eb35f51d2d6d52bc2f4d4889cb2fe7a9d97"
+checksum = "3e5a3519fffe62d8e3ec07b61f6865410181ff13a5aacc8d16d8939fcbb4a1a6"
 dependencies = [
  "arrow-array",
  "arrow-cast",
@@ -4539,13 +4533,14 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-service"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09ee8933a1051dddc453da7968e7d918f0f8f000535263fa6b46c9fed6638b6e"
+checksum = "fe546088c50e428db0e286baad21ee6be67d233005edb06df853cfab26f824d7"
 dependencies = [
  "arrow-array",
  "arrow-json",
  "arrow-schema",
+ "arrow-select",
  "backon",
  "chrono",
  "futures",
@@ -4570,9 +4565,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-storage"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "609fe4dba4cb0f34c69bd95fe4d4887e67f721cf02094577453fec40d7b20d7c"
+checksum = "cb26b0109f74d016fbc982b416d2c739763f6e2ee2b89bd05198707159efef57"
 dependencies = [
  "futures",
  "http",
@@ -4586,8 +4581,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-sink-core"
-version = "0.4.0"
-source = "git+https://github.com/dentiny/open-arrow-sink?rev=321e58b36b5fdb8fc63499f509e0c49f93a89fdd#321e58b36b5fdb8fc63499f509e0c49f93a89fdd"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f0bfd945fa1da9d8ff5a2e1a7205d45f9aa6e265cfcf1c7718ce93e508f9b1f"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -4599,8 +4595,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-sink-iceberg"
-version = "0.4.0"
-source = "git+https://github.com/dentiny/open-arrow-sink?rev=321e58b36b5fdb8fc63499f509e0c49f93a89fdd#321e58b36b5fdb8fc63499f509e0c49f93a89fdd"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "80ad6d1b05d0c9f7ff64dfa55328aa50b988d488165a23b480a2da43aa8ca533"
 dependencies = [
  "bytes",
  "futures",
@@ -4614,8 +4611,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-sink-lance"
-version = "0.4.0"
-source = "git+https://github.com/dentiny/open-arrow-sink?rev=321e58b36b5fdb8fc63499f509e0c49f93a89fdd#321e58b36b5fdb8fc63499f509e0c49f93a89fdd"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "590f08b6c4e47a22f09744d807ded8780ecc6bcc17063aefd9d3f6437fa16c38"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -4641,8 +4639,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-sink-layer"
-version = "0.4.0"
-source = "git+https://github.com/dentiny/open-arrow-sink?rev=321e58b36b5fdb8fc63499f509e0c49f93a89fdd#321e58b36b5fdb8fc63499f509e0c49f93a89fdd"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9e4fb8dcd2a23b2faecc205238c0f29b20e75c3a932eef206e39ddbf8f0692f"
 dependencies = [
  "arrow-array",
  "arrow-cast",
@@ -4654,8 +4653,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-sink-parquet"
-version = "0.4.0"
-source = "git+https://github.com/dentiny/open-arrow-sink?rev=321e58b36b5fdb8fc63499f509e0c49f93a89fdd#321e58b36b5fdb8fc63499f509e0c49f93a89fdd"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7015ddf7c258a07448e497611e37ce0abd4dbb252c76320298385c50d90a4bf2"
 dependencies = [
  "bytes",
  "futures",
@@ -4667,8 +4667,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-sink-storage"
-version = "0.4.0"
-source = "git+https://github.com/dentiny/open-arrow-sink?rev=321e58b36b5fdb8fc63499f509e0c49f93a89fdd#321e58b36b5fdb8fc63499f509e0c49f93a89fdd"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d796bb7a16726b1e1919b0308cd45ac5759cac63aad2b328fa55d39b961899c1"
 dependencies = [
  "async-stream",
  "bytes",
@@ -4705,10 +4706,11 @@ dependencies = [
 [[package]]
 name = "opendal-core"
 version = "0.59.5"
-source = "git+https://github.com/dentiny/opendal.git?rev=2bf4c9cd289f8881289910afcdc239a4192c4421#2bf4c9cd289f8881289910afcdc239a4192c4421"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "33d5a635dfea36a7a0c3bbb2ca34c97af17f98dd69b0cdf31a1d436a346e0a12"
 dependencies = [
  "anyhow",
- "asyncband 0.8.0",
+ "asyncband",
  "base64 0.23.1",
  "bytes",
  "futures",
@@ -4755,7 +4757,8 @@ dependencies = [
 [[package]]
 name = "opendal-layer-retry"
 version = "0.59.5"
-source = "git+https://github.com/dentiny/opendal.git?rev=2bf4c9cd289f8881289910afcdc239a4192c4421#2bf4c9cd289f8881289910afcdc239a4192c4421"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a02c59479b047878f4a0f269f23c847f24d67d1ff19f2b20fdd5a3bceefd451"
 dependencies = [
  "backon",
  "log",
@@ -4792,7 +4795,7 @@ version = "0.59.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32c1a4076d933180b66b57a0f305e48f2de1a72b50648114cb9943a8bc9e28b8"
 dependencies = [
- "asyncband 0.7.4",
+ "asyncband",
  "bytes",
  "hf-xet",
  "http",
@@ -5534,7 +5537,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85fed85c436b6b920e4b36310f699a77771a91e38ae483df48447bd7d162671c"
 dependencies = [
  "anyhow",
- "asyncband 0.7.4",
+ "asyncband",
  "base64 0.23.1",
  "bytes",
  "hex",
