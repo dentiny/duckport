@@ -4,13 +4,14 @@
 #include "duckdb/main/secret/secret_manager.hpp"
 #include "storage_options.hpp"
 namespace duckdb {
-vector<BlobSecret> CaptureBlobSecrets(ClientContext &context) {
+vector<BlobSecret> CaptureBlobSecrets(ClientContext &context, const string &secret_type) {
 	auto entries = SecretManager::Get(context).AllSecrets(CatalogTransaction::GetSystemCatalogTransaction(context));
 	vector<BlobSecret> result;
 	auto policy = ReadStoragePolicy(context);
 	for (const auto &entry : entries) {
-		if (entry.secret->GetType() != "http" && entry.secret->GetType() != "s3" &&
-			entry.secret->GetType() != "huggingface") {
+		const auto type = entry.secret->GetType().GetIdentifierName();
+		if ((!secret_type.empty() && type != secret_type) ||
+			(type != "http" && type != "s3" && type != "huggingface")) {
 			continue;
 		}
 		auto secret = dynamic_cast<const KeyValueSecret *>(entry.secret.get());
@@ -22,15 +23,13 @@ vector<BlobSecret> CaptureBlobSecrets(ClientContext &context) {
 		value.policy = policy;
 		if (value.type == "http") {
 			value.security = ReadHttpSecurity(*secret);
-		}
-		if (value.type == "huggingface") {
+		} else if (value.type == "huggingface") {
 			Value token;
 			if (secret->TryGetValue("token", token) && !token.IsNull()) {
 				value.security.token = token.GetValue<string>();
 				value.security.has_token = true;
 			}
-		}
-		if (value.type == "s3") {
+		} else {
 			auto read = [&](const char *key, string &target) {
 				Value field;
 				if (secret->TryGetValue(key, field) && !field.IsNull()) {
