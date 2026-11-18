@@ -30,7 +30,8 @@ SELECT * FROM duckport_scan_jsonl('testdata/json/bad_truncated.json');
 ----
 EOF while parsing
 
+# Top-level arrays must fail inference; the parser diagnostic is upstream-owned.
 statement error
 SELECT * FROM duckport_scan_ndjson('testdata/json/bad_array.json');
 ----
-expected a JSON object
+infer_json
