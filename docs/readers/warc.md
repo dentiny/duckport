@@ -1,7 +1,7 @@
 # WARC and Common Crawl
 
 ```sql
-SELECT record_id, body FROM duckport_scan_warc('archive.warc.gz');
+SELECT id, body FROM duckport_scan_warc('archive.warc.gz');
 SELECT * FROM duckport_scan_commoncrawl(
     'testdata/commoncrawl/crawl-data/CC-MAIN-2022-40/');
 SELECT * FROM duckport_scan_commoncrawl_segment(
@@ -15,8 +15,9 @@ select one release or segment using `warc.paths.gz` under the normal
 manifest order; a segment can contain multiple WARC files. Local mirrors must
 retain the `crawl-data` path structure.
 
-Rows contain WARC metadata and original binary bodies; no HTML text extraction
-is performed. Top-level projection omits unselected Arrow values, but the parser
+WARC and Common Crawl share the upstream schema: `id` is the WARC record ID,
+`type` is the record type, and `body` contains the original binary payload.
+No HTML text extraction is performed. Top-level projection omits unselected Arrow values, but the parser
 still consumes the WARC body bytes. `batch_size` is the row target.
 
 Local paths, file URIs, HTTP(S) and S3 work through the same configured storage.

@@ -5,13 +5,13 @@
 require duckport
 
 query TTT rowsort
-SELECT record_id, record_type, decode(body) FROM duckport_scan_warc('testdata/warc/good_resources.warc', batch_size := 1);
+SELECT id, type, decode(body) FROM duckport_scan_warc('testdata/warc/good_resources.warc', batch_size := 1);
 ----
 <urn:test:a>	resource	123
 <urn:test:b>	resource	456
 
 query TTT
-SELECT record_id, record_type, decode(body) FROM duckport_scan_warc('testdata/warc/good_metadata.warc');
+SELECT id, type, decode(body) FROM duckport_scan_warc('testdata/warc/good_metadata.warc');
 ----
 <urn:test:one>	metadata	test
 

@@ -5,14 +5,14 @@
 require duckport
 
 query TT rowsort
-SELECT record_type, record_id
+SELECT type, id
 FROM duckport_scan_warc('testdata/warc/good_resources.warc', batch_size := 1);
 ----
 resource	<urn:test:a>
 resource	<urn:test:b>
 
 query T
-SELECT record_id FROM duckport_scan_warc('testdata/warc/good_resources.warc')
+SELECT id FROM duckport_scan_warc('testdata/warc/good_resources.warc')
 WHERE decode(body) = '456';
 ----
 <urn:test:b>
