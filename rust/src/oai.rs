@@ -88,6 +88,7 @@ pub async fn open<P: OaiProvider>(
             prefix: "oai",
             uri: "http://www.openarchives.org/OAI/2.0/",
         }]),
+        None if page.record_count == 0 => service.record_format(),
         None => service.inferred_record_format(),
     };
     let records = page.records(format);

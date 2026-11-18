@@ -415,3 +415,24 @@ retain that prefix. `endpoint` defaults to `https://library.oapen.org`.
 To obtain the next resumption token, scan the envelope with
 `record_path := '/oai:OAI-PMH/oai:ListRecords'` and select `"oai:resumptionToken"`.
 Automatic pagination is not enabled. Scoped HTTP bearer tokens are supported.
+
+### arXiv metadata
+
+```sql
+SELECT * FROM duckport_scan_arxiv_metadata('records', from_date := '2026-01-01',
+    until_date := '2026-01-31', set_spec := 'cs');
+-- Pass the upstream resumption token as the locator to read the next page.
+```
+
+Reads one arXiv OAI-PMH metadata page using the upstream `arXivRaw` prefix.
+The `from_date`, `until_date`, `set_spec`, `endpoint`, and `record_path` options
+match the DOAB/OAPEN metadata readers; the default endpoint is
+`https://oaipmh.arxiv.org`. The inferred XML records preserve deleted headers
+and nested metadata. Set `record_path := '/oai:OAI-PMH/oai:ListRecords'` to
+read the envelope and its `"oai:resumptionToken"` for explicit continuation.
+A continuation token cannot be combined with date/set selectors.
+Public metadata needs no key; scoped HTTP bearer secrets are supported for
+custom endpoints. `duckport_scan_arxiv` continues to read bulk TAR members.
+Empty pages, including `noRecordsMatch`, bind with the standard OAI header columns
+`identifier`, `datestamp`, `status`, and `set_specs` and return zero rows. An explicit
+`record_path` continues to select the requested XML envelope.
