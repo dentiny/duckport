@@ -1,0 +1,73 @@
+# name: test/sql/readers/oai_pagination.test
+# description: Automatic OAI continuation, scan limits and repeated-token detection
+# group: [sql]
+
+require duckport
+require duckport_test_fixture
+
+statement ok
+SET VARIABLE pages_endpoint = duckport_fixture('oai_pagination', 'start_anonymous');
+
+# Follow an opaque token across an empty page; selectors belong only to the first request.
+query T
+SELECT identifier FROM duckport_scan_doab('records', endpoint := getvariable('pages_endpoint'), from_date := '2026-01-01', set_spec := 'books', batch_size := 1, max_pages := 3);
+----
+id1
+id2
+id3
+id4
+
+query T
+SELECT count(*) > 0 FROM duckport_fixture_requests('oai_pagination') WHERE target = '/oai/request?verb=ListRecords&resumptionToken=next%2Btoken%26x';
+----
+true
+
+query I
+SELECT count(*) FROM duckport_fixture_requests('oai_pagination') WHERE contains(target, 'resumptionToken') AND (contains(target, 'from=') OR contains(target, 'set='));
+----
+0
+
+# The other OAI providers use the same pagination path.
+query II
+SELECT (SELECT count(*) FROM duckport_scan_oapen('records', endpoint := getvariable('pages_endpoint'))),
+       (SELECT count(*) FROM duckport_scan_arxiv_metadata('records', endpoint := getvariable('pages_endpoint')));
+----
+4	4
+
+# Slice the final batch when the record limit spans multiple pages.
+query T
+SELECT identifier FROM duckport_scan_doab('records', endpoint := getvariable('pages_endpoint'), max_records := 3, batch_size := 2);
+----
+id1
+id2
+id3
+
+# Reaching the record limit on the first page must not fetch a continuation.
+statement ok
+SELECT duckport_fixture('oai_pagination', 'reset');
+
+query I
+SELECT count(*) FROM duckport_scan_doab('records', endpoint := getvariable('pages_endpoint'), max_records := 1, batch_size := 2);
+----
+1
+
+query I
+SELECT count(*) FROM duckport_fixture_requests('oai_pagination') WHERE contains(target, 'resumptionToken');
+----
+0
+
+# Page limits and repeated tokens must fail instead of silently truncating or looping.
+statement error
+SELECT count(*) FROM duckport_scan_doab('records', endpoint := getvariable('pages_endpoint'), max_pages := 2);
+----
+page limit reached
+
+statement error
+SELECT count(*) FROM duckport_scan_doab('loop', endpoint := getvariable('pages_endpoint'));
+----
+repeated OAI resumption token
+
+query T
+SELECT duckport_fixture('oai_pagination', 'stop');
+----
+stopped

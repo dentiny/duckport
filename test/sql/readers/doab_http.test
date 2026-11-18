@@ -19,19 +19,18 @@ SET VARIABLE fixture_download_endpoint = duckport_fixture('doab', 'download_endp
 # Adapted from open-arrow-access OAI provider tests: deleted records and opaque cursors.
 
 query T rowsort
-SELECT "oai:header"."oai:identifier" FROM duckport_scan_doab('records', endpoint := getvariable('fixture_endpoint'), batch_size := 1);
+SELECT identifier FROM duckport_scan_doab('records', endpoint := getvariable('fixture_endpoint'), batch_size := 1);
 ----
 id1
 id2
 
-query T rowsort
-SELECT "oai:header"."oai:identifier" FROM duckport_scan_doab('next+token&x', endpoint := getvariable('fixture_endpoint'));
+query I
+SELECT count(*) FROM duckport_scan_doab('next+token&x', endpoint := getvariable('fixture_endpoint'));
 ----
-id1
-id2
+0
 
 query T
-SELECT "oai:resumptionToken" FROM duckport_scan_doab('records', endpoint := getvariable('fixture_endpoint'), record_path := '/oai:OAI-PMH/oai:ListRecords');
+SELECT "oai:resumptionToken" FROM duckport_scan_doab('records', endpoint := getvariable('fixture_endpoint'), record_path := '/oai:OAI-PMH/oai:ListRecords', max_records := 1);
 ----
 next+token&x
 
@@ -67,7 +66,7 @@ ok
 # Invalid provider metadata must fail before downloading content.
 
 statement error
-SELECT "oai:header"."oai:identifier" FROM duckport_scan_doab('records', endpoint := getvariable('fixture_endpoint'), batch_size := 1);
+SELECT identifier FROM duckport_scan_doab('records', endpoint := getvariable('fixture_endpoint'), batch_size := 1);
 ----
 DuckPort
 

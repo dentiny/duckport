@@ -7,6 +7,8 @@ struct DoabOptions {
 	const char *until_date;
 	const char *set_spec;
 	const char *record_path;
+	int64_t max_pages;
+	int64_t max_records;
 };
 
 extern "C" {

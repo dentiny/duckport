@@ -12,6 +12,14 @@
     {
       "path": "/oai?verb=ListRecords&metadataPrefix=arXivRaw&from=2026-02-02",
       "file": "no_records.xml"
+    },
+    {
+      "path": "/oai?verb=ListRecords&resumptionToken=next%2Btoken%26x",
+      "file": "terminal.xml"
+    },
+    {
+      "path": "/oai?verb=ListRecords&resumptionToken=empty%2Bnext",
+      "file": "terminal.xml"
     }
   ],
   "reject_route": "/oai"

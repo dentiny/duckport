@@ -16,25 +16,24 @@ SET VARIABLE fixture_endpoint = duckport_fixture('arxiv_metadata', 'start_anonym
 # Adapted from open-arrow-access OAI provider tests: deleted records and opaque cursors.
 
 query T rowsort
-SELECT "oai:header"."oai:identifier" FROM duckport_scan_arxiv_metadata('records', endpoint := getvariable('fixture_endpoint'), batch_size := 1);
+SELECT identifier FROM duckport_scan_arxiv_metadata('records', endpoint := getvariable('fixture_endpoint'), batch_size := 1);
 ----
 id1
 id2
 
 # Preserve the arXivRaw namespace and nested provider metadata.
 query T
-SELECT bool_or(contains(CAST(t AS VARCHAR), 'Example arXiv title')) FROM duckport_scan_arxiv_metadata('records', endpoint := getvariable('fixture_endpoint')) t;
+SELECT bool_or(contains(CAST(t AS VARCHAR), 'Example arXiv title')) FROM duckport_scan_arxiv_metadata('records', endpoint := getvariable('fixture_endpoint'), record_path := '/oai:OAI-PMH/oai:ListRecords/oai:record', max_records := 2) t;
 ----
 true
 
-query T rowsort
-SELECT "oai:header"."oai:identifier" FROM duckport_scan_arxiv_metadata('next+token&x', endpoint := getvariable('fixture_endpoint'));
+query I
+SELECT count(*) FROM duckport_scan_arxiv_metadata('next+token&x', endpoint := getvariable('fixture_endpoint'));
 ----
-id1
-id2
+0
 
 query T
-SELECT "oai:resumptionToken" FROM duckport_scan_arxiv_metadata('records', endpoint := getvariable('fixture_endpoint'), record_path := '/oai:OAI-PMH/oai:ListRecords');
+SELECT "oai:resumptionToken" FROM duckport_scan_arxiv_metadata('records', endpoint := getvariable('fixture_endpoint'), record_path := '/oai:OAI-PMH/oai:ListRecords', max_records := 1);
 ----
 next+token&x
 
@@ -83,7 +82,7 @@ ok
 # Invalid provider metadata must fail.
 
 statement error
-SELECT "oai:header"."oai:identifier" FROM duckport_scan_arxiv_metadata('records', endpoint := getvariable('fixture_endpoint'), batch_size := 1);
+SELECT identifier FROM duckport_scan_arxiv_metadata('records', endpoint := getvariable('fixture_endpoint'), batch_size := 1);
 ----
 DuckPort
 

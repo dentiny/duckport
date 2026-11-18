@@ -3,6 +3,10 @@
     {
       "path": "/oai/request",
       "file": "page.xml"
+    },
+    {
+      "path": "/oai/request?verb=ListRecords&resumptionToken=next%2Btoken%26x",
+      "file": "terminal.xml"
     }
   ],
   "same_origin_download": true,

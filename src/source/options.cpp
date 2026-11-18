@@ -14,6 +14,19 @@ void ReadBooleanOption(const TableFunctionBindInput &input, const char *name, in
 		output = BooleanValue::Get(entry->second) ? 1 : 0;
 	}
 }
+void ReadPaginationOptions(const TableFunctionBindInput &input, int64_t &max_pages, int64_t &max_records) {
+	for (const auto &name : {"max_pages", "max_records"}) {
+		auto entry = input.named_parameters.find(name);
+		if (entry == input.named_parameters.end()) {
+			continue;
+		}
+		auto value = BigIntValue::Get(entry->second);
+		if (value <= 0) {
+			throw BinderException("%s must be positive", name);
+		}
+		(string(name) == "max_pages" ? max_pages : max_records) = value;
+	}
+}
 string ReadSourceString(const Value &value) {
 	if (value.IsNull()) {
 		throw BinderException("DuckPort arguments cannot be NULL");
