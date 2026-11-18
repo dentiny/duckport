@@ -1,7 +1,9 @@
-SQL integration fixtures adapted from the MIT-licensed
-[open-arrow-access service tests](https://github.com/dentiny/open-arrow-access/tree/v0.1.0/service/tests)
-and corresponding `testdata/doab` fixtures in version 0.1.0.
+# Doab fixtures
 
-HTTP fixtures retain provider response shapes and replace download origins with
-local servers. Small CSV payloads replace publication content where appropriate.
-The arXiv TAR fixture is generated deterministically using the upstream manifest shape.
+OAI-PMH DOAB pages and continuations using the shared metadata reader.
+
+Adapted from the MIT-licensed [open-arrow-access v0.1.0 service tests](https://github.com/dentiny/open-arrow-access/tree/v0.1.0/service/tests) and its `doab` fixture data. Local payloads are reduced/synthetic adaptations.
+
+[http.json](http.json) defines response routes and synthetic authentication. Route syntax and loopback commands are documented in the [test guide](../../test/README.md#native-http-fixtures).
+
+[Fixture inventory and provenance](../README.md) · [SQL reader tests](../../test/sql/readers/)

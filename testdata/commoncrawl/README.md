@@ -1,5 +1,9 @@
-# Common Crawl fixtures
+# Commoncrawl fixtures
 
-`warc.paths` is copied from open-arrow-access's Common Crawl fixture. Its gzip copy and the three compressed WARC files form a small local mirror of `CC-MAIN-2022-40`. WARC content comes from the upstream WARC fixtures; gzip timestamps are fixed to zero.
+A local CC-MAIN-2022-40 mirror with a compressed path manifest and three compressed WARC objects.
 
-The dataset has four records. Segment `1664030338280.51` selects two files with three records; `1664030338280.510` selects one file with one metadata record. This checks exact segment selection, including the shared name prefix.
+Adapted from the MIT-licensed open-arrow-access fixtures.
+
+Four records span three WARC objects. Segment `1664030338280.51` selects two files/three records; `1664030338280.510` selects one metadata record. The shared prefix catches imprecise segment matching. Gzip timestamps are zero.
+
+[Fixture inventory and provenance](../README.md) · [SQL reader tests](../../test/sql/readers/)

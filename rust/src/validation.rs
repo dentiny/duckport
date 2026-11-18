@@ -419,3 +419,34 @@ pub(crate) fn iceberg_catalog_token(
     }
     Ok(token)
 }
+
+/// Match the conversion service's persisted Parquet snapshot contract.
+pub(crate) fn validate_arxiv_metadata(
+    kind: open_arrow_access::service::arxiv::ArxivKind,
+    uri: Option<&str>,
+    id_column: Option<&str>,
+) -> Result<()> {
+    let Some(uri) = uri else {
+        if id_column.is_some() {
+            return Err("metadata_id_column requires metadata_uri".into());
+        }
+        return Ok(());
+    };
+    if kind != open_arrow_access::service::arxiv::ArxivKind::Pdf {
+        return Err("arXiv metadata snapshots require kind=pdf".into());
+    }
+    let path = if uri.contains("://") {
+        let url = Url::parse(uri)?;
+        validate_uri(&url)?;
+        url.path().to_owned()
+    } else {
+        uri.to_owned()
+    };
+    if uri.contains(['*', '?', '[', ']']) || !path.to_ascii_lowercase().ends_with(".parquet") {
+        return Err("metadata_uri must name one Parquet snapshot without wildcards".into());
+    }
+    if id_column.is_some_and(|name| name.trim().is_empty()) {
+        return Err("metadata_id_column must not be empty".into());
+    }
+    Ok(())
+}

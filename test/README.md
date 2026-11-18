@@ -1,65 +1,74 @@
-# Tests
+# Tests and fixture maintenance
 
-Run all SQLLogicTests from the repository root after building:
+Assertions live in SQLLogicTest under `test/sql/readers/` and
+`test/sql/writers/`. Run from the repository root with the pinned DuckDB build:
 
 ```sh
 make test
-```
-
-Reader assertions live in `test/sql/readers`; COPY framework assertions live in `test/sql/writers`. Committed input
-fixtures are grouped under `testdata/<provider-or-format>/`.
-
-The HTTP tests use the same SQLLogicTest runner and a separate
-`duckport_test_fixture` extension. It is built by default when `BUILD_UNITTESTS`
-is enabled. SQL starts in-process loopback servers on ephemeral ports, configures
-secrets, reads provider data, and inspects captured requests through
-`duckport_fixture_requests`. The fixture server serves committed files and
-supports HEAD, byte ranges and redirects. Authentication, credential isolation,
-prepared scans and malformed-metadata checks are expressed in SQL.
-
-Run one provider's HTTP coverage with:
-
-```sh
-make test T='test/sql/readers/zenodo_http.test'
-```
-
-The fixture extension is excluded from production builds with
-`DUCKPORT_BUILD_TEST_FIXTURES=OFF`. No external accounts are needed for loopback
-tests. The Hugging Face test reads the public `lhoestq/demo1` repository and
-requires network access.
-
-The arXiv S3 SQL tests require `httpfs`. The test-fixture build loads the
-version pinned by the DuckDB checkout alongside the native fixture extension.
-
-Lance writer tests build the upstream [Lance reader](https://github.com/lance-format/lance-duckdb)
-at the revision pinned in `extension_config.cmake`, only with `BUILD_UNITTESTS`.
-They restart and load that reader to check written rows and downloaded blob bytes.
-
-The Iceberg COPY round-trip SQLLogicTest uses the native loopback REST catalog
-fixture. DuckDB's independent Iceberg extension reads the committed metadata
-with `iceberg_scan`; the test checks COPY, APPEND, NULLs, Unicode, empty strings,
-empty input, invalid options and schema mismatch.
-`iceberg_create.test` additionally checks schema inference, duplicate-create
-errors, APPEND to a missing table, and empty table creation.
-No external catalog or Python test runner is needed.
-
-The Iceberg reader is pinned by the DuckDB checkout and built only with
-`BUILD_UNITTESTS`. Its `roaring` dependency is provided by the vcpkg manifest.
-After building, run:
-
-```sh
 make test T='test/sql/writers/iceberg_roundtrip.test'
 ```
 
-Extension assertions live in SQLLogicTests rather than Rust unit tests.
-The fixture-only Rust `test-fixtures` feature exposes read-only native Lance
-Blob descriptor/field-metadata diagnostics to `duckport_test_fixture`, allowing
-SQL to check physical layouts. File helpers create/remove temporary inputs.
-Production builds with `DUCKPORT_BUILD_TEST_FIXTURES=OFF` exclude these diagnostics.
+These commands may compile. If builds are disallowed, do not run them; use
+formatting, local-document-link, ABI-layout and fixture-data checks and report
+that runtime tests remain unexecuted.
 
-Provider response routes are declared in `testdata/<provider>/http.json`, including
-Internet Archive and arXiv. Add response data there instead of provider-specific
-branches in the server. `FixtureServer` and `ScopedFixtureEnvironment` have their
-own headers and implementation files. `fixture_support` provides shared file
-reading and command registration; `provider_fixture` handles HTTP behavior and
-request snapshots, while `provider_functions` exposes them to SQL.
+## Build-time test dependencies
+
+BUILD_UNITTESTS enables the independent readers used for COPY round trips:
+DuckDB's pinned Iceberg extension, Parquet, and the Lance reader revision in
+`extension_config.cmake`. `DUCKPORT_BUILD_TEST_FIXTURES` defaults to the unit-test
+setting and adds `duckport_test_fixture` plus pinned httpfs. Production builds
+can set `DUCKPORT_BUILD_TEST_FIXTURES=OFF` and omit those diagnostics/servers.
+
+Lance tests restart the shell and load the independent reader to inspect rows,
+nested/blob values and field metadata. Iceberg tests read published metadata with
+`iceberg_scan`, checking creation, append, empty input, schema errors and catalog
+publication. Test setup is native; no Python test runner or external catalog is
+required. Hugging Face coverage that reads the public `lhoestq/demo1` export
+requires network access; committed loopback cases do not.
+
+## Native HTTP fixtures
+
+SQL starts an in-process server on ephemeral loopback ports, configures scoped
+secrets, queries a reader/writer, and inspects requests:
+
+```sql
+SET VARIABLE endpoint = duckport_fixture('arxiv', 'start_anonymous');
+SELECT * FROM duckport_fixture_requests('arxiv');
+SELECT duckport_fixture('arxiv', 'stop');
+```
+
+Provider fixture commands include `start`, `start_anonymous`,
+`start_authenticated`, `stop`, `download_endpoint`, `scope`, `reset` and
+`reject_metadata`. The Internet Archive compatibility function is
+`duckport_ia_fixture(command)`; metadata/download request counts remain available.
+The request table exposes `origin`, `target`, `authorization`, `api_key`,
+`headers`, `request_payer`, `is_download`, `has_authorization` and
+`has_request_payer`. Fixture credentials are synthetic test values only.
+
+Routes are declared in `testdata/<provider>/http.json`. Route entries require
+`path` and `file`; optional fields include `redirect`, `status`, `auth_header`,
+`auth_value`, `auth_match` (`prefix` or exact), and `session_token`. Separate
+`routes`/`downloads` collections model primary and auxiliary origins. Response
+payloads may contain API_ORIGIN/ORIGIN placeholders expanded to loopback origins.
+Successful status is left unset so httplib can implement range responses.
+
+Add provider data/routes instead of new server branches. Assertions belong in
+SQL, not in the server. Provider functions and request-table bindings live in
+`provider_functions.cpp`; HTTP behavior is in `provider_fixture.cpp`. The shared
+FixtureServer and ScopedFixtureEnvironment classes own cleanup. Workers are
+destroyed before handler state and guarded traces/registries use DuckDB
+annotated mutexes.
+
+## Rust diagnostics and file helpers
+
+The fixture-only `test-fixtures` Cargo feature exports read-only Lance Blob-layout
+and field-metadata diagnostics. C++ owns/free returned strings through one shared
+adapter. `duckport_fixture_write` and `duckport_fixture_remove` manage temporary
+inputs in SQL tests. The Iceberg fixture serves a small unpartitioned people
+schema with controlled create/append/authentication behavior.
+
+Committed payload provenance and regeneration instructions are in the
+[fixture inventory](../testdata/README.md). Keep test payloads small, deterministic
+where possible, and free of real credentials. See [development](../docs/UPDATING.md)
+for formatting and ABI conventions.

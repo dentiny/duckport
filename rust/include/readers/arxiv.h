@@ -5,6 +5,9 @@ struct ArxivOptions {
 	const char *kind;
 	const char *month;
 	int32_t requester_pays;
+	const char *metadata_uri;
+	const char *metadata_id_column;
+	const DuckportStorageOptions *metadata_storage;
 };
 
 extern "C" {

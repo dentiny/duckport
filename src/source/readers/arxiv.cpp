@@ -11,6 +11,15 @@ char *OpenArxiv(ClientContext &context, const string &locator, const DuckportSca
 	auto month = ReadStringOption(input, "month");
 	reader_options.month = month ? month->c_str() : nullptr;
 	ReadBooleanOption(input, "requester_pays", reader_options.requester_pays);
+	auto metadata_uri = ReadStringOption(input, "metadata_uri");
+	auto metadata_id_column = ReadStringOption(input, "metadata_id_column");
+	reader_options.metadata_uri = metadata_uri ? metadata_uri->c_str() : nullptr;
+	reader_options.metadata_id_column = metadata_id_column ? metadata_id_column->c_str() : nullptr;
+	unique_ptr<StorageParameters> metadata_storage;
+	if (metadata_uri) {
+		metadata_storage = make_uniq<StorageParameters>(context, *metadata_uri, string());
+		reader_options.metadata_storage = &metadata_storage->config;
+	}
 	StorageParameters storage(context, locator, /*secret_type=*/ {});
 	return duckport_arxiv_open(locator.c_str(), storage.config, scan, reader_options, output);
 }
