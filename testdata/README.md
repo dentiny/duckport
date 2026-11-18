@@ -6,7 +6,7 @@ Payloads are synthetic or adapted from MIT-licensed upstream tests. Real provide
 
 | Directory | Coverage |
 | --- | --- |
-| [arxiv](arxiv/) | Synthetic source and PDF TAR shards, bulk manifests and a cached bibliographic Parquet snapshot. Local and signed/requester-pays loopback scans share the same payloads. |
+| [arxiv](arxiv/) | Synthetic source TAR shards and a bulk manifest shared by local and signed/requester-pays loopback scans. |
 | [arxiv_metadata](arxiv_metadata/) | OAI-PMH arXivRaw pages, including empty and terminal responses, for automatic metadata harvesting. |
 | [atif](atif/) | Single and multiline trajectories, JSONL framing, invalid input, Unicode/tool messages and image/audio media references. |
 | [bhl](bhl/) | An item metadata response and selected text attachment, including native API-key query authentication. |
@@ -50,8 +50,7 @@ in their directory README. The common source is
 [open-arrow-access service tests](https://github.com/dentiny/open-arrow-access/tree/v0.1.0/service/tests).
 ATIF media also comes from MIT-licensed duckdb_lance_conversion fixtures.
 
-Common Crawl gzip timestamps are fixed to zero. The arXiv PDF fixture generator
-uses Python's standard library and an already installed DuckDB CLI to create
-small TAR/Parquet payloads; it does not build DuckPort. Parquet array metadata
-has its own generator under parquet/. Keep binary fixtures small and document
-changes to expected record counts, payload bytes and schemas.
+Common Crawl gzip timestamps are fixed to zero. The arXiv source TAR is a small
+deterministic synthetic archive. Parquet array metadata has its own generator
+under parquet/. Keep binary fixtures small and document changes to expected
+record counts, payload bytes and schemas.

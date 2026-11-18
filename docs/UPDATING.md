@@ -51,8 +51,9 @@ struct. Common scan options currently contain only batch_size.
 C++ resolves each storage URI's secrets on the query thread. Separate URI
 namespaces require separate StorageParameters, including arXiv metadata snapshots.
 Copy borrowed options into owned Rust state during open. Update both language
-layouts and registrations together. Add focused SQL coverage for selection,
-projection, empty output and authentication boundaries when behavior changes.
+layouts and registrations together. Keep SQL tests focused on end-to-end data
+behavior. Do not add SQL configuration matrices that repeat option validation
+or checks already owned by the upstream crates.
 
 ## Add or change a sink
 

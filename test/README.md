@@ -5,8 +5,6 @@ Assertions live in SQLLogicTest under `test/sql/readers/` and
 
 ```sh
 make test
-make test T='test/sql/readers/arxiv_metadata_snapshot.test'
-make test T='test/sql/readers/arxiv_snapshot_auth.test'
 make test T='test/sql/writers/iceberg_roundtrip.test'
 ```
 
@@ -61,16 +59,6 @@ SQL, not in the server. Provider functions and request-table bindings live in
 FixtureServer and ScopedFixtureEnvironment classes own cleanup. Workers are
 destroyed before handler state and guarded traces/registries use DuckDB
 annotated mutexes.
-
-## arXiv snapshot regression coverage
-
-`arxiv_metadata_snapshot.test` checks scalar/nested/list/date metadata retention,
-PDF bytes, one-table COPY output, custom ID-column names, missing/duplicate/null
-IDs and invalid snapshot selection. `arxiv_snapshot_auth.test` uses separate PDF
-and snapshot buckets/keys/regions, verifies requester-pays is absent on snapshot
-requests, and checks an independently authenticated HTTP snapshot with local PDFs.
-`arxiv.test` also covers explicit auto discovery while retaining the source-only
-default. These tests exercise the shared upstream index, not a second ID matcher.
 
 ## Rust diagnostics and file helpers
 
