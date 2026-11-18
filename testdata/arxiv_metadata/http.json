@@ -1,5 +1,18 @@
 {
   "auth": "authorization",
-  "routes": [{"path": "/oai", "file": "page.xml"}],
+  "routes": [
+    {
+      "path": "/oai",
+      "file": "page.xml"
+    },
+    {
+      "path": "/oai?verb=ListRecords&metadataPrefix=arXivRaw&from=2026-02-01",
+      "file": "empty.xml"
+    },
+    {
+      "path": "/oai?verb=ListRecords&metadataPrefix=arXivRaw&from=2026-02-02",
+      "file": "no_records.xml"
+    }
+  ],
   "reject_route": "/oai"
 }

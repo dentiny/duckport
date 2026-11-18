@@ -433,3 +433,6 @@ read the envelope and its `"oai:resumptionToken"` for explicit continuation.
 A continuation token cannot be combined with date/set selectors.
 Public metadata needs no key; scoped HTTP bearer secrets are supported for
 custom endpoints. `duckport_scan_arxiv` continues to read bulk TAR members.
+Empty pages, including `noRecordsMatch`, bind with the standard OAI header columns
+`identifier`, `datestamp`, `status`, and `set_specs` and return zero rows. An explicit
+`record_path` continues to select the requested XML envelope.
