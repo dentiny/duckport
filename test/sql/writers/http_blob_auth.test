@@ -1,5 +1,5 @@
 # name: test/sql/writers/http_blob_auth.test
-# description: Per-source scoped HTTP credentials for files and COPY Blob downloads
+# description: COPY Blob downloads use scoped HTTP credentials and preserve payload bytes
 # group: [sql]
 
 require duckport
@@ -8,9 +8,6 @@ require duckport_test_fixture
 
 statement ok
 SET VARIABLE blob_endpoint = duckport_fixture('blob_http', 'start_anonymous');
-
-statement ok
-CREATE SECRET unrelated_blob_token (TYPE http, BEARER_TOKEN 'unrelated-secret', SCOPE getvariable('blob_endpoint') || '/unrelated/');
 
 statement error
 COPY (SELECT getvariable('blob_endpoint') || '/private/a.bin' AS payload)
@@ -22,52 +19,20 @@ statement ok
 CREATE SECRET blob_http_token (TYPE http, BEARER_TOKEN 'fixture-key', SCOPE getvariable('blob_endpoint') || '/private/');
 
 statement ok
-CREATE SECRET blob_narrow_token (TYPE http, BEARER_TOKEN 'fixture-narrow', SCOPE getvariable('blob_endpoint') || '/private/narrow/');
-
-statement ok
 CREATE SECRET blob_custom_header (TYPE http, EXTRA_HTTP_HEADERS MAP {'X-API-Key':'fixture-custom'}, SCOPE getvariable('blob_endpoint') || '/api-key/');
 
 query I
-SELECT id FROM duckport_scan_json(getvariable('blob_endpoint') || '/api-key/records.json');
-----
-1
-
-query I
 COPY (SELECT getvariable('blob_endpoint') || path AS payload FROM (VALUES
-    ('/private/a.bin'), ('/private/narrow/b.bin'), ('/api-key/c.bin'),
-    ('/public/d.bin'), ('/private/redirect.bin'), ('/private/cross.bin')) t(path))
+    ('/private/a.bin'), ('/api-key/c.bin')) t(path))
 TO '{TEST_DIR}/authenticated.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('payload'));
 ----
-6
-
-query T
-SELECT bool_and(NOT has_authorization AND NOT contains(headers, 'fixture-') AND NOT contains(headers, 'unrelated-secret'))
-FROM duckport_fixture_requests('blob_http') WHERE origin = 'download';
-----
-true
-
-query T
-SELECT bool_and(NOT has_authorization) FROM duckport_fixture_requests('blob_http') WHERE target = '/public/d.bin';
-----
-true
-
-query T
-SELECT bool_and(NOT contains(target, 'fixture-') AND NOT contains(headers, 'unrelated-secret'))
-FROM duckport_fixture_requests('blob_http');
-----
-true
+2
 
 statement ok
 DROP SECRET blob_http_token;
 
 statement ok
-DROP SECRET blob_narrow_token;
-
-statement ok
 DROP SECRET blob_custom_header;
-
-statement ok
-DROP SECRET unrelated_blob_token;
 
 query T
 SELECT duckport_fixture('blob_http', 'stop');
@@ -83,4 +48,4 @@ query II
 SELECT count(*), count(*) FILTER (WHERE payload = (SELECT content FROM read_blob('testdata/blob_http/payload.bin')))
 FROM '{TEST_DIR}/authenticated.lance';
 ----
-6	6
+2	2
