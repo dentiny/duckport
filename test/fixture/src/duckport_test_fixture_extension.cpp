@@ -60,6 +60,8 @@ struct Route {
 	string redirect;
 	int status = 200;
 	bool is_download = false;
+    string auth_header;
+    string auth_value;
 };
 
 struct Trace {
@@ -164,6 +166,8 @@ private:
 			}
 			route.body = Expand(ReadFile(provider, route.file));
 			route.redirect = Expand(JsonString(entry, "redirect"));
+            route.auth_header = JsonString(entry, "auth_header");
+            route.auth_value = JsonString(entry, "auth_value");
 			auto status = yyjson_obj_get(entry, "status");
 			if (status && !yyjson_is_int(status)) {
 				throw InvalidInputException("Fixture route status must be an integer");
@@ -254,6 +258,11 @@ private:
 			res.set_content("Internet Archive credentials required", "text/plain");
 			return;
 		}
+        if (route && !route->auth_header.empty() && req.get_header_value(route->auth_header) != route->auth_value) {
+            res.status = 401;
+            res.set_content("source credentials required", "text/plain");
+            return;
+        }
 		if (!route) {
 			res.status = 404;
 			res.set_content("missing fixture", "text/plain");

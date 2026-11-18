@@ -42,12 +42,12 @@ pub unsafe extern "C" fn duckport_regulations_open(
         let resource = crate::utils::regulations_resource(&resource)?;
         let connection =
             Connection::new(&endpoint)?.with_http_config(storage_options.policy.config()?)?;
-        let token = crate::validation::nonempty(
-            storage_options.token,
-            "a scoped HTTP bearer_token secret is required for this service",
+        let connection = crate::provider_auth::apply(
+            connection,
+            storage_options.security.http()?,
+            crate::provider_auth::HttpAuth::ApiKeyHeader("x-api-key"),
         )?;
         let files = RegulationsService::with_connection(connection)
-            .with_key(&token)?
             .record(resource, &locator)
             .await?;
         crate::service_files::open(

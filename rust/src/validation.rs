@@ -1,4 +1,9 @@
-use crate::{error::Result, options::StorageConfig, storage_policy::DuckportStoragePolicy};
+use crate::{
+    error::{Result, http_source_error},
+    options::StorageConfig,
+    storage_policy::DuckportStoragePolicy,
+};
+use http::Method;
 use open_arrow_sink_core::{CompressionSpec, IndexSpec};
 use std::{
     collections::HashSet,
@@ -110,7 +115,12 @@ pub(crate) fn validate_requester_pays(
     if enabled && !locator.starts_with("s3://") {
         return Err("requester_pays requires an S3 root".into());
     }
-    if enabled && (config.access_key_id.is_none() || config.secret_access_key.is_none()) {
+    if enabled
+        && !matches!(
+            config.security.s3()?,
+            Some(crate::security::S3Credentials::Static { .. })
+        )
+    {
         return Err("requester_pays requires a scoped S3 secret with credentials".into());
     }
     Ok(())
@@ -158,13 +168,6 @@ pub(crate) fn validate_boolean(name: &str, value: i32) -> Result<()> {
 pub(crate) fn validate_sink_scheme(url: &Url) -> Result<()> {
     if !matches!(url.scheme(), "file" | "s3") {
         return Err("sink destination must be a local path, file:// URI, or s3:// URI".into());
-    }
-    Ok(())
-}
-
-pub(crate) fn validate_internet_archive_credentials(config: &StorageConfig) -> Result<()> {
-    if config.access_key_id.is_some() != config.secret_access_key.is_some() {
-        return Err("Internet Archive requires both an access key and a secret key".into());
     }
     Ok(())
 }
@@ -374,6 +377,32 @@ pub(crate) fn validate_file_count(value: i64, preserve_order: bool) -> Result<()
     }
     if preserve_order && value != 1 {
         return Err("PRESERVE_ORDER true requires FILE_COUNT 1".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_http_source_method(method: &Method) -> opendal::Result<()> {
+    if *method != Method::GET && *method != Method::HEAD {
+        return Err(http_source_error("unsupported download method"));
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_http_source_url(url: &Url) -> opendal::Result<()> {
+    if !matches!(url.scheme(), "http" | "https")
+        || !url.username().is_empty()
+        || url.password().is_some()
+    {
+        return Err(http_source_error("unsupported HTTP redirect target"));
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_http_source_redirect(current: &Url, next: &Url) -> opendal::Result<()> {
+    if current.scheme() == "https" && next.scheme() != "https" {
+        return Err(http_source_error(
+            "HTTPS source redirect downgrade rejected",
+        ));
     }
     Ok(())
 }

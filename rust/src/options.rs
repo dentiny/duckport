@@ -8,13 +8,11 @@ use std::ffi::c_char;
 pub struct DuckportStorageOptions {
     pub endpoint: *const c_char,
     pub region: *const c_char,
-    pub access_key_id: *const c_char,
-    pub secret_access_key: *const c_char,
-    pub session_token: *const c_char,
-    pub token: *const c_char,
     pub virtual_host_style: i32,
-    pub allow_anonymous: i32,
     pub policy: DuckportStoragePolicy,
+    pub security: crate::security::DuckportSecurityOptions,
+    pub http_secrets: *const crate::security::DuckportHttpSecret,
+    pub http_secret_count: usize,
 }
 
 #[repr(C)]
@@ -28,13 +26,10 @@ pub struct StorageConfig {
     pub(crate) metrics: crate::metrics::ReadMetrics,
     pub endpoint: Option<String>,
     pub region: Option<String>,
-    pub access_key_id: Option<String>,
-    pub secret_access_key: Option<String>,
-    pub session_token: Option<String>,
-    pub token: Option<String>,
     pub virtual_host_style: bool,
-    pub allow_anonymous: bool,
     pub policy: DuckportStoragePolicy,
+    pub security: crate::security::SecurityConfig,
+    pub(crate) http_secrets: std::sync::Arc<Vec<crate::security::ScopedHttpCredentials>>,
 }
 
 impl DuckportStorageOptions {
@@ -44,13 +39,12 @@ impl DuckportStorageOptions {
             metrics: Default::default(),
             endpoint: unsafe { optional_string(self.endpoint) }?,
             region: unsafe { optional_string(self.region) }?,
-            access_key_id: unsafe { optional_string(self.access_key_id) }?,
-            secret_access_key: unsafe { optional_string(self.secret_access_key) }?,
-            session_token: unsafe { optional_string(self.session_token) }?,
-            token: unsafe { optional_string(self.token) }?,
             virtual_host_style: utils::boolean("virtual_host_style", self.virtual_host_style)?,
-            allow_anonymous: utils::boolean("allow_anonymous", self.allow_anonymous)?,
             policy: self.policy,
+            security: unsafe { self.security.read() }?,
+            http_secrets: std::sync::Arc::new(unsafe {
+                crate::security::read_http_secrets(self.http_secrets, self.http_secret_count)
+            }?),
         })
     }
 }

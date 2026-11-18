@@ -18,17 +18,44 @@ struct DuckportStoragePolicy {
 	double retry_factor;
 };
 
+struct DuckportHttpHeader {
+    const char *name;
+    const char *value;
+};
+
+// Use one authentication family. Static S3 keys must be paired; anonymous S3
+// must not include keys. HTTP tokens/headers cannot be mixed with S3 credentials.
+struct DuckportSecurityOptions {
+    const char *access_key_id;
+    const char *secret_access_key;
+    const char *session_token;
+    const char *token;
+    const DuckportHttpHeader *http_headers;
+    size_t http_header_count;
+    int32_t allow_anonymous;
+};
+
+// Scoped HTTP credentials are borrowed during open and copied into Rust-owned storage.
+struct DuckportHttpSecret {
+    const char *scope;
+    DuckportSecurityOptions security;
+};
+
 // Optional strings are null when unset and borrowed only for the open call.
 struct DuckportStorageOptions {
-	const char *endpoint;
-	const char *region;
-	const char *access_key_id;
-	const char *secret_access_key;
-	const char *session_token;
-	const char *token;
-	int32_t virtual_host_style; // 0 or 1
-	int32_t allow_anonymous;    // 0 or 1
-	DuckportStoragePolicy policy;
+    const char *endpoint;
+    const char *region;
+    int32_t virtual_host_style;
+    DuckportStoragePolicy policy;
+    DuckportSecurityOptions security;
+    const DuckportHttpSecret *http_secrets;
+    size_t http_secret_count;
+};
+// Borrowed during open; Rust owns independent copies for asynchronous downloads.
+struct DuckportBlobSecret {
+    const char *scope;
+    const char *type;
+    DuckportStorageOptions config;
 };
 struct DuckportScanOptions {
 	// Target rows per Arrow record batch; SQL default: 8192.
@@ -92,7 +119,7 @@ char *duckport_parquet_source_open(const char *locator, const DuckportStorageOpt
 
 // Sink writer functions
 char *duckport_lance_open(const char *path, const ArrowSchema *, const char *mode, const char *const *blob_columns,
-                          size_t column_count, const DuckportWriteOptions *, const DuckportStorageOptions *,
+                          size_t column_count, const DuckportWriteOptions *, const DuckportBlobSecret *, size_t secret_count, const DuckportStorageOptions *,
                           DuckportSink **output);
 char *duckport_iceberg_open(const char *identifier, const ArrowSchema *, const char *mode, size_t column_count,
                             const char *catalog_uri, const char *warehouse, const char *storage_root,

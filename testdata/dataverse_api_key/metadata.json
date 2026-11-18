@@ -1,0 +1,1 @@
+{"status": "OK", "data": {"datasetPersistentId": "doi:10.7910/DVN/A&B+", "versionNumber": 1, "versionMinorNumber": 0, "versionState": "RELEASED", "files": [{"label": "cross.csv", "restricted": true, "dataFile": {"id": 102, "filesize": 23, "tabularData": false}}]}}

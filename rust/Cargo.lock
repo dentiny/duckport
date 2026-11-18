@@ -2035,6 +2035,7 @@ dependencies = [
  "arrow-schema",
  "csv-async",
  "futures",
+ "http",
  "iceberg-catalog-rest",
  "open-arrow-access",
  "open-arrow-sink-core",
@@ -2044,7 +2045,9 @@ dependencies = [
  "open-arrow-sink-parquet",
  "open-arrow-sink-storage",
  "opendal",
+ "opendal-http-transport-reqwest",
  "percent-encoding",
+ "reqwest 0.13.5",
  "tokio",
  "url",
 ]

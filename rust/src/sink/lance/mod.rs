@@ -17,6 +17,7 @@ pub(crate) async fn open(
     config: &StorageConfig,
     options: WriteOptions,
     writer_count: usize,
+    secrets: Vec<crate::security::ScopedHttpCredentials>,
 ) -> Result<DuckportSink> {
     let mut options = options.with_mode(utils::sink_mode(mode)?);
     let metrics = open_arrow_sink_core::IoMetrics::default();
@@ -29,7 +30,10 @@ pub(crate) async fn open(
     validation::validate_blob_indexes(&options.indexes, &roots)?;
     let columns = paths.into_iter().map(|path| path.join(".")).collect();
     let destination = storage::sink_storage(path, config)?;
-    let sink = LanceDatasetSink::new(destination.storage).layer(DownloadBlobLayer::new(columns));
+    let downloader = crate::blob_auth::blob_downloader(secrets, config.policy)?;
+    let sink = LanceDatasetSink::new(destination.storage)
+        .with_blob_downloader(std::sync::Arc::new(downloader))
+        .layer(DownloadBlobLayer::new(columns));
     let writer = open_writer(sink, destination.url, schema.clone(), options, writer_count).await?;
     Ok(DuckportSink {
         metrics,

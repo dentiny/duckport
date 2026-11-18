@@ -1,0 +1,64 @@
+# name: test/sql/writers/http_blob_auth.test
+# description: COPY resolves source credentials at execution and preserves downloaded Blob bytes
+# group: [sql]
+
+require duckport
+
+require duckport_test_fixture
+
+set ignore_error_messages
+
+statement ok
+SET VARIABLE blob_endpoint = duckport_fixture('blob_http', 'start_anonymous');
+
+# Prepare without secrets; each execution must use the current credential snapshot.
+statement ok
+PREPARE blob_copy AS COPY (SELECT getvariable('blob_endpoint') || path AS payload FROM (VALUES
+    ('/private/a.bin'), ('/api-key/c.bin')) t(path))
+TO '{TEST_DIR}/authenticated.lance' (FORMAT duckport_lance, OVERWRITE, BLOB_COLUMNS ('payload'));
+
+statement error
+EXECUTE blob_copy;
+----
+DuckPort
+
+statement ok
+CREATE SECRET blob_http_token (TYPE http, BEARER_TOKEN 'fixture-key', SCOPE getvariable('blob_endpoint') || '/private/');
+
+statement ok
+CREATE SECRET blob_custom_header (TYPE http, EXTRA_HTTP_HEADERS MAP {'X-API-Key': 'fixture-custom'}, SCOPE getvariable('blob_endpoint') || '/api-key/');
+
+query I
+EXECUTE blob_copy;
+----
+2
+
+statement ok
+DROP SECRET blob_http_token;
+
+statement ok
+DROP SECRET blob_custom_header;
+
+statement error
+EXECUTE blob_copy;
+----
+DuckPort
+
+statement ok
+DEALLOCATE blob_copy;
+
+query T
+SELECT duckport_fixture('blob_http', 'stop');
+----
+stopped
+
+restart no_extension_load
+
+statement ok
+LOAD '{BUILD_DIRECTORY}/extension/lance/lance.duckdb_extension';
+
+query II
+SELECT count(*), count(*) FILTER (WHERE payload = (SELECT content FROM read_blob('testdata/blob_http/payload.bin')))
+FROM '{TEST_DIR}/authenticated.lance';
+----
+2	2

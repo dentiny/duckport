@@ -1,7 +1,15 @@
 #include "sink/writer.hpp"
+#include "sink/writer_context.hpp"
 #include "error.hpp"
 
 namespace duckdb {
+const vector<BlobSecret> &WriterOpenContext::BlobSecrets() {
+	if (!blob_secrets) {
+		blob_secrets = CaptureBlobSecrets(client);
+	}
+	return *blob_secrets;
+}
+
 namespace {
 class RustSinkWriter final : public SinkWriter {
 public:

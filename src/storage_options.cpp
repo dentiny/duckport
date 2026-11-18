@@ -15,7 +15,9 @@
 
 namespace duckdb {
 namespace {
-const char *OptionalString(const string &value) { return value.empty() ? nullptr : value.c_str(); }
+const char *OptionalString(const string &value) {
+	return value.empty() ? nullptr : value.c_str();
+}
 
 constexpr std::string_view STORAGE_SETTING_PREFIX = "conversion_storage_";
 
@@ -82,23 +84,25 @@ DuckportStoragePolicy ReadStoragePolicy(ClientContext &context) {
 }
 
 StorageParameters::StorageParameters(ClientContext &context, const string &locator, const string &secret_type) {
+	SecurityParameters security;
 	config.policy = ReadStoragePolicy(context);
 	auto &opener = *ClientData::Get(context).file_opener;
 	FileOpenerInfo info {locator};
 	if (secret_type == "huggingface") {
-		const auto scope = StringUtil::StartsWith(locator, "hf://") ? locator : StringUtil::Format("hf://datasets/%s", locator);
+		const auto scope =
+		    StringUtil::StartsWith(locator, "hf://") ? locator : StringUtil::Format("hf://datasets/%s", locator);
 		info.file_path = scope;
 		KeyValueSecretReader reader(opener, &info, "huggingface");
-		reader.TryGetSecretKey("token", token);
+		security.has_token = reader.TryGetSecretKey("token", security.token);
 	} else if (secret_type == "internet_archive") {
 		KeyValueSecretReader reader(opener, &info, "s3");
-		reader.TryGetSecretKey("key_id", access_key_id);
-		reader.TryGetSecretKey("secret", secret_access_key);
+		reader.TryGetSecretKey("key_id", security.access_key_id);
+		reader.TryGetSecretKey("secret", security.secret_access_key);
 	} else if (StringUtil::StartsWith(locator, "s3://")) {
 		KeyValueSecretReader reader(opener, &info, "s3");
-		reader.TryGetSecretKey("key_id", access_key_id);
-		reader.TryGetSecretKey("secret", secret_access_key);
-		reader.TryGetSecretKey("session_token", session_token);
+		reader.TryGetSecretKey("key_id", security.access_key_id);
+		reader.TryGetSecretKey("secret", security.secret_access_key);
+		reader.TryGetSecretKey("session_token", security.session_token);
 		reader.TryGetSecretKey("endpoint", endpoint);
 		reader.TryGetSecretKey("region", region);
 		bool use_ssl = true;
@@ -112,16 +116,19 @@ StorageParameters::StorageParameters(ClientContext &context, const string &locat
 			throw InvalidConfigurationException("S3 secret url_style must be either 'path' or 'vhost'");
 		}
 		config.virtual_host_style = url_style == "vhost" ? 1 : 0;
-		config.allow_anonymous = access_key_id.empty() && secret_access_key.empty() && session_token.empty() ? 1 : 0;
+		security.allow_anonymous =
+		    security.access_key_id.empty() && security.secret_access_key.empty() && security.session_token.empty() ? 1
+		                                                                                                           : 0;
 	} else if (StringUtil::StartsWith(locator, "http://") || StringUtil::StartsWith(locator, "https://")) {
+		// Preserve every HTTP scope for credential selection on each redirect hop.
+		http_sources_view = make_uniq<SourceSecretsFfiView>(CaptureBlobSecrets(context));
+		http_sources_view->BindHttp(config);
 		KeyValueSecretReader reader(opener, &info, "http");
-		reader.TryGetSecretKey("bearer_token", token);
+		security = ReadHttpSecurity(reader);
 	}
 	config.endpoint = OptionalString(endpoint);
 	config.region = OptionalString(region);
-	config.access_key_id = OptionalString(access_key_id);
-	config.secret_access_key = OptionalString(secret_access_key);
-	config.session_token = OptionalString(session_token);
-	config.token = OptionalString(token);
+	security_view = make_uniq<SecurityFfiView>(std::move(security));
+	config.security = security_view->Get();
 }
 } // namespace duckdb
