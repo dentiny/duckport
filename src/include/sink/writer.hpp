@@ -36,6 +36,8 @@ struct IndexOptions {
 
 // Plan-owned configuration. Runtime credentials belong to WriterOpenContext.
 struct SinkWriteOptions {
+	static constexpr int64_t DEFAULT_TARGET_FILE_SIZE = 512LL * 1024 * 1024;
+
 	SinkWriteMode mode = SinkWriteMode::CREATE;
 	bool preserve_order = false;
 	// Omission uses one writer; an unset count explicitly requests auto.
@@ -47,7 +49,7 @@ struct SinkWriteOptions {
 	DuckportWriteOptions write_options {
 	    .blob_inline_size_threshold = -1,
 	    .blob_dedicated_size_threshold = -1,
-	    .target_file_size = 512LL * 1024 * 1024,
+	    .target_file_size = DEFAULT_TARGET_FILE_SIZE,
 	    .storage_version = nullptr,
 	    .column_encodings = nullptr,
 	    .column_encoding_count = 0,
