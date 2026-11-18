@@ -44,11 +44,11 @@ pub unsafe extern "C" fn duckport_openstax_open(
         let attachment_options = crate::utils::attachment_options(&format, record_path.as_deref())?;
         let connection =
             Connection::new(&endpoint)?.with_http_config(storage_options.policy.config()?)?;
-        let connection = if let Some(token) = storage_options.security.token {
-            connection.with_header("authorization", &format!("Bearer {token}"))?
-        } else {
-            connection
-        };
+        let connection = crate::provider_auth::apply(
+            connection,
+            storage_options.security.http()?,
+            crate::provider_auth::HttpAuth::Bearer,
+        )?;
         let archive_endpoint = unsafe { optional_string(reader_options.archive_endpoint) }?
             .unwrap_or_else(|| "https://codeload.github.com".into());
         let files = OpenStaxService::with_connections(
@@ -58,7 +58,14 @@ pub unsafe extern "C" fn duckport_openstax_open(
         )
         .book(&locator, &revision)
         .await?;
-        crate::service_files::open(files, file_name, attachment_options, scan_options).await
+        crate::service_files::open(
+            files,
+            file_name,
+            attachment_options,
+            scan_options,
+            storage_options.metrics.clone(),
+        )
+        .await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }

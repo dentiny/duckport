@@ -9,7 +9,15 @@ EXT_CONFIG=${PROJ_DIR}extension_config.cmake
 # Include the Makefile from extension-ci-tools
 include extension-ci-tools/makefiles/duckdb_extension.Makefile
 
-.PHONY: toml-format toml-format-check
+CMAKE_FILES := CMakeLists.txt extension_config.cmake
+
+.PHONY: format format-all toml-format toml-format-check
+
+format:
+	cmake-format -i $(CMAKE_FILES)
+
+format-all: format
+	cargo fmt --manifest-path rust/Cargo.toml
 
 toml-format:
 	taplo fmt
