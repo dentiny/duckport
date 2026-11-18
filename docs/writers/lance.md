@@ -112,3 +112,23 @@ Sources may span buckets, prefixes and endpoints in the same COPY, including
 when the destination is local. Explicit source credentials take precedence over
 the sink's destination namespace. Without a source secret, native source
 credential resolution remains independent of destination credentials.
+
+## Hugging Face source authentication
+
+`BLOB_COLUMNS` accepts individual dataset files as
+`hf://datasets/<owner>/<repo>[@revision]/<file>`. The longest matching DuckDB
+`TYPE huggingface` secret supplies `TOKEN`; revisions default to `main`, and
+percent-encoded revision/file paths are decoded before repository access.
+Different private repositories can use different tokens in one COPY.
+
+```sql
+CREATE SECRET private_repo (TYPE huggingface, TOKEN 'hf_access_token',
+    SCOPE 'hf://datasets/owner/private-repo');
+```
+
+Explicit secrets take precedence over implicit HF credentials. Empty matched
+tokens fail instead of falling back to ambient credentials. Unmatched sources
+retain the upstream HF environment/cache behavior, including `HF_ENDPOINT` and
+`HF_HUB_DISABLE_IMPLICIT_TOKEN`. Hub credentials are not sent to a cross-origin
+CDN redirect. This uses the existing Hugging Face repository accessor, without
+requiring a Parquet dataset export or sending Hub tokens as URL parameters.
