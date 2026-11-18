@@ -17,7 +17,7 @@ char *OpenInternetArchive(ClientContext &context, const string &locator, const D
 	auto endpoint = ReadStringOption(input, "endpoint");
 	reader_options.endpoint = endpoint ? endpoint->c_str() : nullptr;
 	StorageParameters storage(context, StringUtil::Format("%s/", endpoint.value_or("https://archive.org")),
-	                          /*secret_type=*/ "internet_archive");
+	                          /*secret_type=*/"internet_archive");
 	return duckport_internet_archive_open(locator.c_str(), storage.config, scan, reader_options, output);
 }
 } // namespace duckdb
