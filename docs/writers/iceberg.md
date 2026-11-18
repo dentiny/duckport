@@ -1,6 +1,6 @@
 # Iceberg REST tables
 
-DuckPort uses `open-arrow-sink-iceberg` 0.5.0 with the Iceberg Rust REST catalog.
+DuckPort uses `open-arrow-sink-iceberg` 0.5.1 with the Iceberg Rust REST catalog.
 Create the catalog namespace first, then create/write a table from the query:
 
 ```sql
