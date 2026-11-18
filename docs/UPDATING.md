@@ -1,5 +1,8 @@
 # Development
 
+This guide is for contributors building a local extension. To install the
+community package, follow the [README](../README.md#start-here).
+
 ## Build and load
 
 Use CMake 3.20+, a C++17 toolchain, Rust with edition-2024 support compatible
@@ -22,8 +25,7 @@ LOAD 'build/release/extension/duckport/duckport.duckdb_extension';
 Use `make EXT_FLAGS='-DDUCKPORT_CARGO_PROFILE=dev'` for the Cargo dev profile;
 release is the default. Cross builds require a matching DUCKPORT_RUST_TARGET (or
 Rust_CARGO_TARGET). Build macOS architectures separately. Build paths and flags
-are controlled by CMake and extension-ci-tools; no prebuilt Community Extension
-installation is assumed.
+are controlled by CMake and extension-ci-tools.
 
 ## Source layout
 
