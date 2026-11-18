@@ -68,34 +68,28 @@ COPY (SELECT 1 AS id) TO '{TEST_DIR}/old_option' (FORMAT duckport_parquet, FILE_
 ----
 Unrecognized option "file_count"
 
-statement ok
-SET explain_output = 'optimized_only';
-
 # Automatic reads follow threads, including values above four.
 query TT
-EXPLAIN (FORMAT JSON) SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true);
+EXPLAIN (ANALYZE, FORMAT JSON) SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true);
 ----
-logical_opt	<REGEX>:.*Read concurrency.*8.*auto limit.*
+analyzed_plan	<REGEX>:.*Read concurrency.*8.*auto limit.*
 
 # COPY overrides a scan's explicit setting with either auto or an integer.
 query TT
-EXPLAIN (FORMAT JSON) COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true, read_concurrency := 1))
-TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet, READ_CONCURRENCY 'auto');
+EXPLAIN (ANALYZE, FORMAT JSON) COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true, read_concurrency := 1))
+TO '{TEST_DIR}/analyzed_auto' (FORMAT duckport_parquet, READ_CONCURRENCY 'auto');
 ----
-logical_opt	<REGEX>:.*Read concurrency.*8.*auto limit.*
+analyzed_plan	<REGEX>:.*Read concurrency.*8.*auto limit.*
 
 query TT
-EXPLAIN (FORMAT JSON) COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true, read_concurrency := 1))
-TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet, READ_CONCURRENCY 2);
+EXPLAIN (ANALYZE, FORMAT JSON) COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true, read_concurrency := 1))
+TO '{TEST_DIR}/analyzed_fixed' (FORMAT duckport_parquet, READ_CONCURRENCY 2);
 ----
-logical_opt	<REGEX>:.*Read concurrency.*2.*explicit limit.*
+analyzed_plan	<REGEX>:.*Read concurrency.*2.*explicit limit.*
 
 # Omitting the COPY override preserves the scan's explicit setting.
 query TT
-EXPLAIN (FORMAT JSON) COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true, read_concurrency := 1))
-TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet);
+EXPLAIN (ANALYZE, FORMAT JSON) COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true, read_concurrency := 1))
+TO '{TEST_DIR}/analyzed_inherited' (FORMAT duckport_parquet);
 ----
-logical_opt	<REGEX>:.*Read concurrency.*1.*explicit limit.*
-
-statement ok
-SET explain_output = 'physical_only';
+analyzed_plan	<REGEX>:.*Read concurrency.*1.*explicit limit.*
