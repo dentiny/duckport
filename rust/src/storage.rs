@@ -6,7 +6,8 @@ use url::Url;
 pub fn operator(locator: &str, config: &StorageConfig) -> Result<(opendal::Operator, String)> {
     opendal::install_default();
     if is_local(locator) {
-        return create_local_operator(locator);
+        let (operator, path) = create_local_operator(locator)?;
+        return Ok((observe(operator, config), path));
     }
     create_remote_operator(locator, config)
 }
@@ -34,12 +35,10 @@ fn remote_operator(
     url.set_path("/");
     let operator = if scheme == "http" || scheme == "https" {
         crate::validation::validate_http_config(config)?;
-        let mut builder = opendal::services::Http::default()
+        config.security.http()?;
+        let builder = opendal::services::Http::default()
             .endpoint(url.as_str().trim_end_matches('/'))
             .root(root.unwrap_or("/"));
-        if let Some(token) = &config.security.token {
-            builder = builder.token(token);
-        }
         opendal::Operator::new(builder)?
     } else {
         let mut builder = opendal::services::S3::default()
@@ -54,14 +53,23 @@ fn remote_operator(
         if let Some(endpoint) = &config.endpoint {
             builder = builder.endpoint(endpoint);
         }
-        if let Some(key) = &config.security.access_key_id {
-            builder = builder.access_key_id(key);
-        }
-        if let Some(secret) = &config.security.secret_access_key {
-            builder = builder.secret_access_key(secret);
-        }
-        if let Some(token) = &config.security.session_token {
-            builder = builder.session_token(token);
+        match config.security.s3()? {
+            Some(crate::security::S3Credentials::Static {
+                access_key_id,
+                secret_access_key,
+                session_token,
+            }) => {
+                builder = builder
+                    .access_key_id(access_key_id)
+                    .secret_access_key(secret_access_key);
+                if let Some(token) = session_token {
+                    builder = builder.session_token(token);
+                }
+            }
+            Some(crate::security::S3Credentials::Anonymous) => {
+                builder = builder.skip_signature();
+            }
+            None => {}
         }
         if requester_pays {
             builder = builder.enable_request_payer();
@@ -69,21 +77,20 @@ fn remote_operator(
         if config.virtual_host_style {
             builder = builder.enable_virtual_host_style();
         }
-        if config.security.allow_anonymous {
-            builder = builder.skip_signature();
-        }
         opendal::Operator::new(builder)?
     };
-    let operator = if matches!(scheme.as_str(), "http" | "https")
-        && (!config.security.http_headers.is_empty() || config.security.token.is_some())
-    {
-        let transport = crate::blob_auth::fixed_http_transport(locator, config)?;
+    let operator = if matches!(scheme.as_str(), "http" | "https") {
+        let transport =
+            crate::blob_auth::scoped_http_transport(std::sync::Arc::clone(&config.http_secrets))?;
         let context = operator.base_context().with_http_transport(transport);
         operator.with_context(context)
     } else {
         operator
     };
-    Ok((config.policy.config()?.apply(operator)?, path))
+    Ok((
+        observe(config.policy.config()?.apply(operator)?, config),
+        path,
+    ))
 }
 
 pub(crate) fn is_local(locator: &str) -> bool {
@@ -124,7 +131,10 @@ pub(crate) fn directory_operator_with_requester_pays(
     crate::validation::validate_requester_pays(locator, config, requester_pays)?;
     opendal::install_default();
     if is_local(locator) {
-        return create_local_directory_operator(&crate::utils::local_path(locator)?);
+        return Ok(observe(
+            create_local_directory_operator(&crate::utils::local_path(locator)?)?,
+            config,
+        ));
     }
     let url = Url::parse(locator)?;
     crate::validation::validate_uri(&url)?;
@@ -154,4 +164,11 @@ pub(crate) fn sink_storage_from_root(
     let root = crate::utils::sanitize_storage_root(root);
     let operator = directory_operator(root.as_str(), config)?;
     Ok(open_arrow_sink_storage::Storage::new(operator, root)?)
+}
+
+pub(crate) fn observe(operator: opendal::Operator, config: &StorageConfig) -> opendal::Operator {
+    config.metrics.observe_storage();
+    operator.layer(open_arrow_access::storage::opendal_metrics_layer(
+        config.metrics.clone(),
+    ))
 }

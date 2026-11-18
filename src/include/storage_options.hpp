@@ -4,6 +4,7 @@
 #include "duckdb/common/vector.hpp"
 #include "duckport.h"
 #include "security_options.hpp"
+#include "blob_secrets.hpp"
 
 namespace duckdb {
 class ClientContext;
@@ -13,16 +14,16 @@ void RegisterStorageSettings(ExtensionLoader &loader);
 DuckportStoragePolicy ReadStoragePolicy(ClientContext &context);
 
 class StorageParameters {
-  public:
+public:
 	StorageParameters(ClientContext &context, const string &locator, const string &secret_type);
 	StorageParameters(const StorageParameters &) = delete;
 	StorageParameters &operator=(const StorageParameters &) = delete;
-	DuckportStorageOptions config{};
+	DuckportStorageOptions config {};
 
-  private:
+private:
 	string endpoint;
 	string region;
-    SecurityParameters security;
-    vector<DuckportHttpHeader> headers;
+	unique_ptr<SecurityFfiView> security_view;
+	unique_ptr<SourceSecretsFfiView> http_sources_view;
 };
 } // namespace duckdb

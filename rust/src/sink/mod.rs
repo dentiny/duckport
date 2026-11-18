@@ -32,6 +32,7 @@ pub(crate) async fn open_writer<S: ParallelSink>(
 }
 
 pub struct DuckportSink {
+    pub(crate) metrics: open_arrow_sink_core::IoMetrics,
     pub(crate) writer: Option<Box<dyn Writer>>,
     pub(crate) schema: SchemaRef,
     pub(crate) output_schema: Option<SchemaRef>,

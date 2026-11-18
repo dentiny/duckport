@@ -201,3 +201,32 @@ pub unsafe extern "C" fn duckport_sink_destroy(sink: *mut DuckportSink) {
         }
     });
 }
+
+#[repr(C)]
+#[derive(Default)]
+pub struct DuckportWriteMetrics {
+    pub bytes_read: u64,
+    pub bytes_written: u64,
+}
+
+/// # Safety
+/// Sink is live; output points to writable metrics storage. Works after commit.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn duckport_sink_get_metrics(
+    sink: *const DuckportSink,
+    output: *mut DuckportWriteMetrics,
+) -> *mut c_char {
+    call(|| unsafe {
+        let sink = validation::required(sink.as_ref(), "null sink")?;
+        validation::non_null(output, "null metrics output")?;
+        let snapshot = sink.metrics.snapshot();
+        std::ptr::write(
+            output,
+            DuckportWriteMetrics {
+                bytes_read: snapshot.bytes_read,
+                bytes_written: snapshot.bytes_written,
+            },
+        );
+        Ok(())
+    })
+}

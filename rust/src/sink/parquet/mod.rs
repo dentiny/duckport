@@ -12,10 +12,12 @@ pub(crate) async fn open(
     schema: SchemaRef,
     mode: &str,
     config: &StorageConfig,
-    options: WriteOptions,
+    mut options: WriteOptions,
     writer_count: usize,
 ) -> Result<DuckportSink> {
     let mode = utils::sink_mode(mode)?;
+    let metrics = open_arrow_sink_core::IoMetrics::default();
+    options.io_metrics = Some(metrics.clone().into());
     let destination = storage::sink_storage(path, config)?;
     let writer = open_writer(
         ParquetDirectorySink::new(destination.storage),
@@ -26,6 +28,7 @@ pub(crate) async fn open(
     )
     .await?;
     Ok(DuckportSink {
+        metrics,
         writer: Some(writer),
         schema,
         output_schema: None,

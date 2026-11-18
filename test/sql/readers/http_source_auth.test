@@ -1,0 +1,72 @@
+# name: test/sql/readers/http_source_auth.test
+# description: HTTP redirects reselect scoped credentials and strip them when leaving a scope or origin
+# group: [sql]
+
+require duckport
+
+require duckport_test_fixture
+
+set ignore_error_messages
+
+statement ok
+SET VARIABLE source_endpoint = duckport_fixture('blob_http', 'start_anonymous');
+
+statement ok
+CREATE SECRET source_bearer (TYPE http, BEARER_TOKEN 'fixture-key', SCOPE getvariable('source_endpoint') || '/private/');
+
+statement ok
+CREATE SECRET source_narrow (TYPE http, BEARER_TOKEN 'fixture-narrow', SCOPE getvariable('source_endpoint') || '/private/narrow/');
+
+statement ok
+CREATE SECRET source_custom (TYPE http, EXTRA_HTTP_HEADERS MAP {'X-API-Key': 'fixture-custom'}, SCOPE getvariable('source_endpoint') || '/api-key/');
+
+query I
+SELECT id FROM duckport_scan_json(getvariable('source_endpoint') || '/private/to-narrow.json');
+----
+1
+
+query I
+SELECT id FROM duckport_scan_json(getvariable('source_endpoint') || '/public/to-private.json');
+----
+1
+
+query I
+SELECT id FROM duckport_scan_json(getvariable('source_endpoint') || '/private/to-public.json');
+----
+1
+
+query I
+SELECT id FROM duckport_scan_json(getvariable('source_endpoint') || '/api-key/to-public.json');
+----
+1
+
+query T
+SELECT count(*) > 0 AND bool_and(NOT has_authorization AND NOT contains(headers, 'fixture-'))
+FROM duckport_fixture_requests('blob_http') WHERE target = '/public/records.json';
+----
+true
+
+query I
+SELECT id FROM duckport_scan_json(getvariable('source_endpoint') || '/private/to-cross.json');
+----
+1
+
+query T
+SELECT count(*) > 0 AND bool_and(NOT has_authorization AND NOT contains(headers, 'fixture-'))
+FROM duckport_fixture_requests('blob_http') WHERE origin = 'download';
+----
+true
+
+statement ok
+DROP SECRET source_bearer;
+
+statement ok
+DROP SECRET source_narrow;
+
+statement ok
+DROP SECRET source_custom;
+
+query T
+SELECT duckport_fixture('blob_http', 'stop');
+----
+stopped
