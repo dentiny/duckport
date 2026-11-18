@@ -3,6 +3,13 @@ use open_arrow_access::storage::opendal;
 use std::path::Path;
 use url::Url;
 
+/// Compare canonical scheme and authority for hierarchical storage URIs.
+/// URL's HTTP Origin is opaque for object-store/custom schemes, so compare the
+/// parsed prefix before the path instead of enumerating transport protocols.
+pub(crate) fn same_storage_origin(base: &Url, target: &Url) -> bool {
+    base[..url::Position::BeforePath] == target[..url::Position::BeforePath]
+}
+
 pub fn operator(locator: &str, config: &StorageConfig) -> Result<(opendal::Operator, String)> {
     opendal::install_default();
     if is_local(locator) {

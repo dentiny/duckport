@@ -84,6 +84,11 @@ struct DuckportWriteOptions {
 	size_t index_count;
 	size_t writer_count;
 };
+struct DuckportBlobSource {
+    const char *document;
+    DuckportStorageOptions storage;
+};
+
 struct DuckportReadMetrics {
 	uint64_t bytes_read;
 	uint64_t rows_read;
@@ -120,7 +125,7 @@ char *duckport_parquet_source_open(const char *locator, const DuckportStorageOpt
 // Sink writer functions
 char *duckport_lance_open(const char *path, const ArrowSchema *, const char *mode, const char *const *blob_columns,
                           size_t column_count, const DuckportWriteOptions *, const DuckportBlobSecret *, size_t secret_count, const DuckportStorageOptions *,
-                          DuckportSink **output);
+                          const DuckportBlobSource *, size_t source_count, DuckportSink **output);
 char *duckport_iceberg_open(const char *identifier, const ArrowSchema *, const char *mode, size_t column_count,
                             const char *catalog_uri, const DuckportSecurityOptions *catalog_security, const char *warehouse, const char *storage_root,
                             const DuckportWriteOptions *, const DuckportStorageOptions *, DuckportSink **output);

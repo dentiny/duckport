@@ -1,10 +1,13 @@
+mod media;
 use crate::source::open_file_source;
 use crate::{
     ffi::source::{DuckportSource, open_reader},
     options::{DuckportScanOptions, DuckportStorageOptions},
     storage,
 };
+pub(crate) use media::MediaResolver;
 use open_arrow_access::{OuterCompression, ReadRequest, file_format::atif::AtifFormat};
+pub(crate) const STORAGE_POLICY: &str = "duckport:storage_policy";
 use std::ffi::c_char;
 
 /// # Safety
@@ -17,16 +20,29 @@ pub unsafe extern "C" fn duckport_atif_open(
     scan_options: &DuckportScanOptions,
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
-    let open = |locator: String, storage_options, scan_options| async move {
-        let (operator, path) = storage::operator(&locator, &storage_options)?;
-        Ok(open_file_source(
-            operator,
-            ReadRequest::new(path).with_options(scan_options),
-            AtifFormat::Auto,
-            OuterCompression::Auto,
-            &storage_options.metrics,
-        )
-        .await?)
-    };
+    let open = |locator: String, storage, scan| async move { open(&locator, storage, scan).await };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
+}
+
+pub(crate) async fn open(
+    locator: &str,
+    storage_options: crate::options::StorageConfig,
+    scan_options: open_arrow_access::ReadOptions,
+) -> crate::error::Result<crate::source::DuckportSource> {
+    let (operator, path) = storage::operator(locator, &storage_options)?;
+    let source = open_file_source(
+        operator,
+        ReadRequest::new(path).with_options(scan_options),
+        AtifFormat::Auto,
+        OuterCompression::Auto,
+        &storage_options.metrics,
+    )
+    .await?;
+    let document = if storage::is_local(locator) {
+        url::Url::from_file_path(crate::utils::local_path(locator)?)
+            .map_err(|_| "invalid ATIF document path")?
+    } else {
+        url::Url::parse(locator)?
+    };
+    Ok(source.with_atif(MediaResolver { document }))
 }

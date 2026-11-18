@@ -1,6 +1,6 @@
 mod arxiv;
 mod arxiv_metadata;
-mod atif;
+pub(crate) mod atif;
 mod bhl;
 mod biorxiv;
 mod commoncrawl;

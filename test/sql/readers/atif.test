@@ -30,3 +30,9 @@ statement error
 SELECT * FROM duckport_scan_atif('testdata/atif/bad_version.jsonl', batch_size := 2);
 ----
 expected ATIF-v1.0 through ATIF-v1.8
+
+# Zero-column projection still retains the trajectory row count.
+query I
+SELECT count(*) FROM duckport_scan_atif('testdata/atif/trajectories.jsonl');
+----
+3

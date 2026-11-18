@@ -10,6 +10,7 @@ use open_arrow_access::{
 pub struct DuckportSource {
     source: PreparedSource,
     options: ReadOptions,
+    media: Option<std::sync::Arc<crate::readers::atif::MediaResolver>>,
 }
 
 impl DuckportSource {
@@ -22,11 +23,16 @@ impl DuckportSource {
         Ok(Self {
             source: PreparedSource::prepare(accessor, request).await?,
             options,
+            media: None,
         })
     }
 
     pub fn schema(&self) -> SchemaRef {
-        self.source.schema()
+        if let Some(resolver) = &self.media {
+            resolver.schema(&self.source.schema())
+        } else {
+            self.source.schema()
+        }
     }
 
     pub async fn reader(&self, projection: Vec<String>) -> Result<Box<dyn RecordReader>> {
@@ -44,7 +50,11 @@ impl DuckportSource {
         } else {
             Some(projection)
         };
-        Ok(self.source.scan(options).await?)
+        let reader = self.source.scan(options).await?;
+        match &self.media {
+            Some(resolver) => Ok(resolver.reader(reader)),
+            None => Ok(reader),
+        }
     }
 }
 
@@ -65,4 +75,11 @@ where
         OuterCompression::Auto => std::sync::Arc::new(storage.layer(AutoDecompressionLayer::new())),
     };
     DuckportSource::new(FactoryAccessor::new(storage, format), request).await
+}
+
+impl DuckportSource {
+    pub(crate) fn with_atif(mut self, resolver: crate::readers::atif::MediaResolver) -> Self {
+        self.media = Some(std::sync::Arc::new(resolver));
+        self
+    }
 }

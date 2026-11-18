@@ -1,0 +1,48 @@
+# name: test/sql/writers/atif_media.test
+# description: ATIF media is embedded by Lance while Parquet retains URI strings
+# group: [sql]
+
+require duckport
+
+require parquet
+
+statement ok
+CREATE TABLE atif_media AS
+SELECT trajectory_id, steps AS renamed_steps
+FROM duckport_scan_atif('testdata/atif/trajectory_media.json');
+
+query II
+SELECT ends_with(renamed_steps[1].message[2].source.path, '/testdata/atif/atif-image.png'),
+       ends_with(renamed_steps[1].message[3].source.path, '/testdata/atif/atif-audio.wav')
+FROM atif_media;
+----
+true	true
+
+statement ok
+COPY atif_media TO '{TEST_DIR}/media.parquet' (FORMAT duckport_parquet);
+
+query IIT
+SELECT typeof(renamed_steps[1].message[2].source.path) = 'VARCHAR',
+       renamed_steps[1].message[2].source.path = (SELECT renamed_steps[1].message[2].source.path FROM atif_media),
+       decode(renamed_steps[1].message[1].text)
+FROM read_parquet('{TEST_DIR}/media.parquet/*.parquet');
+----
+true	true	hello 你好🙂
+
+statement ok
+COPY atif_media TO '{TEST_DIR}/media.lance' (FORMAT duckport_lance);
+
+restart no_extension_load
+
+statement ok
+LOAD '{BUILD_DIRECTORY}/extension/lance/lance.duckdb_extension';
+
+query IIIIT
+SELECT renamed_steps[1].message[2].source.path = (SELECT content FROM read_blob('testdata/atif/atif-image.png')),
+       renamed_steps[1].message[3].source.path = (SELECT content FROM read_blob('testdata/atif/atif-audio.wav')),
+       renamed_steps[2].observation.results[1].content[2].source.path = (SELECT content FROM read_blob('testdata/atif/atif-image.png')),
+       renamed_steps[2].observation.results[1].content[3].source.path = (SELECT content FROM read_blob('testdata/atif/atif-audio.wav')),
+       decode(renamed_steps[1].message[1].text)
+FROM '{TEST_DIR}/media.lance';
+----
+true	true	true	true	hello 你好🙂
