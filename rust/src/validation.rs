@@ -1,4 +1,9 @@
-use crate::{error::Result, options::StorageConfig, storage_policy::DuckportStoragePolicy};
+use crate::{
+    error::{Result, http_source_error},
+    options::StorageConfig,
+    storage_policy::DuckportStoragePolicy,
+};
+use http::{HeaderMap, HeaderName, HeaderValue, Method};
 use open_arrow_sink_core::{CompressionSpec, IndexSpec};
 use std::{
     collections::HashSet,
@@ -110,7 +115,9 @@ pub(crate) fn validate_requester_pays(
     if enabled && !locator.starts_with("s3://") {
         return Err("requester_pays requires an S3 root".into());
     }
-    if enabled && (config.security.access_key_id.is_none() || config.security.secret_access_key.is_none()) {
+    if enabled
+        && (config.security.access_key_id.is_none() || config.security.secret_access_key.is_none())
+    {
         return Err("requester_pays requires a scoped S3 secret with credentials".into());
     }
     Ok(())
@@ -374,6 +381,63 @@ pub(crate) fn validate_file_count(value: i64, preserve_order: bool) -> Result<()
     }
     if preserve_order && value != 1 {
         return Err("PRESERVE_ORDER true requires FILE_COUNT 1".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn http_credential_headers(config: &StorageConfig) -> Result<HeaderMap> {
+    let mut headers = HeaderMap::new();
+    for (name, value) in &config.security.http_headers {
+        let name = HeaderName::from_bytes(name.as_bytes())
+            .map_err(|_| "invalid HTTP credential header name")?;
+        if matches!(
+            name.as_str(),
+            "host" | "content-length" | "range" | "connection" | "transfer-encoding"
+        ) {
+            return Err("HTTP credential headers must not override transport headers".into());
+        }
+        if headers.contains_key(&name) {
+            return Err("duplicate HTTP credential header".into());
+        }
+        let mut value =
+            HeaderValue::from_str(value).map_err(|_| "invalid HTTP credential header value")?;
+        value.set_sensitive(true);
+        headers.insert(name, value);
+    }
+    if let Some(token) = &config.security.token {
+        if headers.contains_key(http::header::AUTHORIZATION) {
+            return Err("choose BEARER_TOKEN or an Authorization header".into());
+        }
+        let mut value = HeaderValue::from_str(&format!("Bearer {token}"))
+            .map_err(|_| "invalid HTTP bearer token")?;
+        value.set_sensitive(true);
+        headers.insert(http::header::AUTHORIZATION, value);
+    }
+    Ok(headers)
+}
+
+pub(crate) fn validate_http_source_method(method: &Method) -> opendal::Result<()> {
+    if *method != Method::GET && *method != Method::HEAD {
+        return Err(http_source_error("unsupported download method"));
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_http_source_url(url: &Url) -> opendal::Result<()> {
+    if !matches!(url.scheme(), "http" | "https")
+        || !url.username().is_empty()
+        || url.password().is_some()
+    {
+        return Err(http_source_error("unsupported HTTP redirect target"));
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_http_source_redirect(current: &Url, next: &Url) -> opendal::Result<()> {
+    if current.scheme() == "https" && next.scheme() != "https" {
+        return Err(http_source_error(
+            "HTTPS source redirect downgrade rejected",
+        ));
     }
     Ok(())
 }
