@@ -24,16 +24,9 @@ TO 'tests.people' (FORMAT duckport_iceberg,
 statement error
 COPY (SELECT 6 AS id, 'invalid-mode' AS name)
 TO 'tests.people' (FORMAT duckport_iceberg,
-    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse');
-----
-Iceberg COPY requires APPEND
-
-statement error
-COPY (SELECT 6 AS id, 'invalid-mode' AS name)
-TO 'tests.people' (FORMAT duckport_iceberg,
     CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse', OVERWRITE);
 ----
-Iceberg COPY requires APPEND
+overwrite is unsupported
 
 statement error
 COPY (SELECT 6 AS id, 'invalid-blob' AS name)

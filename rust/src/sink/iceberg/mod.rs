@@ -12,7 +12,7 @@ use iceberg_catalog_rest::{
 use open_arrow_sink_core::{Sink, WriteMode, WriteOptions};
 use open_arrow_sink_iceberg::{
     IcebergTableSink, OpenDalStorageFactory,
-    iceberg::{self, Catalog, CatalogBuilder, TableIdent},
+    iceberg::{self, Catalog, CatalogBuilder, TableCreation, TableIdent},
 };
 use std::{collections::HashMap, sync::Arc};
 
@@ -70,10 +70,29 @@ pub(crate) async fn open_catalog(
     writer_count: usize,
     metrics: open_arrow_sink_core::IoMetrics,
 ) -> Result<DuckportSink> {
+    // DuckPort owns table creation; the sink backend writes the resulting table
+    // through its append-only transaction API.
+    let create = options.mode == WriteMode::Create;
     let options = options.with_mode(WriteMode::Append);
     let sink = IcebergTableSink::new(catalog.clone());
     open_arrow_sink_core::validation::validate_options(&schema, &options, sink.capability())?;
-    let table = catalog.load_table(&identifier).await?;
+    let table = if create {
+        let iceberg_schema = iceberg::arrow::arrow_schema_to_schema_auto_assign_ids(&schema)?;
+        // Check the round trip before mutating the catalog (e.g. generated columns).
+        let output = iceberg::arrow::schema_to_arrow_schema(&iceberg_schema)?;
+        validation::validate_iceberg_schema(&schema, &output)?;
+        catalog
+            .create_table(
+                &identifier.namespace,
+                TableCreation::builder()
+                    .name(identifier.name.clone())
+                    .schema(iceberg_schema)
+                    .build(),
+            )
+            .await?
+    } else {
+        catalog.load_table(&identifier).await?
+    };
     validation::validate_iceberg_table(&table)?;
     let output_schema = Arc::new(iceberg::arrow::schema_to_arrow_schema(
         table.metadata().current_schema(),
