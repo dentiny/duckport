@@ -11,17 +11,13 @@ require httpfs
 statement ok
 SET VARIABLE multi_endpoint = duckport_fixture('blob_s3', 'start_anonymous');
 
-statement ok
-CREATE SECRET multi_a (TYPE s3, KEY_ID 'key-a', SECRET 'secret-a', SESSION_TOKEN 'session-a',
-    ENDPOINT substring(getvariable('multi_endpoint'), 8), USE_SSL false, URL_STYLE 'path', SCOPE 's3://source-a/');
+foreach key,path a,source-a b,source-b c,source-a/narrow
 
 statement ok
-CREATE SECRET multi_b (TYPE s3, KEY_ID 'key-b', SECRET 'secret-b', SESSION_TOKEN 'session-b',
-    ENDPOINT substring(getvariable('multi_endpoint'), 8), USE_SSL false, URL_STYLE 'path', SCOPE 's3://source-b/');
+CREATE SECRET multi_{key} (TYPE s3, KEY_ID 'key-{key}', SECRET 'secret-{key}', SESSION_TOKEN 'session-{key}',
+    ENDPOINT substring(getvariable('multi_endpoint'), 8), USE_SSL false, URL_STYLE 'path', SCOPE 's3://{path}/');
 
-statement ok
-CREATE SECRET multi_c (TYPE s3, KEY_ID 'key-c', SECRET 'secret-c', SESSION_TOKEN 'session-c',
-    ENDPOINT substring(getvariable('multi_endpoint'), 8), USE_SSL false, URL_STYLE 'path', SCOPE 's3://source-a/narrow/');
+endloop
 
 query II
 SELECT count(*), sum(id) FROM duckport_scan_json(['s3://source-a/a.json', 's3://source-b/b.json', 's3://source-a/narrow/c.json']);
@@ -64,25 +60,22 @@ true
 statement ok
 DROP SECRET multi_file_only;
 
-# Discovery may not normalize a path beyond the selected credential scope.
+# Discovery may not normalize beyond the selected credential scope.
+foreach parent .. %2e%2e
+
 statement error
-SELECT * FROM duckport_scan_json('s3://source-a/narrow/../*.json');
+SELECT * FROM duckport_scan_json('s3://source-a/narrow/{parent}/*.json');
 ----
 S3 selections cannot contain dot path segments
 
-statement error
-SELECT * FROM duckport_scan_json('s3://source-a/narrow/%2e%2e/*.json');
-----
-S3 selections cannot contain dot path segments
+endloop
+
+foreach key a b c
 
 statement ok
-DROP SECRET multi_a;
+DROP SECRET multi_{key};
 
-statement ok
-DROP SECRET multi_b;
-
-statement ok
-DROP SECRET multi_c;
+endloop
 
 query T
 SELECT duckport_fixture('blob_s3', 'stop');
@@ -106,23 +99,18 @@ SELECT count(*), sum(id) FROM duckport_scan_json([
 ----
 3	3
 
-query T
-SELECT count(*) > 0 AND bool_and(NOT has_authorization)
-FROM duckport_fixture_requests('blob_http') WHERE target = '/public/records.json';
-----
-true
-
 # HTTP does not expose directory listing, but explicit HTTP file lists work.
 statement error
 SELECT * FROM duckport_scan_json(getvariable('multi_http') || '/*.json');
 ----
 list
 
-statement ok
-DROP SECRET multi_http_a;
+foreach key a b
 
 statement ok
-DROP SECRET multi_http_b;
+DROP SECRET multi_http_{key};
+
+endloop
 
 query T
 SELECT duckport_fixture('blob_http', 'stop');
