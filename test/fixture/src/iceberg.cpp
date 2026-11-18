@@ -11,7 +11,7 @@
 
 #include <cstdlib>
 #include <filesystem>
-#include <fstream>
+#include "duckdb/common/fstream.hpp"
 
 namespace duckdb {
 namespace {
@@ -96,7 +96,7 @@ public:
 
 private:
 	void Publish(yyjson_mut_doc *doc) {
-		std::ofstream output(metadata_file);
+		ofstream output(metadata_file);
 		output << Encode(yyjson_mut_obj_get(yyjson_mut_doc_get_root(doc), "metadata"));
 		output.close();
 		if (!output) {

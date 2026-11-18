@@ -2,7 +2,7 @@
 
 #include "duckdb/common/string.hpp"
 #include "httplib.hpp"
-#include <thread>
+#include "duckdb/common/thread.hpp"
 
 namespace duckdb {
 // Own the listener and its worker so constructor failures also stop the server.
@@ -20,7 +20,7 @@ public:
 private:
 	void Stop();
 	duckdb_httplib::Server server;
-	std::thread worker;
+	thread worker;
 	string description;
 	string endpoint;
 };

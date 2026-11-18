@@ -2,12 +2,12 @@
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/vector_operations/binary_executor.hpp"
 #include "duckdb/function/scalar_function.hpp"
-#include <fstream>
+#include "duckdb/common/fstream.hpp"
 #include <iterator>
 
 namespace duckdb {
 string ReadFixtureFile(const string &provider, const string &name) {
-	std::ifstream file(string(DUCKPORT_TESTDATA_DIR) + "/" + provider + "/" + name, std::ios::binary);
+	ifstream file(string(DUCKPORT_TESTDATA_DIR) + "/" + provider + "/" + name, ios::binary);
 	if (!file) {
 		throw IOException("Cannot open %s fixture: %s", provider, name);
 	}

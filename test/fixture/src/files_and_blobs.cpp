@@ -5,7 +5,7 @@
 #include "duckdb/common/vector_operations/unary_executor.hpp"
 #include "duckdb/common/vector_operations/ternary_executor.hpp"
 #include <filesystem>
-#include <fstream>
+#include "duckdb/common/fstream.hpp"
 
 extern "C" {
 char *duckport_fixture_blob_layout(const char *, const char *, char **);
@@ -37,7 +37,7 @@ void BlobLayout(DataChunk &args, ExpressionState &, Vector &result) {
 string WriteFixtureFile(const string &path, string_t bytes) {
 	auto file_path = std::filesystem::path(path);
 	std::filesystem::create_directories(file_path.parent_path());
-	std::ofstream file(file_path, std::ios::binary | std::ios::trunc);
+	ofstream file(file_path, ios::binary | ios::trunc);
 	file.write(bytes.GetData(), bytes.GetSize());
 	file.close();
 	if (!file) {

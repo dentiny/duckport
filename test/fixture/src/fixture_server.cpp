@@ -1,5 +1,6 @@
 #include "fixture_server.hpp"
 #include "duckdb/common/exception.hpp"
+#include "duckdb/common/to_string.hpp"
 
 namespace duckdb {
 FixtureServer::FixtureServer(const string &description) : description(description) {
@@ -7,7 +8,7 @@ FixtureServer::FixtureServer(const string &description) : description(descriptio
 	if (port < 0) {
 		throw IOException("Cannot bind %s", description);
 	}
-	endpoint = "http://127.0.0.1:" + std::to_string(port);
+	endpoint = "http://127.0.0.1:" + to_string(port);
 }
 
 FixtureServer::~FixtureServer() {
@@ -23,7 +24,7 @@ const string &FixtureServer::Endpoint() const {
 }
 
 void FixtureServer::Start() {
-	worker = std::thread([this] { server.listen_after_bind(); });
+	worker = thread([this] { server.listen_after_bind(); });
 	server.wait_until_ready();
 	if (!server.is_running()) {
 		Stop();

@@ -9,8 +9,9 @@
 #include "duckdb/common/unique_ptr.hpp"
 #include "yyjson.hpp"
 
-#include <atomic>
-#include <mutex>
+#include "duckdb/common/atomic.hpp"
+#include "duckdb/common/mutex.hpp"
+#include "duckdb/common/to_string.hpp"
 
 namespace duckdb {
 namespace {
@@ -65,19 +66,19 @@ public:
 	}
 
 	vector<FixtureRequest> Snapshot() {
-		std::lock_guard<std::mutex> guard(trace_mutex);
+		annotated_lock_guard<annotated_mutex> guard(trace_mutex);
 		return traces;
 	}
 
 	void Reset() {
-		std::lock_guard<std::mutex> guard(trace_mutex);
+		annotated_lock_guard<annotated_mutex> guard(trace_mutex);
 		traces.clear();
 	}
 
 	string endpoint;
 	string download_endpoint;
 	string auth_scope = "/";
-	std::atomic<bool> reject_metadata {false};
+	atomic<bool> reject_metadata {false};
 
 private:
 	void RegisterRoutes() {
@@ -192,7 +193,7 @@ private:
 		                      req.has_header("Authorization"),
 		                      req.has_header("x-amz-request-payer")};
 		{
-			std::lock_guard<std::mutex> guard(trace_mutex);
+			annotated_lock_guard<annotated_mutex> guard(trace_mutex);
 			traces.push_back(std::move(trace));
 		}
 	}
@@ -253,17 +254,17 @@ private:
 	bool require_low = false;
 	vector<Route> api_routes;
 	vector<Route> download_routes;
-	std::mutex trace_mutex;
-	vector<FixtureRequest> traces;
+	annotated_mutex trace_mutex;
+	vector<FixtureRequest> traces DUCKDB_GUARDED_BY(trace_mutex);
 	// Stop workers before destroying any state captured by request handlers.
 	FixtureServer api {"provider fixture servers"};
 	FixtureServer downloads {"provider fixture servers"};
 };
 
-std::mutex fixture_mutex;
-map<string, shared_ptr<ProviderFixture>> fixtures;
+annotated_mutex fixture_mutex;
+map<string, shared_ptr<ProviderFixture>> fixtures DUCKDB_GUARDED_BY(fixture_mutex);
 
-shared_ptr<ProviderFixture> GetFixture(const string &provider) {
+shared_ptr<ProviderFixture> GetFixture(const string &provider) DUCKDB_REQUIRES(fixture_mutex) {
 	auto entry = fixtures.find(provider);
 	if (entry == fixtures.end()) {
 		throw InvalidInputException("Start the provider fixture first: %s", provider);
@@ -271,7 +272,7 @@ shared_ptr<ProviderFixture> GetFixture(const string &provider) {
 	return entry->second;
 }
 
-string StartProviderFixture(const string &provider, const string &command) {
+string StartProviderFixture(const string &provider, const string &command) DUCKDB_REQUIRES(fixture_mutex) {
 	fixtures.erase(provider);
 	bool authenticated = command == "start_authenticated" || (command == "start" && provider != "internet_archive");
 	auto fixture = make_shared_ptr<ProviderFixture>(provider, authenticated);
@@ -303,7 +304,7 @@ string QueryProviderFixture(ProviderFixture &fixture, const string &provider, co
 				count++;
 			}
 		}
-		return std::to_string(count);
+		return to_string(count);
 	}
 	throw InvalidInputException("Unknown provider fixture command: %s", command);
 }
@@ -314,7 +315,7 @@ string ProviderFixtureCommand(const string &provider, const string &command) {
 	                            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") != string::npos) {
 		throw InvalidInputException("Invalid fixture provider name");
 	}
-	std::lock_guard<std::mutex> guard(fixture_mutex);
+	annotated_lock_guard<annotated_mutex> guard(fixture_mutex);
 	if (command == "start" || command == "start_anonymous" || command == "start_authenticated") {
 		return StartProviderFixture(provider, command);
 	}
@@ -326,7 +327,7 @@ string ProviderFixtureCommand(const string &provider, const string &command) {
 }
 
 vector<FixtureRequest> ProviderFixtureRequests(const string &provider) {
-	std::lock_guard<std::mutex> guard(fixture_mutex);
+	annotated_lock_guard<annotated_mutex> guard(fixture_mutex);
 	return GetFixture(provider)->Snapshot();
 }
 } // namespace duckdb
