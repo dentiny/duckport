@@ -44,12 +44,8 @@ pub(crate) async fn open(
     if !warehouse.is_empty() {
         props.insert(REST_CATALOG_PROP_WAREHOUSE.into(), warehouse.into());
     }
-    let token = validation::iceberg_catalog_token(catalog_security)?;
-    if let Some(token) = token
-        .map(str::to_owned)
-        .or_else(|| std::env::var("DUCKPORT_ICEBERG_TOKEN").ok())
-    {
-        props.insert("token".into(), token);
+    if let Some(token) = validation::iceberg_catalog_token(catalog_security)? {
+        props.insert("token".into(), token.to_owned());
     }
     let catalog = RestCatalogBuilder::default()
         .with_storage_factory(Arc::new(factory))
