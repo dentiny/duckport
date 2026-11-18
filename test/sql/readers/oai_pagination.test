@@ -1,0 +1,354 @@
+# name: test/sql/readers/oai_pagination.test
+# description: Opt-in OAI continuation, limits, projection, errors and independent execution
+# group: [sql]
+
+require duckport
+require duckport_test_fixture
+
+statement ok
+SET VARIABLE pages_endpoint = duckport_fixture('oai_pagination', 'start_anonymous');
+
+# doab: include deleted records and continue across an empty page.
+query T
+SELECT identifier FROM duckport_scan_doab('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true, batch_size := 1);
+----
+id1
+id2
+id3
+id4
+
+query I
+SELECT count(*) FROM duckport_scan_doab('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true);
+----
+4
+
+query I
+SELECT count(*) FROM duckport_scan_doab('records', endpoint := getvariable('pages_endpoint'));
+----
+2
+
+query T
+SELECT identifier FROM duckport_scan_doab('next+token&x', endpoint := getvariable('pages_endpoint'), auto_paginate := true);
+----
+id3
+id4
+
+# oapen: include deleted records and continue across an empty page.
+query T
+SELECT identifier FROM duckport_scan_oapen('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true, batch_size := 1);
+----
+id1
+id2
+id3
+id4
+
+query I
+SELECT count(*) FROM duckport_scan_oapen('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true);
+----
+4
+
+query I
+SELECT count(*) FROM duckport_scan_oapen('records', endpoint := getvariable('pages_endpoint'));
+----
+2
+
+query T
+SELECT identifier FROM duckport_scan_oapen('next+token&x', endpoint := getvariable('pages_endpoint'), auto_paginate := true);
+----
+id3
+id4
+
+# arxiv_metadata: include deleted records and continue across an empty page.
+query T
+SELECT identifier FROM duckport_scan_arxiv_metadata('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true, batch_size := 1);
+----
+id1
+id2
+id3
+id4
+
+query I
+SELECT count(*) FROM duckport_scan_arxiv_metadata('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true);
+----
+4
+
+query I
+SELECT count(*) FROM duckport_scan_arxiv_metadata('records', endpoint := getvariable('pages_endpoint'));
+----
+2
+
+query T
+SELECT identifier FROM duckport_scan_arxiv_metadata('next+token&x', endpoint := getvariable('pages_endpoint'), auto_paginate := true);
+----
+id3
+id4
+
+query T
+SELECT status FROM duckport_scan_doab('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true, max_records := 1);
+----
+deleted
+
+query T
+SELECT identifier FROM duckport_scan_doab('empty-first', endpoint := getvariable('pages_endpoint'), auto_paginate := true);
+----
+id3
+id4
+
+query I
+SELECT count(*) FROM duckport_scan_doab('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true, max_pages := 3);
+----
+4
+
+statement error
+SELECT count(*) FROM duckport_scan_doab('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true, max_pages := 2);
+----
+page limit reached
+
+statement error
+SELECT count(*) FROM duckport_scan_doab('loop', endpoint := getvariable('pages_endpoint'), auto_paginate := true);
+----
+repeated OAI resumption token
+
+statement error
+SELECT count(*) FROM duckport_scan_doab('error-next', endpoint := getvariable('pages_endpoint'), auto_paginate := true);
+----
+OAI protocol error
+
+query T
+SELECT "oai:header"."oai:identifier" FROM duckport_scan_doab('last', endpoint := getvariable('pages_endpoint'), auto_paginate := true, record_path := '/oai:OAI-PMH/oai:ListRecords/oai:record');
+----
+id3
+id4
+
+statement ok
+SELECT duckport_fixture('oai_pagination', 'reset');
+
+query I
+SELECT count(*) FROM duckport_scan_doab('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true, max_records := 1, batch_size := 2);
+----
+1
+
+query I
+SELECT count(*) FROM duckport_fixture_requests('oai_pagination') WHERE contains(target, 'resumptionToken');
+----
+0
+
+statement ok
+SELECT duckport_fixture('oai_pagination', 'reset');
+
+query I
+SELECT count(*) FROM duckport_scan_doab('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true, max_records := 2, batch_size := 2);
+----
+2
+
+query I
+SELECT count(*) FROM duckport_fixture_requests('oai_pagination') WHERE contains(target, 'resumptionToken');
+----
+0
+
+statement ok
+SELECT duckport_fixture('oai_pagination', 'reset');
+
+query I
+SELECT count(*) FROM duckport_scan_doab('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true, max_records := 3, batch_size := 2);
+----
+3
+
+statement ok
+SELECT duckport_fixture('oai_pagination', 'reset');
+
+query I
+SELECT count(*) FROM duckport_scan_doab('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true, max_records := 4, batch_size := 2);
+----
+4
+
+statement ok
+SELECT duckport_fixture('oai_pagination', 'reset');
+
+query I
+SELECT count(*) FROM duckport_scan_doab('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true, max_records := 5, batch_size := 2);
+----
+4
+
+query T
+SELECT identifier FROM duckport_scan_doab('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true, max_records := 3, batch_size := 2);
+----
+id1
+id2
+id3
+
+query I
+SELECT count(*) FROM duckport_scan_doab('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true, max_pages := 1, max_records := 2);
+----
+2
+
+statement ok
+PREPARE paged AS SELECT count(*) FROM duckport_scan_doab('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true);
+
+query I
+EXECUTE paged;
+----
+4
+
+query I
+EXECUTE paged;
+----
+4
+
+statement ok
+DEALLOCATE paged;
+
+statement error
+SELECT * FROM duckport_scan_doab('records', endpoint := getvariable('pages_endpoint'), max_records := 1);
+----
+require auto_paginate
+
+statement error
+SELECT * FROM duckport_scan_doab('records', endpoint := getvariable('pages_endpoint'), max_pages := 1);
+----
+require auto_paginate
+
+statement error
+SELECT * FROM duckport_scan_doab('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true, max_records := 0);
+----
+max_records must be positive
+
+statement error
+SELECT * FROM duckport_scan_doab('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true, max_pages := -1);
+----
+max_pages must be positive
+
+statement error
+SELECT * FROM duckport_scan_doab('records', endpoint := getvariable('pages_endpoint'), auto_paginate := NULL);
+----
+cannot be NULL
+
+statement error
+SELECT * FROM duckport_scan_doab('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true, max_records := NULL);
+----
+cannot be NULL
+
+statement error
+SELECT * FROM duckport_scan_oapen('records', endpoint := getvariable('pages_endpoint'), max_records := 1);
+----
+require auto_paginate
+
+statement error
+SELECT * FROM duckport_scan_oapen('records', endpoint := getvariable('pages_endpoint'), max_pages := 1);
+----
+require auto_paginate
+
+statement error
+SELECT * FROM duckport_scan_oapen('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true, max_records := 0);
+----
+max_records must be positive
+
+statement error
+SELECT * FROM duckport_scan_oapen('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true, max_pages := -1);
+----
+max_pages must be positive
+
+statement error
+SELECT * FROM duckport_scan_oapen('records', endpoint := getvariable('pages_endpoint'), auto_paginate := NULL);
+----
+cannot be NULL
+
+statement error
+SELECT * FROM duckport_scan_oapen('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true, max_records := NULL);
+----
+cannot be NULL
+
+statement error
+SELECT * FROM duckport_scan_arxiv_metadata('records', endpoint := getvariable('pages_endpoint'), max_records := 1);
+----
+require auto_paginate
+
+statement error
+SELECT * FROM duckport_scan_arxiv_metadata('records', endpoint := getvariable('pages_endpoint'), max_pages := 1);
+----
+require auto_paginate
+
+statement error
+SELECT * FROM duckport_scan_arxiv_metadata('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true, max_records := 0);
+----
+max_records must be positive
+
+statement error
+SELECT * FROM duckport_scan_arxiv_metadata('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true, max_pages := -1);
+----
+max_pages must be positive
+
+statement error
+SELECT * FROM duckport_scan_arxiv_metadata('records', endpoint := getvariable('pages_endpoint'), auto_paginate := NULL);
+----
+cannot be NULL
+
+statement error
+SELECT * FROM duckport_scan_arxiv_metadata('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true, max_records := NULL);
+----
+cannot be NULL
+
+statement error
+SELECT * FROM duckport_scan_doab('last', endpoint := getvariable('pages_endpoint'), auto_paginate := true, from_date := '2026-01-01');
+----
+cannot be combined
+
+statement ok
+SELECT duckport_fixture('oai_pagination', 'reset');
+
+query I
+SELECT count(*) FROM duckport_scan_doab('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true, from_date := '2026-01-01', until_date := '2026-02-01', set_spec := 'books');
+----
+4
+
+query T
+SELECT count(*) > 0 FROM duckport_fixture_requests('oai_pagination') WHERE target = '/oai/request?verb=ListRecords&resumptionToken=next%2Btoken%26x';
+----
+true
+
+query I
+SELECT count(*) FROM duckport_fixture_requests('oai_pagination') WHERE contains(target, 'resumptionToken') AND (contains(target, 'from=') OR contains(target, 'until=') OR contains(target, 'set='));
+----
+0
+
+# A terminal empty harvest still has a bindable header schema.
+query I
+SELECT count(*) FROM duckport_scan_doab('none', endpoint := getvariable('pages_endpoint'), auto_paginate := true);
+----
+0
+
+# Inference cannot silently change fields between pages.
+statement error
+SELECT * FROM duckport_scan_doab('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true, record_path := '/oai:OAI-PMH/oai:ListRecords/oai:record');
+----
+OAI page schema changed
+
+query T
+SELECT duckport_fixture('oai_pagination', 'stop');
+----
+stopped
+
+# Bearer credentials must be applied to every continuation request.
+statement ok
+SET VARIABLE pages_endpoint = duckport_fixture('oai_pagination', 'start_authenticated');
+
+statement ok
+CREATE SECRET pages_bearer (TYPE http, BEARER_TOKEN 'fixture-key', SCOPE getvariable('pages_endpoint'));
+
+query I
+SELECT count(*) FROM duckport_scan_oapen('records', endpoint := getvariable('pages_endpoint'), auto_paginate := true);
+----
+4
+
+query T
+SELECT count(*) > 0 AND bool_and("authorization" = 'Bearer fixture-key') FROM duckport_fixture_requests('oai_pagination') WHERE contains(target, 'resumptionToken');
+----
+true
+
+statement ok
+DROP SECRET pages_bearer;
+
+query T
+SELECT duckport_fixture('oai_pagination', 'stop');
+----
+stopped

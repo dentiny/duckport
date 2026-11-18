@@ -44,6 +44,9 @@ void LoadInternal(ExtensionLoader &loader) {
 		options.Add("until_date", LogicalType::VARCHAR);
 		options.Add("set_spec", LogicalType::VARCHAR);
 		options.Add("record_path", LogicalType::VARCHAR);
+		options.Add("auto_paginate", LogicalType::BOOLEAN);
+		options.Add("max_pages", LogicalType::BIGINT);
+		options.Add("max_records", LogicalType::BIGINT);
 	});
 	RegisterReader(loader, "duckport_scan_doab", OpenDoab, [](TypedKwargs &options) {
 		options.Add("endpoint", LogicalType::VARCHAR);
@@ -51,6 +54,9 @@ void LoadInternal(ExtensionLoader &loader) {
 		options.Add("until_date", LogicalType::VARCHAR);
 		options.Add("set_spec", LogicalType::VARCHAR);
 		options.Add("record_path", LogicalType::VARCHAR);
+		options.Add("auto_paginate", LogicalType::BOOLEAN);
+		options.Add("max_pages", LogicalType::BIGINT);
+		options.Add("max_records", LogicalType::BIGINT);
 	});
 	RegisterReader(loader, "duckport_scan_arxiv_metadata", OpenArxivMetadata, [](TypedKwargs &options) {
 		options.Add("endpoint", LogicalType::VARCHAR);
@@ -58,6 +64,9 @@ void LoadInternal(ExtensionLoader &loader) {
 		options.Add("until_date", LogicalType::VARCHAR);
 		options.Add("set_spec", LogicalType::VARCHAR);
 		options.Add("record_path", LogicalType::VARCHAR);
+		options.Add("auto_paginate", LogicalType::BOOLEAN);
+		options.Add("max_pages", LogicalType::BIGINT);
+		options.Add("max_records", LogicalType::BIGINT);
 	});
 	RegisterReader(loader, "duckport_scan_arxiv", OpenArxiv, [](TypedKwargs &options) {
 		options.Add("kind", LogicalType::VARCHAR);

@@ -1,0 +1,69 @@
+{
+  "routes": [
+    {
+      "path": "/oai/request?verb=ListRecords&resumptionToken=next%2Btoken%26x",
+      "file": "empty.xml"
+    },
+    {
+      "path": "/oai/request?verb=ListRecords&resumptionToken=last",
+      "file": "last.xml"
+    },
+    {
+      "path": "/oai/request?verb=ListRecords&resumptionToken=loop",
+      "file": "loop.xml"
+    },
+    {
+      "path": "/oai/request?verb=ListRecords&resumptionToken=bad",
+      "file": "bad.xml"
+    },
+    {
+      "path": "/oai/request?verb=ListRecords&resumptionToken=empty-first",
+      "file": "empty_first.xml"
+    },
+    {
+      "path": "/oai/request",
+      "file": "first.xml"
+    },
+    {
+      "path": "/oai?verb=ListRecords&resumptionToken=next%2Btoken%26x",
+      "file": "empty.xml"
+    },
+    {
+      "path": "/oai?verb=ListRecords&resumptionToken=last",
+      "file": "last.xml"
+    },
+    {
+      "path": "/oai?verb=ListRecords&resumptionToken=loop",
+      "file": "loop.xml"
+    },
+    {
+      "path": "/oai?verb=ListRecords&resumptionToken=bad",
+      "file": "bad.xml"
+    },
+    {
+      "path": "/oai?verb=ListRecords&resumptionToken=empty-first",
+      "file": "empty_first.xml"
+    },
+    {
+      "path": "/oai",
+      "file": "first.xml"
+    },
+    {
+      "path": "/oai/request?verb=ListRecords&resumptionToken=none",
+      "file": "none.xml"
+    },
+    {
+      "path": "/oai?verb=ListRecords&resumptionToken=none",
+      "file": "none.xml"
+    },
+    {
+      "path": "/oai/request?verb=ListRecords&resumptionToken=error-next",
+      "file": "error_next.xml"
+    },
+    {
+      "path": "/oai?verb=ListRecords&resumptionToken=error-next",
+      "file": "error_next.xml"
+    }
+  ],
+  "auth": "authorization"
+}

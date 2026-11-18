@@ -495,7 +495,7 @@ The default record path is `/oai:OAI-PMH/oai:ListRecords/oai:record`. The OAI na
 retain that prefix. `endpoint` defaults to `https://directory.doabooks.org`.
 To obtain the next resumption token, scan the envelope with
 `record_path := '/oai:OAI-PMH/oai:ListRecords'` and select `"oai:resumptionToken"`.
-Automatic pagination is not enabled. Scoped HTTP bearer tokens are supported.
+Automatic pagination is opt-in (see below). Scoped HTTP bearer tokens are supported.
 
 ### Oapen
 
@@ -509,7 +509,7 @@ The default record path is `/oai:OAI-PMH/oai:ListRecords/oai:record`. The OAI na
 retain that prefix. `endpoint` defaults to `https://library.oapen.org`.
 To obtain the next resumption token, scan the envelope with
 `record_path := '/oai:OAI-PMH/oai:ListRecords'` and select `"oai:resumptionToken"`.
-Automatic pagination is not enabled. Scoped HTTP bearer tokens are supported.
+Automatic pagination is opt-in (see below). Scoped HTTP bearer tokens are supported.
 
 ### arXiv metadata
 
@@ -526,8 +526,37 @@ match the DOAB/OAPEN metadata readers; the default endpoint is
 and nested metadata. Set `record_path := '/oai:OAI-PMH/oai:ListRecords'` to
 read the envelope and its `"oai:resumptionToken"` for explicit continuation.
 A continuation token cannot be combined with date/set selectors.
+
 Public metadata needs no key; scoped HTTP bearer secrets are supported for
 custom endpoints. `duckport_scan_arxiv` continues to read bulk TAR members.
 Empty pages, including `noRecordsMatch`, bind with the standard OAI header columns
 `identifier`, `datestamp`, `status`, and `set_specs` and return zero rows. An explicit
 `record_path` continues to select the requested XML envelope.
+
+### OAI-PMH automatic pagination
+
+All three OAI-PMH readers (`duckport_scan_doab`, `duckport_scan_oapen`, and
+`duckport_scan_arxiv_metadata`) support automatic continuation:
+
+```sql
+SELECT identifier, status
+FROM duckport_scan_doab('records', auto_paginate := true,
+                        max_pages := 100, max_records := 10000);
+```
+
+`auto_paginate` defaults to `false`, preserving the existing single-page output.
+In automatic mode the default columns are the stable OAI-PMH headers:
+`identifier`, `datestamp`, `status`, and `set_specs`, including deleted records.
+`record_path` can select other XML fields; inferred schemas must remain identical
+across pages or the scan fails. Empty pages do not end a scan if a token remains.
+Date/set selectors apply only to the initial request; continuation requests send
+only the opaque token. A token locator may also start an automatic scan.
+
+Both limits are optional positive integers and require `auto_paginate := true`.
+`max_pages` counts all fetched pages, including empty pages and the initial or
+resumed page. If that limit is reached with another continuation, the scan fails
+instead of reporting an incomplete harvest as complete. `max_records` deliberately
+returns at most that many output rows, slicing the final batch and stopping without
+fetching another page. A whole current page is still fetched and parsed. Repeated
+tokens, provider errors, and schema changes fail the scan. Pages are requested on
+demand, and each execution of a prepared statement starts its own continuation.
