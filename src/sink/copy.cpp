@@ -1,5 +1,6 @@
 #include "source_metadata.hpp"
 #include "sink/copy.hpp"
+#include "sink/writer_context.hpp"
 #include "duckdb/catalog/catalog.hpp"
 #include "duckdb/catalog/catalog_entry/copy_function_catalog_entry.hpp"
 #include "duckdb/common/arrow/arrow_converter.hpp"
@@ -339,10 +340,10 @@ unique_ptr<GlobalFunctionData> InitCopy(ClientContext &context, FunctionData &da
 	}
 	StorageParameters storage(context, bind.options.storage_root.empty() ? path : bind.options.storage_root, {});
 	auto options = bind.options;
-    options.blob_secrets = CaptureBlobSecrets(context);
 	options.write_options.writer_count = options.file_count.value_or(
 	    options.preserve_order ? 1 : TaskScheduler::GetScheduler(context).NumberOfThreads());
-	state->writer = bind.info->Cast<WriterInfo>().open(path, storage.config, options, schema.arrow_schema);
+	WriterOpenContext open_context(context, storage.config);
+	state->writer = bind.info->Cast<WriterInfo>().open(path, open_context, options, schema.arrow_schema);
 	if (!state->writer) {
 		throw InternalException("DuckPort sink opener returned no writer");
 	}
