@@ -36,10 +36,14 @@ pub async fn open<A: ByteAccessor + 'static>(
     file: String,
     attachment_options: AttachmentOptions,
     options: ReadOptions,
+    metrics: crate::metrics::ReadMetrics,
 ) -> Result<DuckportSource> {
     DuckportSource::new(
         AttachmentAccessor {
-            accessor: Arc::new(attachment_accessor),
+            accessor: Arc::new(crate::metrics::ObservedBytes::new(
+                attachment_accessor,
+                metrics,
+            )),
             options: attachment_options,
         },
         ReadRequest::new(file).with_options(options),

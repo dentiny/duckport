@@ -61,7 +61,14 @@ pub unsafe extern "C" fn duckport_biorxiv_open(
                 .details(server, &locator, &until, cursor.parse()?)
                 .await?,
         )?;
-        crate::service_files::open(files, file_name, attachment_options, scan_options).await
+        crate::service_files::open(
+            files,
+            file_name,
+            attachment_options,
+            scan_options,
+            storage_options.metrics.clone(),
+        )
+        .await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }

@@ -52,7 +52,14 @@ pub unsafe extern "C" fn duckport_uspto_open(
             .with_key(&token)?
             .product(&locator, offset.parse()?, page_size.parse()?)
             .await?;
-        crate::service_files::open(files, file_name, attachment_options, scan_options).await
+        crate::service_files::open(
+            files,
+            file_name,
+            attachment_options,
+            scan_options,
+            storage_options.metrics.clone(),
+        )
+        .await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }

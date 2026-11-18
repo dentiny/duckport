@@ -91,6 +91,24 @@ The [Iceberg sink](docs/writers/iceberg.md) appends to existing tables through a
 Native `FORMAT PARQUET` writes individual files. All three sinks support
 [COPY sampling](docs/writers/README.md#copy-sampling) with `SAMPLE_PERCENT` and `SAMPLE_ROWS`.
 
+## Progress and profiling
+
+Enable the progress bar with `SET enable_progress_bar = true`. Single-file scans
+and provider attachments report estimated encoded-byte progress when their size
+is known; other scans remain indeterminate. Progress reaches 100% at reader EOF.
+
+Readers report scanned rows and observed input bytes to DuckDB's profiler.
+COPY reports sink read/write bytes after a successful commit, including APPEND
+metadata reads and finalization writes. Byte counts exclude provider discovery
+and hidden transports such as Hugging Face discovery/shards.
+
+```sql
+SET profiling_coverage = 'ALL';
+SET tracked_metrics = ['operator.type', 'operator.rows_scanned',
+                       'io.total_bytes_read', 'io.total_bytes_written'];
+PRAGMA enable_profiling = 'json';
+```
+
 [Tests](test/README.md) · [Development](docs/UPDATING.md)
 
 ### Gutenberg

@@ -1,5 +1,6 @@
 mod error;
 mod ffi;
+mod metrics;
 mod oai;
 pub mod options;
 mod readers;

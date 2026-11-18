@@ -24,6 +24,7 @@ pub unsafe extern "C" fn duckport_atif_open(
             ReadRequest::new(path).with_options(scan_options),
             AtifFormat::Auto,
             OuterCompression::Auto,
+            &storage_options.metrics,
         )
         .await?)
     };

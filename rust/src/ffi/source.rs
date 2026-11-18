@@ -18,6 +18,7 @@ use std::{ffi::c_char, ptr, sync::Arc};
 
 pub struct DuckportSource {
     source: Option<AsyncSource>,
+    metrics: crate::metrics::ReadMetrics,
 }
 
 impl Drop for DuckportSource {
@@ -44,6 +45,7 @@ pub unsafe extern "C" fn duckport_parquet_source_open(
             ReadRequest::new(path).with_options(scan_options),
             ParquetFormat,
             OuterCompression::None,
+            &storage_options.metrics,
         )
         .await?)
     };
@@ -87,10 +89,11 @@ pub unsafe extern "C" fn duckport_source_get_stream(
             .iter()
             .map(|column| string(*column))
             .collect::<Result<Vec<_>>>()?;
-        let reader = BlockingRecordBatchReader::new(
-            RUNTIME.block_on(source.reader(projection))?,
-            Arc::clone(&RUNTIME),
-        );
+        handle.metrics.begin_scan();
+        let reader = handle
+            .metrics
+            .observe_reader(RUNTIME.block_on(source.reader(projection))?);
+        let reader = BlockingRecordBatchReader::new(reader, Arc::clone(&RUNTIME));
         ptr::write(output, FFI_ArrowArrayStream::new(Box::new(reader)));
         Ok(())
     })
@@ -125,10 +128,27 @@ where
         let locator = string(locator)?;
         let storage = storage_options.read()?;
         let scan = scan_options.read()?;
+        let metrics = storage.metrics.clone();
         let source = RUNTIME.block_on(open(locator, storage, scan))?;
         *output = Box::into_raw(Box::new(DuckportSource {
             source: Some(source),
+            metrics,
         }));
+        Ok(())
+    })
+}
+
+/// # Safety
+/// Source is live; output points to writable metrics storage. No I/O is performed.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn duckport_source_get_metrics(
+    source: *const DuckportSource,
+    output: *mut crate::metrics::DuckportReadMetrics,
+) -> *mut c_char {
+    call(|| unsafe {
+        let source = validation::required(source.as_ref(), "null source")?;
+        validation::non_null(output, "null metrics output")?;
+        ptr::write(output, source.metrics.snapshot());
         Ok(())
     })
 }

@@ -13,6 +13,11 @@ public:
 	void Commit() override {
 		CheckError(duckport_sink_commit(writer.get()));
 	}
+	DuckportWriteMetrics Metrics() const override {
+		DuckportWriteMetrics metrics {};
+		CheckError(duckport_sink_get_metrics(writer.get(), &metrics));
+		return metrics;
+	}
 	void Abort() noexcept override {
 		writer.reset();
 	}
