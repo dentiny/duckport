@@ -103,3 +103,12 @@ Same-origin redirects resolve the matching source secret again. Cross-origin
 redirects omit all credentials; HTTPS downgrades are rejected. Secret snapshots
 are owned by Rust through completion/cancellation, without calling DuckDB from
 background tasks. Credentials are not placed in URL parameters or COPY options.
+
+## S3 source authentication
+
+Each `s3://` Blob source uses its own longest-scoped DuckDB S3 secret, including
+`KEY_ID`, `SECRET`, `SESSION_TOKEN`, `REGION`, `ENDPOINT`, `USE_SSL` and `URL_STYLE`.
+Sources may span buckets, prefixes and endpoints in the same COPY, including
+when the destination is local. Explicit source credentials take precedence over
+the sink's destination namespace. Without a source secret, native source
+credential resolution remains independent of destination credentials.

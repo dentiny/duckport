@@ -2,12 +2,15 @@
 //! DuckDB, and no credential or URL is included in transport error messages.
 use crate::{
     error::{Result, http_source_error},
-    options::DuckportStorageOptions,
+    options::{DuckportStorageOptions, StorageConfig},
     security::ScopedHttpCredentials,
     utils, validation,
 };
 use http::{Request, Response};
-use open_arrow_sink_storage::{BlobDownloader, OpenDalDownloader};
+use open_arrow_sink_core::{Error, async_trait};
+use open_arrow_sink_storage::{
+    BlobDownloader, DownloadContext, DownloadStream, Downloader, OpenDalDownloader,
+};
 use opendal::{Buffer, HttpBody, HttpTransport, HttpTransporter};
 use std::{ffi::c_char, sync::Arc};
 use url::Url;
@@ -18,20 +21,53 @@ pub struct DuckportBlobSecret {
     pub r#type: *const c_char,
     pub config: DuckportStorageOptions,
 }
+pub(crate) struct SourceSecrets {
+    http: Vec<ScopedHttpCredentials>,
+    s3: Vec<(String, StorageConfig)>,
+}
+
 pub(crate) unsafe fn read_secrets(
     raw: *const DuckportBlobSecret,
     count: usize,
-) -> Result<Vec<ScopedHttpCredentials>> {
-    unsafe { utils::ffi_slice(raw, count, "null Blob secrets") }?
-        .iter()
-        .map(|s| unsafe {
-            if utils::string(s.r#type)? != "http" {
-                return Err("unsupported Blob source secret type".into());
+) -> Result<SourceSecrets> {
+    let mut sources = SourceSecrets {
+        http: Vec::new(),
+        s3: Vec::new(),
+    };
+    for secret in unsafe { utils::ffi_slice(raw, count, "null Blob secrets") }? {
+        match unsafe { utils::string(secret.r#type) }?.as_str() {
+            "http" => sources.http.push(unsafe {
+                crate::security::read_http_secret(secret.scope, &secret.config.security)
+            }?),
+            "s3" => {
+                let config = unsafe { secret.config.read() }?;
+                config.security.s3()?;
+                sources
+                    .s3
+                    .push((unsafe { utils::string(secret.scope) }?, config));
             }
-            crate::security::read_http_secret(s.scope, &s.config.security)
-        })
-        .collect()
+            _ => return Err("unsupported Blob source secret type".into()),
+        }
+    }
+    Ok(sources)
 }
+
+// Match prefix scopes, preserving the first secret on a tie.
+fn select_source<'a>(
+    sources: &'a [(String, StorageConfig)],
+    source: &str,
+) -> Option<&'a StorageConfig> {
+    let mut best = None;
+    let mut length = 0;
+    for (scope, config) in sources {
+        if source.starts_with(scope) && (best.is_none() || scope.len() > length) {
+            best = Some(config);
+            length = scope.len();
+        }
+    }
+    best
+}
+
 // The transport owns only prepared headers, so redirect hops never parse raw
 // credentials or depend on provider/storage configuration.
 struct HttpSourceCredentials {
@@ -82,7 +118,7 @@ pub(crate) fn scoped_http_transport(
     transport(secrets)
 }
 pub(crate) fn blob_downloader(
-    secrets: Vec<ScopedHttpCredentials>,
+    secrets: SourceSecrets,
     policy: crate::storage_policy::DuckportStoragePolicy,
 ) -> Result<BlobDownloader> {
     let source = policy.config()?;
@@ -101,8 +137,13 @@ pub(crate) fn blob_downloader(
                 io_timeout: t.io_timeout,
             }),
     };
-    let backend =
-        OpenDalDownloader::new(policy)?.with_http_transport(transport(Arc::new(secrets))?);
+    let fallback = OpenDalDownloader::new(policy.clone())?
+        .with_http_transport(transport(Arc::new(secrets.http))?);
+    let backend = SourceDownloader {
+        fallback,
+        sources: secrets.s3,
+        policy,
+    };
     Ok(BlobDownloader::with_defaults()?.with_downloader(Arc::new(backend)))
 }
 impl HttpTransport for CredentialTransport {
@@ -158,5 +199,36 @@ impl HttpTransport for CredentialTransport {
             drop(response);
         }
         Err(http_source_error("too many HTTP source redirects"))
+    }
+}
+
+struct SourceDownloader {
+    fallback: OpenDalDownloader,
+    sources: Vec<(String, StorageConfig)>,
+    policy: open_arrow_sink_storage::StorageConfig,
+}
+#[async_trait]
+impl Downloader for SourceDownloader {
+    async fn open(
+        &self,
+        source: &str,
+        context: DownloadContext,
+    ) -> open_arrow_sink_core::Result<DownloadStream> {
+        let url = Url::parse(source).map_err(Error::backend)?;
+        if url.scheme() != "s3" {
+            return self.fallback.open(source, context).await;
+        }
+        crate::validation::validate_uri(&url).map_err(Error::Backend)?;
+        // Explicit source secrets always win, even when the source shares a
+        // namespace with the destination. Never consult context.primary here.
+        let storage = if let Some(config) = select_source(&self.sources, source) {
+            let (operator, _) = crate::storage::operator(source, config).map_err(Error::Backend)?;
+            open_arrow_sink_storage::Storage::for_url(operator, &url)?
+        } else {
+            open_arrow_sink_storage::Storage::from_url(&url)?.with_config(self.policy.clone())?
+        };
+        self.fallback
+            .open(source, context.with_source_storage(storage))
+            .await
     }
 }
