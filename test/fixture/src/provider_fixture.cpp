@@ -53,24 +53,15 @@ struct Route {
 class ProviderFixture {
 public:
 	ProviderFixture(string provider_p, bool authenticated) : provider(std::move(provider_p)) {
-		try {
-			endpoint = api.Endpoint();
-			download_endpoint = downloads.Endpoint();
-			LoadRoutes();
-			require_bearer = authenticated && auth == "authorization";
-			require_low = authenticated && provider == "internet_archive";
-			RegisterRoutes();
-			api.Start();
-			downloads.Start();
-			ConfigureEnvironment();
-		} catch (...) {
-			Shutdown();
-			throw;
-		}
-	}
-
-	~ProviderFixture() {
-		Shutdown();
+		endpoint = api.Endpoint();
+		download_endpoint = downloads.Endpoint();
+		LoadRoutes();
+		require_bearer = authenticated && auth == "authorization";
+		require_low = authenticated && provider == "internet_archive";
+		RegisterRoutes();
+		api.Start();
+		downloads.Start();
+		ConfigureEnvironment();
 	}
 
 	vector<FixtureRequest> Snapshot() {
@@ -99,12 +90,6 @@ private:
 		downloads.Http().Get(".*", [this](const duckdb_httplib::Request &req, duckdb_httplib::Response &res) {
 			Respond(req, res, download_routes, "download");
 		});
-	}
-
-	void Shutdown() {
-		api.Stop();
-		downloads.Stop();
-		environment.clear();
 	}
 
 	void ConfigureEnvironment() {
@@ -266,12 +251,13 @@ private:
 	string reject_route;
 	bool require_bearer = false;
 	bool require_low = false;
-	FixtureServer api {"provider fixture servers"};
-	FixtureServer downloads {"provider fixture servers"};
 	vector<Route> api_routes;
 	vector<Route> download_routes;
 	std::mutex trace_mutex;
 	vector<FixtureRequest> traces;
+	// Stop workers before destroying any state captured by request handlers.
+	FixtureServer api {"provider fixture servers"};
+	FixtureServer downloads {"provider fixture servers"};
 };
 
 std::mutex fixture_mutex;

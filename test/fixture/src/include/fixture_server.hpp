@@ -16,9 +16,9 @@ public:
 	duckdb_httplib::Server &Http();
 	const string &Endpoint() const;
 	void Start();
-	void Stop();
 
 private:
+	void Stop();
 	duckdb_httplib::Server server;
 	std::thread worker;
 	string description;

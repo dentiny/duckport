@@ -156,10 +156,6 @@ public:
 		server.Start();
 	}
 
-	~IcebergCatalogFixture() {
-		server.Stop();
-	}
-
 	const string &Endpoint() const {
 		return server.Endpoint();
 	}
@@ -226,9 +222,10 @@ private:
 		res.set_content(table.Response(), "application/json");
 	}
 
-	FixtureServer server {"Iceberg catalog fixture"};
 	annotated_mutex mutex;
 	IcebergTableFixture table DUCKDB_GUARDED_BY(mutex);
+	// Stop request handlers before destroying the table and its mutex.
+	FixtureServer server {"Iceberg catalog fixture"};
 };
 
 string FixtureCommand(const string &root, const string &command) {
