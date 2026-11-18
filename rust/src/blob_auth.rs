@@ -3,9 +3,10 @@
 use crate::{
     error::{Result, http_source_error},
     options::{DuckportStorageOptions, StorageConfig},
+    security::{ScopedHttpSecret, SecurityConfig},
     utils, validation,
 };
-use http::{HeaderMap, Request, Response};
+use http::{Request, Response};
 use open_arrow_sink_storage::{BlobDownloader, OpenDalDownloader};
 use opendal::{Buffer, HttpBody, HttpTransport, HttpTransporter};
 use std::{ffi::c_char, sync::Arc};
@@ -38,34 +39,22 @@ pub(crate) unsafe fn read_secrets(
         .collect()
 }
 // Match DuckDB's prefix-based scopes, preserving the first entry on a tie.
-pub(crate) fn select<'a>(
-    secrets: &'a [SourceSecret],
-    url: &str,
-    kind: &str,
-) -> Option<&'a StorageConfig> {
-    let mut best: Option<&SourceSecret> = None;
+pub(crate) fn select<'a>(secrets: &'a [ScopedHttpSecret], url: &str) -> Option<&'a SecurityConfig> {
+    let mut best: Option<&ScopedHttpSecret> = None;
     for secret in secrets {
-        if secret.kind == kind
-            && url.starts_with(&secret.scope)
+        if url.starts_with(&secret.scope)
             && best.is_none_or(|old| secret.scope.len() > old.scope.len())
         {
             best = Some(secret);
         }
     }
-    best.map(|s| &s.config)
-}
-enum Credentials {
-    Sources(Arc<Vec<SourceSecret>>),
-    Fixed {
-        origin: url::Origin,
-        headers: HeaderMap,
-    },
+    best.map(|s| &s.security)
 }
 struct CredentialTransport {
-    credentials: Credentials,
+    credentials: Arc<Vec<ScopedHttpSecret>>,
     inner: HttpTransporter,
 }
-fn transport(credentials: Credentials) -> Result<HttpTransporter> {
+fn transport(credentials: Arc<Vec<ScopedHttpSecret>>) -> Result<HttpTransporter> {
     // Disable automatic redirects so every hop is checked before any credential
     // can be sent. OpenDAL still owns retries, timeouts and the body stream.
     let client = reqwest::Client::builder()
@@ -78,11 +67,8 @@ fn transport(credentials: Credentials) -> Result<HttpTransporter> {
         )),
     }))
 }
-pub(crate) fn fixed_http_transport(url: &str, config: &StorageConfig) -> Result<HttpTransporter> {
-    transport(Credentials::Fixed {
-        origin: Url::parse(url)?.origin(),
-        headers: validation::http_credential_headers(config)?,
-    })
+pub(crate) fn scoped_http_transport(config: &StorageConfig) -> Result<HttpTransporter> {
+    transport(Arc::clone(&config.http_secrets))
 }
 pub(crate) fn blob_downloader(
     secrets: Vec<SourceSecret>,
@@ -104,8 +90,16 @@ pub(crate) fn blob_downloader(
                 io_timeout: t.io_timeout,
             }),
     };
-    let backend = OpenDalDownloader::new(policy)?
-        .with_http_transport(transport(Credentials::Sources(Arc::new(secrets)))?);
+    let backend = OpenDalDownloader::new(policy)?.with_http_transport(transport(Arc::new(
+        secrets
+            .into_iter()
+            .filter(|s| s.kind == "http")
+            .map(|s| ScopedHttpSecret {
+                scope: s.scope,
+                security: s.config.security,
+            })
+            .collect(),
+    ))?);
     Ok(BlobDownloader::with_defaults()?.with_downloader(Arc::new(backend)))
 }
 impl HttpTransport for CredentialTransport {
@@ -129,16 +123,10 @@ impl HttpTransport for CredentialTransport {
             *outgoing = parts.headers.clone();
             outgoing.remove(http::header::AUTHORIZATION);
             if !crossed_origin {
-                let auth = match &self.credentials {
-                    Credentials::Sources(secrets) => select(secrets, url.as_str(), "http")
-                        .map(validation::http_credential_headers)
-                        .transpose()
-                        .map_err(|_| http_source_error("invalid scoped HTTP credentials"))?,
-                    Credentials::Fixed { origin, headers } if *origin == url.origin() => {
-                        Some(headers.clone())
-                    }
-                    Credentials::Fixed { .. } => None,
-                };
+                let auth = select(&self.credentials, url.as_str())
+                    .map(validation::http_credential_headers)
+                    .transpose()
+                    .map_err(|_| http_source_error("invalid scoped HTTP credentials"))?;
                 if let Some(auth) = auth {
                     outgoing.extend(auth);
                 }

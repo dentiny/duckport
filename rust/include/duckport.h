@@ -33,6 +33,12 @@ struct DuckportSecurityOptions {
     int32_t allow_anonymous;
 };
 
+// Scoped HTTP credentials are borrowed during open and copied into Rust-owned storage.
+struct DuckportHttpSecret {
+    const char *scope;
+    DuckportSecurityOptions security;
+};
+
 // Optional strings are null when unset and borrowed only for the open call.
 struct DuckportStorageOptions {
     const char *endpoint;
@@ -40,6 +46,8 @@ struct DuckportStorageOptions {
     int32_t virtual_host_style;
     DuckportStoragePolicy policy;
     DuckportSecurityOptions security;
+    const DuckportHttpSecret *http_secrets;
+    size_t http_secret_count;
 };
 // Borrowed during open; Rust owns independent copies for asynchronous downloads.
 struct DuckportBlobSecret {

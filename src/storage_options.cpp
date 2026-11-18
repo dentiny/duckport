@@ -114,6 +114,15 @@ StorageParameters::StorageParameters(ClientContext &context, const string &locat
 		config.virtual_host_style = url_style == "vhost" ? 1 : 0;
 		security.allow_anonymous = security.access_key_id.empty() && security.secret_access_key.empty() && security.session_token.empty() ? 1 : 0;
 	} else if (StringUtil::StartsWith(locator, "http://") || StringUtil::StartsWith(locator, "https://")) {
+		// Preserve every HTTP scope for credential selection on each redirect hop.
+		http_secrets = CaptureBlobSecrets(context);
+		http_secret_headers.resize(http_secrets.size());
+		for (idx_t i = 0; i < http_secrets.size(); i++) {
+			const auto &secret = http_secrets[i];
+			http_secret_views.push_back({secret.scope.c_str(), secret.security.ToFfi(http_secret_headers[i])});
+		}
+		config.http_secrets = http_secret_views.data();
+		config.http_secret_count = http_secret_views.size();
 		KeyValueSecretReader reader(opener, &info, "http");
 		security.has_token = reader.TryGetSecretKey("bearer_token", security.token);
         Value extra;

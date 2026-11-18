@@ -138,6 +138,11 @@ Provider credentials stay on their intended origin. COPY source credentials are
 resolved independently of the destination; an S3 destination key or catalog token
 is not a credential for an unrelated media URL.
 
+For HTTP file reads and HTTP Blob downloads, same-origin redirects reselect the
+longest matching credential scope. Leaving a scope removes its credentials. Any
+cross-origin hop disables credentials for the rest of that redirect chain, even
+if it returns to the original origin. HTTPS-to-HTTP redirects are rejected.
+
 ## Write
 
 ```sql

@@ -4,6 +4,7 @@
 #include "duckdb/common/vector.hpp"
 #include "duckport.h"
 #include "security_options.hpp"
+#include "blob_secrets.hpp"
 
 namespace duckdb {
 class ClientContext;
@@ -24,5 +25,9 @@ class StorageParameters {
 	string region;
     SecurityParameters security;
     vector<DuckportHttpHeader> headers;
+	// Keep the snapshot and its borrowed C ABI views alive for the open call.
+	vector<BlobSecret> http_secrets;
+	vector<vector<DuckportHttpHeader>> http_secret_headers;
+	vector<DuckportHttpSecret> http_secret_views;
 };
 } // namespace duckdb

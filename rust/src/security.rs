@@ -30,6 +30,32 @@ pub struct SecurityConfig {
     pub http_headers: Vec<(String, String)>,
     pub allow_anonymous: bool,
 }
+#[repr(C)]
+pub struct DuckportHttpSecret {
+    pub scope: *const c_char,
+    pub security: DuckportSecurityOptions,
+}
+
+pub(crate) struct ScopedHttpSecret {
+    pub scope: String,
+    pub security: SecurityConfig,
+}
+
+pub(crate) unsafe fn read_http_secrets(
+    raw: *const DuckportHttpSecret,
+    count: usize,
+) -> Result<Vec<ScopedHttpSecret>> {
+    unsafe { utils::ffi_slice(raw, count, "null HTTP source secrets") }?
+        .iter()
+        .map(|secret| unsafe {
+            Ok(ScopedHttpSecret {
+                scope: utils::string(secret.scope)?,
+                security: secret.security.read()?,
+            })
+        })
+        .collect()
+}
+
 impl DuckportSecurityOptions {
     /// # Safety
     /// All strings/arrays are live for this call. Returned settings own all material.

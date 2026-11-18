@@ -11,6 +11,8 @@ pub struct DuckportStorageOptions {
     pub virtual_host_style: i32,
     pub policy: DuckportStoragePolicy,
     pub security: crate::security::DuckportSecurityOptions,
+    pub http_secrets: *const crate::security::DuckportHttpSecret,
+    pub http_secret_count: usize,
 }
 
 #[repr(C)]
@@ -26,6 +28,7 @@ pub struct StorageConfig {
     pub virtual_host_style: bool,
     pub policy: DuckportStoragePolicy,
     pub security: crate::security::SecurityConfig,
+    pub(crate) http_secrets: std::sync::Arc<Vec<crate::security::ScopedHttpSecret>>,
 }
 
 impl DuckportStorageOptions {
@@ -37,6 +40,9 @@ impl DuckportStorageOptions {
             virtual_host_style: utils::boolean("virtual_host_style", self.virtual_host_style)?,
             policy: self.policy,
             security: unsafe { self.security.read() }?,
+            http_secrets: std::sync::Arc::new(unsafe {
+                crate::security::read_http_secrets(self.http_secrets, self.http_secret_count)
+            }?),
         })
     }
 }

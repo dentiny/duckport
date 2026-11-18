@@ -34,12 +34,9 @@ fn remote_operator(
     url.set_path("/");
     let operator = if scheme == "http" || scheme == "https" {
         crate::validation::validate_http_config(config)?;
-        let mut builder = opendal::services::Http::default()
+        let builder = opendal::services::Http::default()
             .endpoint(url.as_str().trim_end_matches('/'))
             .root(root.unwrap_or("/"));
-        if let Some(token) = &config.security.token {
-            builder = builder.token(token);
-        }
         opendal::Operator::new(builder)?
     } else {
         let mut builder = opendal::services::S3::default()
@@ -74,10 +71,8 @@ fn remote_operator(
         }
         opendal::Operator::new(builder)?
     };
-    let operator = if matches!(scheme.as_str(), "http" | "https")
-        && (!config.security.http_headers.is_empty() || config.security.token.is_some())
-    {
-        let transport = crate::blob_auth::fixed_http_transport(locator, config)?;
+    let operator = if matches!(scheme.as_str(), "http" | "https") {
+        let transport = crate::blob_auth::scoped_http_transport(config)?;
         let context = operator.base_context().with_http_transport(transport);
         operator.with_context(context)
     } else {
