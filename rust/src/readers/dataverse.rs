@@ -42,13 +42,30 @@ pub unsafe extern "C" fn duckport_dataverse_open(
         let attachment_options = crate::utils::attachment_options(&format, record_path.as_deref())?;
         let service =
             DataverseService::new(&endpoint)?.with_http_config(storage_options.policy.config()?)?;
-        let service = if let Some(token) = storage_options.security.token {
-            service.with_bearer_token(&token)?
-        } else {
-            service
+        let anonymous = crate::security::HttpCredentials::default();
+        let credentials = storage_options.security.http()?.unwrap_or(&anonymous);
+        let headers = credentials.headers();
+        if headers.keys().any(|name| name != "x-dataverse-key") {
+            return Err("Dataverse supports only X-Dataverse-key in EXTRA_HTTP_HEADERS".into());
+        }
+        let api_key = headers.get("x-dataverse-key");
+        let service = match (credentials.token(), api_key) {
+            (Some(_), Some(_)) => {
+                return Err("choose BEARER_TOKEN or X-Dataverse-key for Dataverse".into());
+            }
+            (Some(token), None) => service.with_bearer_token(token)?,
+            (None, Some(key)) => service.with_token(key.to_str()?)?,
+            (None, None) => service,
         };
         let files = service.dataset(&locator, &version).await?;
-        crate::service_files::open(files, file_name, attachment_options, scan_options).await
+        crate::service_files::open(
+            files,
+            file_name,
+            attachment_options,
+            scan_options,
+            storage_options.metrics.clone(),
+        )
+        .await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }

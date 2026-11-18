@@ -17,9 +17,11 @@ pub(crate) async fn open(
     config: &StorageConfig,
     options: WriteOptions,
     writer_count: usize,
-    secrets: Vec<crate::blob_auth::SourceSecret>,
+    secrets: crate::blob_auth::SourceSecrets,
 ) -> Result<DuckportSink> {
-    let options = options.with_mode(utils::sink_mode(mode)?);
+    let mut options = options.with_mode(utils::sink_mode(mode)?);
+    let metrics = open_arrow_sink_core::IoMetrics::default();
+    options.io_metrics = Some(metrics.clone().into());
     let paths = columns
         .iter()
         .map(|name| utils::resolve_column_path(&schema, name, "BLOB_COLUMNS"))
@@ -34,6 +36,7 @@ pub(crate) async fn open(
         .layer(DownloadBlobLayer::new(columns));
     let writer = open_writer(sink, destination.url, schema.clone(), options, writer_count).await?;
     Ok(DuckportSink {
+        metrics,
         writer: Some(writer),
         schema,
         output_schema: None,
