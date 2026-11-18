@@ -5,7 +5,9 @@ use crate::{
     options::DuckportStorageOptions,
     storage, utils, validation,
 };
-use open_arrow_access::{ListRequest, list_files, storage::OpenDalAccessor};
+use open_arrow_access::{
+    ListRequest, decompression::CompressionFactory, list_files, storage::OpenDalAccessor,
+};
 use std::{
     ffi::{CString, c_char},
     ptr,
@@ -14,17 +16,13 @@ use url::Url;
 
 pub struct DuckportFileList(Vec<CString>);
 
-fn matches_format(path: &str, format: &str) -> bool {
+fn matches_format(path: &str, format: &str, compression: &CompressionFactory) -> bool {
     let lower = path.to_ascii_lowercase();
-    let mut name = lower.as_str();
-    if format != "parquet" {
-        for suffix in [".gz", ".bz2", ".zst", ".zstd", ".lz4"] {
-            if let Some(base) = name.strip_suffix(suffix) {
-                name = base;
-                break;
-            }
-        }
-    }
+    let name = if format == "parquet" {
+        lower.as_str()
+    } else {
+        compression.strip_suffix(&lower)
+    };
     match format {
         "json" | "jsonl" | "ndjson" => [".json", ".jsonl", ".ndjson"]
             .iter()
@@ -33,16 +31,12 @@ fn matches_format(path: &str, format: &str) -> bool {
     }
 }
 
-async fn resolve(
-    locator: &str,
-    format: &str,
-    config: &crate::options::StorageConfig,
-) -> Result<Vec<String>> {
+fn location(locator: &str) -> Result<(Url, String, bool)> {
     if locator.is_empty() {
         return Err("file selection cannot be empty".into());
     }
     let local = storage::is_local(locator);
-    let (mut base, path) = if local {
+    let (base, path) = if local {
         let path = utils::local_path(locator)?;
         (
             Url::from_file_path(&path).map_err(|_| "invalid local path")?,
@@ -59,23 +53,41 @@ async fn resolve(
         let mut url = Url::parse(locator)?;
         validation::validate_uri(&url)?;
         validation::validate_storage_scheme(url.scheme())?;
+        if url.scheme() == "s3" {
+            // URL normalization must not move discovery outside the scope for
+            // which DuckDB selected its credentials.
+            let raw_path = locator
+                .split_once("://")
+                .and_then(|(_, rest)| rest.split_once('/'))
+                .map_or("", |(_, path)| path);
+            if percent_encoding::percent_decode_str(raw_path)
+                .decode_utf8()?
+                .split('/')
+                .any(|part| matches!(part, "." | ".."))
+            {
+                return Err("S3 selections cannot contain dot path segments".into());
+            }
+        }
         let path = percent_encoding::percent_decode_str(url.path())
             .decode_utf8()?
             .into_owned();
         url.set_path("/");
         (url, path)
     };
-    let wildcard = path.find(['*', '?', '[']);
-    let directory =
-        path.ends_with('/') || local && tokio::fs::metadata(&path).await.is_ok_and(|m| m.is_dir());
-    if wildcard.is_none() && !directory {
-        return Ok(vec![locator.to_owned()]);
-    }
+    Ok((base, path, local))
+}
+
+fn discovery_root(
+    mut base: Url,
+    path: &str,
+    wildcard: Option<usize>,
+    local: bool,
+) -> Result<(Url, Option<glob::Pattern>)> {
     let (root, pattern) = if let Some(first) = wildcard {
         let split = path[..first].rfind('/').map_or(0, |p| p + 1);
         (&path[..split], Some(glob::Pattern::new(&path[split..])?))
     } else {
-        (path.as_str(), None)
+        (path, None)
     };
     if local {
         base = Url::from_directory_path(root).map_err(|_| "invalid directory selection")?;
@@ -90,12 +102,29 @@ async fn resolve(
                 .push("");
         }
     }
+    Ok((base, pattern))
+}
+
+async fn resolve(
+    locator: &str,
+    format: &str,
+    config: &crate::options::StorageConfig,
+) -> Result<Vec<String>> {
+    let (base, path, local) = location(locator)?;
+    let wildcard = path.find(['*', '?', '[']);
+    let directory =
+        path.ends_with('/') || local && tokio::fs::metadata(&path).await.is_ok_and(|m| m.is_dir());
+    if wildcard.is_none() && !directory {
+        return Ok(vec![locator.to_owned()]);
+    }
+    let (base, pattern) = discovery_root(base, &path, wildcard, local)?;
     let operator = storage::directory_operator(base.as_str(), config)?;
     let match_options = glob::MatchOptions {
         case_sensitive: true,
         require_literal_separator: true,
         require_literal_leading_dot: false,
     };
+    let compression = CompressionFactory::default();
     let objects = list_files(
         &OpenDalAccessor::new(operator),
         ListRequest::new("").with_recursive(true),
@@ -104,7 +133,7 @@ async fn resolve(
                 && !relative.ends_with('/')
                 && match &pattern {
                     Some(pattern) => pattern.matches_with(relative, match_options),
-                    None => matches_format(relative, format),
+                    None => matches_format(relative, format, &compression),
                 })
         },
     )
@@ -134,6 +163,30 @@ async fn resolve(
             Ok(url.to_string())
         })
         .collect()
+}
+
+/// # Safety
+/// Locator is borrowed and NUL-terminated; output is writable. The returned
+/// one-element list owns the credential lookup URI until destroyed.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn duckport_file_discovery_root(
+    locator: *const c_char,
+    output: *mut *mut DuckportFileList,
+) -> *mut c_char {
+    call(|| unsafe {
+        validation::non_null(output, "null discovery root output")?;
+        *output = ptr::null_mut();
+        let locator = utils::string(locator)?;
+        let (base, path, local) = location(&locator)?;
+        let root = match path.find(['*', '?', '[']) {
+            Some(first) => discovery_root(base, &path, Some(first), local)?
+                .0
+                .to_string(),
+            None => locator,
+        };
+        *output = Box::into_raw(Box::new(DuckportFileList(vec![CString::new(root)?])));
+        Ok(())
+    })
 }
 
 /// # Safety

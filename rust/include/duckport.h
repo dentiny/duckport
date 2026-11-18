@@ -118,6 +118,7 @@ char *duckport_validate_sample_percent(double value);
 char *duckport_validate_sample_rows(int64_t value, uint64_t max_rows);
 
 // File discovery owns its returned list until destroy; get returns borrowed strings.
+char *duckport_file_discovery_root(const char *locator, DuckportFileList **);
 char *duckport_resolve_files(const char *locator, const char *format, const DuckportStorageOptions &, DuckportFileList **);
 size_t duckport_file_list_count(const DuckportFileList *);
 const char *duckport_file_list_get(const DuckportFileList *, size_t index);

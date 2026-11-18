@@ -6,10 +6,18 @@ require duckport
 
 require parquet
 
+statement ok
+SET threads = 1;
+
 query II
 SELECT count(*), sum(id) FROM duckport_scan_csv(['testdata/multifile/b.csv', 'testdata/multifile/a.csv'], header := true);
 ----
 3	6
+
+query T
+SELECT string_agg(name, ',') FROM duckport_scan_csv(['testdata/multifile/b.csv', 'testdata/multifile/a.csv'], header := true, batch_size := 1);
+----
+gamma,alpha,beta
 
 # Explicit duplicates remain distinct inputs.
 query II
@@ -129,15 +137,23 @@ SELECT count(*), sum(id) FROM duckport_scan_csv('testdata/multifile/special %/*.
 2	3
 
 statement ok
-COPY (SELECT 10::BIGINT AS id) TO '{TEST_DIR}/part-a.parquet' (FORMAT PARQUET);
+COPY (SELECT id FROM (VALUES (10::BIGINT), (NULL::BIGINT)) t(id)) TO '{TEST_DIR}/part-a.parquet' (FORMAT PARQUET);
 
 statement ok
-COPY (SELECT 20::BIGINT AS id) TO '{TEST_DIR}/part-b.parquet' (FORMAT PARQUET);
+COPY (SELECT id FROM (VALUES (20::BIGINT), (NULL::BIGINT)) t(id)) TO '{TEST_DIR}/part-b.parquet' (FORMAT PARQUET);
+
+statement ok
+COPY (SELECT 0::BIGINT AS id WHERE false) TO '{TEST_DIR}/part-empty.parquet' (FORMAT PARQUET);
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_parquet(['{TEST_DIR}/part-empty.parquet', '{TEST_DIR}/part-a.parquet', '{TEST_DIR}/part-b.parquet']);
+----
+4	30
 
 query II
 SELECT count(*), sum(id) FROM duckport_scan_parquet('{TEST_DIR}/part-*.parquet');
 ----
-2	30
+4	30
 
 # The result is a normal COPY source.
 statement ok
@@ -154,3 +170,9 @@ SELECT name FROM duckport_scan_parquet(['testdata/parquet/people.parquet', 'test
 ----
 Alice
 Alice
+
+# Explicit dialect options are forwarded to each selected decoder.
+query II
+SELECT count(*), sum(id) FROM duckport_scan_csv(['testdata/multifile/custom-a.data', 'testdata/multifile/custom-b.data'], delimiter := ';', header := true);
+----
+3	6

@@ -62,11 +62,14 @@ lexicographically and deduplicated within each selection. Empty lists, unmatched
 selections and NULL elements fail.
 
 Local directories may omit the trailing slash. S3 directory prefixes must end in
-`/`. Explicit lists can mix local, HTTP(S) and S3 files; each file resolves its own
-scoped DuckDB secret. HTTP directory/glob listing is unsupported. URI query strings
+`/`; S3 dot path segments are rejected to preserve credential scopes.
+Explicit lists can mix local, HTTP(S) and S3 files; each file resolves its own
+scoped DuckDB secret. Directory/glob listing uses the secret matched to its actual
+discovery root, independently of file-prefix secrets. HTTP directory/glob listing
+is unsupported. URI query strings
 remain unsupported for ordinary file readers.
 
-All files must have exactly matching Arrow schemas, including metadata. Complete
+All files must have exactly matching Arrow schemas, including nullability and metadata. Complete
 schemas are checked before emitting rows, even when selecting fewer columns or
 using `COUNT(*)`. `union_by_name`, source-file columns, ATIF and provider-specific
 multi-file inputs are not exposed here. Existing reader options apply to every

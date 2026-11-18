@@ -10,6 +10,7 @@
 
 namespace duckdb {
 namespace {
+using FileListPtr = unique_ptr<DuckportFileList, decltype(&duckport_file_list_destroy)>;
 struct ReaderInfo : TableFunctionInfo {
 	explicit ReaderInfo(ReaderBind open, string format = {}) : open(std::move(open)), format(std::move(format)) {
 	}
@@ -48,7 +49,10 @@ unique_ptr<FunctionData> BindReader(ClientContext &context, TableFunctionBindInp
 			throw BinderException("file list cannot be empty");
 		}
 		for (const auto &selection : selections) {
-			StorageParameters discovery(context, selection, {});
+			DuckportFileList *root_raw = nullptr;
+			CheckError(duckport_file_discovery_root(selection.c_str(), &root_raw));
+			FileListPtr root(root_raw, duckport_file_list_destroy);
+			StorageParameters discovery(context, duckport_file_list_get(root.get(), 0), {});
 			DuckportFileList *raw = nullptr;
 			CheckError(duckport_resolve_files(selection.c_str(), info.format.c_str(), discovery.config, &raw));
 			unique_ptr<DuckportFileList, decltype(&duckport_file_list_destroy)> matches(raw,
