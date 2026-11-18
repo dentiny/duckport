@@ -83,31 +83,21 @@ COPY (SELECT 1 AS id) TO '{TEST_DIR}/old_option' (FORMAT duckport_parquet, FILE_
 ----
 Unrecognized option "file_count"
 
-# EXPLAIN must not create/open a destination. Logical plans expose actual writer selection.
+# Scan nodes expose configured read limits without opening a COPY destination.
 statement ok
 SET explain_output = 'optimized_only';
-
-query TT
-EXPLAIN (FORMAT JSON) COPY (SELECT 1 AS id) TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet);
-----
-logical_opt	<REGEX>:.*Write concurrency.*4.*auto; thread budget.*
-
-query TT
-EXPLAIN (FORMAT JSON) COPY (SELECT 1 AS id) TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet, WRITE_CONCURRENCY 'auto', PRESERVE_ORDER true);
-----
-logical_opt	<REGEX>:.*Write concurrency.*1.*auto; preserve order.*
 
 query TT
 EXPLAIN (FORMAT JSON) COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true))
 TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet, TARGET_FILE_SIZE 1048576);
 ----
-logical_opt	<REGEX>:.*Read concurrency.*4.*auto limit.*Write concurrency.*1.*auto; source byte estimate.*
+logical_opt	<REGEX>:.*Read concurrency.*4.*auto limit.*
 
 query TT
 EXPLAIN (FORMAT JSON) COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true, read_concurrency := 1))
 TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet, READ_CONCURRENCY 'auto', WRITE_CONCURRENCY 2, TARGET_FILE_SIZE 1048576);
 ----
-logical_opt	<REGEX>:.*Read concurrency.*4.*auto limit.*Write concurrency.*2.*explicit.*
+logical_opt	<REGEX>:.*Read concurrency.*4.*auto limit.*
 
 query TT
 EXPLAIN (FORMAT JSON) COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true, read_concurrency := 1))
@@ -122,13 +112,6 @@ TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet);
 ----
 logical_opt	<REGEX>:.*Read concurrency.*1.*explicit limit.*
 
-# Unknown-size queries with a target still use the automatic thread-budget fallback.
-query TT
-EXPLAIN (FORMAT JSON) COPY (SELECT 1 AS id)
-TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet, TARGET_FILE_SIZE 1048576);
-----
-logical_opt	<REGEX>:.*Write concurrency.*4.*auto; thread budget.*
-
 statement ok
 SET threads = 1;
 
@@ -136,7 +119,7 @@ query TT
 EXPLAIN (FORMAT JSON) COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true))
 TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet);
 ----
-logical_opt	<REGEX>:.*Read concurrency.*1.*auto limit.*Write concurrency.*1.*auto; thread budget.*
+logical_opt	<REGEX>:.*Read concurrency.*1.*auto limit.*
 
 # A create succeeds at the explained destination: EXPLAIN did not open it.
 statement ok

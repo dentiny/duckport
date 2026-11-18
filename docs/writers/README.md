@@ -102,21 +102,9 @@ not a promise of equal compression or exact file counts. An explicit
 `WRITE_CONCURRENCY N` fixes the number of writer streams and bypasses automatic
 writer selection, while file rotation still follows `TARGET_FILE_SIZE`.
 
-To inspect the initial writer count and selection reason without writing data,
-include the logical plan in EXPLAIN:
-
-```sql
-SET explain_output = 'all';
-EXPLAIN COPY (SELECT * FROM duckport_scan_parquet('input.parquet'))
-TO 'output.lance' (FORMAT duckport_lance, TARGET_FILE_SIZE 536870912);
-```
-
-The logical COPY node shows `Write concurrency` and `Writer budget`. Scan nodes
-show their configured `Read concurrency` limit, including COPY overrides.
-DuckDB's physical COPY node has no extension-specific detail callback, so writer
-planning details are shown in the logical plan. Planning can read source metadata
-but does not consume rows or open the destination. Concurrency is resolved when
-the statement is bound; re-prepare after changing `threads`.
+Scan nodes in `EXPLAIN` show their configured `Read concurrency` limit, including
+COPY overrides. Writer selection remains internal to the upstream Rust ingestion
+layer; DuckPort uses DuckDB's standard COPY logical operator.
 
 ## COPY sampling
 
