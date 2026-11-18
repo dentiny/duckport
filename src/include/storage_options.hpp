@@ -1,24 +1,29 @@
 #pragma once
 
 #include "duckdb/common/string.hpp"
+#include "duckdb/common/vector.hpp"
 #include "duckport.h"
+#include "security_options.hpp"
+#include "blob_secrets.hpp"
 
 namespace duckdb {
 class ClientContext;
+class ExtensionLoader;
+
+void RegisterStorageSettings(ExtensionLoader &loader);
+DuckportStoragePolicy ReadStoragePolicy(ClientContext &context);
 
 class StorageParameters {
-  public:
+public:
 	StorageParameters(ClientContext &context, const string &locator, const string &secret_type);
 	StorageParameters(const StorageParameters &) = delete;
 	StorageParameters &operator=(const StorageParameters &) = delete;
-	DuckportStorageOptions config{};
+	DuckportStorageOptions config {};
 
-  private:
+private:
 	string endpoint;
 	string region;
-	string access_key_id;
-	string secret_access_key;
-	string session_token;
-	string token;
+	unique_ptr<SecurityFfiView> security_view;
+	unique_ptr<SourceSecretsFfiView> http_sources_view;
 };
 } // namespace duckdb

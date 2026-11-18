@@ -8,20 +8,54 @@ struct DuckportSource;
 struct DuckportSink;
 struct ArrowArray;
 
+// Per-query remote storage policy; copied during open.
+struct DuckportStoragePolicy {
+	uint64_t timeout_ms;
+	uint64_t io_timeout_ms;
+	uint64_t retry_max_times;
+	uint64_t retry_min_delay_ms;
+	uint64_t retry_max_delay_ms;
+	double retry_factor;
+};
+
+struct DuckportHttpHeader {
+    const char *name;
+    const char *value;
+};
+
+// Use one authentication family. Static S3 keys must be paired; anonymous S3
+// must not include keys. HTTP tokens/headers cannot be mixed with S3 credentials.
+struct DuckportSecurityOptions {
+    const char *access_key_id;
+    const char *secret_access_key;
+    const char *session_token;
+    const char *token;
+    const DuckportHttpHeader *http_headers;
+    size_t http_header_count;
+    int32_t allow_anonymous;
+};
+
+// Scoped HTTP credentials are borrowed during open and copied into Rust-owned storage.
+struct DuckportHttpSecret {
+    const char *scope;
+    DuckportSecurityOptions security;
+};
+
 // Optional strings are null when unset and borrowed only for the open call.
 struct DuckportStorageOptions {
-	const char *endpoint;
-	const char *region;
-	const char *access_key_id;
-	const char *secret_access_key;
-	const char *session_token;
-	const char *token;
-	int32_t virtual_host_style; // 0 or 1
-	int32_t allow_anonymous;    // 0 or 1
+    const char *endpoint;
+    const char *region;
+    int32_t virtual_host_style;
+    DuckportStoragePolicy policy;
+    DuckportSecurityOptions security;
+    const DuckportHttpSecret *http_secrets;
+    size_t http_secret_count;
 };
-struct DuckportBlobSource {
-	const char *document;
-	DuckportStorageOptions storage;
+// Borrowed during open; Rust owns independent copies for asynchronous downloads.
+struct DuckportBlobSecret {
+    const char *scope;
+    const char *type;
+    DuckportStorageOptions config;
 };
 struct DuckportScanOptions {
 	// Target rows per Arrow record batch; SQL default: 8192.
@@ -50,8 +84,26 @@ struct DuckportWriteOptions {
 	size_t index_count;
 	size_t writer_count;
 };
+struct DuckportBlobSource {
+    const char *document;
+    DuckportStorageOptions storage;
+};
+
+struct DuckportReadMetrics {
+	uint64_t bytes_read;
+	uint64_t rows_read;
+	uint64_t total_bytes;
+	uint64_t progress_bytes;
+	bool total_bytes_known;
+	bool finished;
+};
+struct DuckportWriteMetrics {
+	uint64_t bytes_read;
+	uint64_t bytes_written;
+};
 extern "C" {
 // Common FFI support
+DuckportStoragePolicy duckport_default_storage_policy();
 void duckport_source_error_free(char *);
 char *duckport_validate_byte_size(const char *name, int64_t value);
 char *duckport_validate_file_count(int64_t value, bool preserve_order);
@@ -63,6 +115,7 @@ char *duckport_source_get_schema(const DuckportSource *, ArrowSchema *);
 // Projection names are borrowed for this call; zero columns preserves row counts.
 char *duckport_source_get_stream(const DuckportSource *, const char *const *columns, size_t column_count,
                                 ArrowArrayStream *);
+char *duckport_source_get_metrics(const DuckportSource *, DuckportReadMetrics *);
 void duckport_source_destroy(DuckportSource *);
 
 // Format-related functions
@@ -71,16 +124,17 @@ char *duckport_parquet_source_open(const char *locator, const DuckportStorageOpt
 
 // Sink writer functions
 char *duckport_lance_open(const char *path, const ArrowSchema *, const char *mode, const char *const *blob_columns,
-                          size_t column_count, const DuckportWriteOptions *, const DuckportStorageOptions *,
-						  const DuckportBlobSource *, size_t source_count, DuckportSink **output);
+                          size_t column_count, const DuckportWriteOptions *, const DuckportBlobSecret *, size_t secret_count, const DuckportStorageOptions *,
+                          const DuckportBlobSource *, size_t source_count, DuckportSink **output);
 char *duckport_iceberg_open(const char *identifier, const ArrowSchema *, const char *mode, size_t column_count,
                             const char *catalog_uri, const char *warehouse, const char *storage_root,
-							const DuckportWriteOptions *, const DuckportStorageOptions *, DuckportSink **output);
+                            const DuckportWriteOptions *, const DuckportStorageOptions *, DuckportSink **output);
 char *duckport_parquet_open(const char *path, const ArrowSchema *, const char *mode, size_t column_count,
-							const DuckportWriteOptions *, const DuckportStorageOptions *, DuckportSink **output);
+                            const DuckportWriteOptions *, const DuckportStorageOptions *, DuckportSink **output);
 
 // Common sink functions
 char *duckport_sink_write(DuckportSink *, ArrowArray *);
 char *duckport_sink_commit(DuckportSink *);
+char *duckport_sink_get_metrics(const DuckportSink *, DuckportWriteMetrics *);
 void duckport_sink_destroy(DuckportSink *);
 }

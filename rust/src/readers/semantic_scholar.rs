@@ -41,16 +41,24 @@ pub unsafe extern "C" fn duckport_semantic_scholar_open(
             "release is required",
         )?;
         let attachment_options = crate::utils::attachment_options(&format, record_path.as_deref())?;
-        let connection = Connection::new(&endpoint)?;
-        let token = crate::validation::nonempty(
-            storage_options.token,
-            "a scoped HTTP bearer_token secret is required for this service",
+        let connection =
+            Connection::new(&endpoint)?.with_http_config(storage_options.policy.config()?)?;
+        let connection = crate::provider_auth::apply(
+            connection,
+            storage_options.security.http()?,
+            crate::provider_auth::HttpAuth::ApiKeyHeader("x-api-key"),
         )?;
         let files = SemanticScholarService::with_connection(connection)
-            .with_key(&token)?
             .dataset(&release, &locator)
             .await?;
-        crate::service_files::open(files, file_name, attachment_options, scan_options).await
+        crate::service_files::open(
+            files,
+            file_name,
+            attachment_options,
+            scan_options,
+            storage_options.metrics.clone(),
+        )
+        .await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }

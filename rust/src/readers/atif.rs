@@ -35,6 +35,7 @@ pub(crate) async fn open(
         ReadRequest::new(path).with_options(scan_options),
         AtifFormat::Auto,
         OuterCompression::Auto,
+        &storage_options.metrics,
     )
     .await?;
     let document = if storage::is_local(locator) {

@@ -24,7 +24,7 @@ NULLs remain NULL; other strings remain strings. Invalid columns, URLs and faile
 downloads fail COPY.
 
 Destinations support local paths, file:// and s3://. Scoped DuckDB secrets configure
-the destination; blob URL sources use the library's default credential resolution.
+the destination; HTTP(S) blob URL sources use matching DuckDB HTTP secrets, independently of the destination.
 External access must be enabled. COPY publishes on successful finalization;
 failed writes can leave uncommitted files. Partitioning, rotation, temporary-file
 publication are unsupported.
@@ -83,3 +83,23 @@ For ATIF, select fields explicitly, for example:
 `BLOB_COLUMNS ('steps.message.source.path', 'steps.observation.results.content.source.path')`.
 Relative references must be qualified before COPY; no ATIF-specific path resolution
 or storage policy is inferred.
+
+## HTTP source authentication
+
+COPY snapshots current DuckDB HTTP secrets when opening the writer. Each source
+URL uses its longest matching scope; no destination credential is borrowed.
+`BEARER_TOKEN` and `EXTRA_HTTP_HEADERS` support bearer, API-key and custom
+Authorization schemes. The same header support applies to direct HTTP file scans.
+
+```sql
+CREATE SECRET media_token (TYPE http, BEARER_TOKEN 'access-token',
+    SCOPE 'https://media.example.com/private/');
+CREATE SECRET api_key (TYPE http,
+    EXTRA_HTTP_HEADERS MAP {'X-API-Key': 'api-key'},
+    SCOPE 'https://api.example.com/files/');
+```
+
+Same-origin redirects resolve the matching source secret again. Cross-origin
+redirects omit all credentials; HTTPS downgrades are rejected. Secret snapshots
+are owned by Rust through completion/cancellation, without calling DuckDB from
+background tasks. Credentials are not placed in URL parameters or COPY options.

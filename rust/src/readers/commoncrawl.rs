@@ -27,7 +27,10 @@ fn create_location(locator: &str, options: &StorageConfig) -> Result<(opendal::O
         return storage::operator(locator, options);
     }
     let (root, key) = crate::utils::commoncrawl_location(locator)?;
-    Ok((storage::create_local_directory_operator(&root)?, key))
+    Ok((
+        storage::observe(storage::create_local_directory_operator(&root)?, options),
+        key,
+    ))
 }
 
 async fn open_commoncrawl(

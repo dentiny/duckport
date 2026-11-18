@@ -35,7 +35,8 @@ pub unsafe extern "C" fn duckport_internet_archive_open(
         let endpoint = unsafe { optional_string(reader_options.endpoint) }?
             .unwrap_or_else(|| "https://archive.org".into());
         let attachment_options = crate::utils::attachment_options(&format, record_path.as_deref())?;
-        let service = InternetArchiveService::with_endpoint(&endpoint)?;
+        let service = InternetArchiveService::with_endpoint(&endpoint)?
+            .with_http_config(storage_options.policy.config()?)?;
         let service = if let Some((key, secret)) =
             crate::utils::internet_archive_credentials(&storage_options)?
         {
@@ -44,7 +45,14 @@ pub unsafe extern "C" fn duckport_internet_archive_open(
             service
         };
         let files = service.item(&locator).await?;
-        crate::service_files::open(files, file_name, attachment_options, scan_options).await
+        crate::service_files::open(
+            files,
+            file_name,
+            attachment_options,
+            scan_options,
+            storage_options.metrics.clone(),
+        )
+        .await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }

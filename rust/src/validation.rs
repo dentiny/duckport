@@ -1,6 +1,14 @@
-use crate::{error::Result, options::StorageConfig};
+use crate::{
+    error::{Result, http_source_error},
+    options::StorageConfig,
+    storage_policy::DuckportStoragePolicy,
+};
+use http::Method;
 use open_arrow_sink_core::{CompressionSpec, IndexSpec};
-use std::collections::HashSet;
+use std::{
+    collections::HashSet,
+    time::{Duration, Instant},
+};
 use url::Url;
 
 pub(crate) fn validate_uri(url: &Url) -> Result<()> {
@@ -10,6 +18,39 @@ pub(crate) fn validate_uri(url: &Url) -> Result<()> {
         || url.password().is_some()
     {
         return Err("URI queries, fragments, and embedded credentials are unsupported".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_storage_policy(policy: &DuckportStoragePolicy) -> Result<()> {
+    for (name, value) in [
+        ("timeout_ms", policy.timeout_ms),
+        ("io_timeout_ms", policy.io_timeout_ms),
+        ("retry_min_delay_ms", policy.retry_min_delay_ms),
+        ("retry_max_delay_ms", policy.retry_max_delay_ms),
+    ] {
+        if value == 0 {
+            return Err(format!("conversion_storage_{name} must be positive").into());
+        }
+        if Instant::now()
+            .checked_add(Duration::from_millis(value))
+            .is_none()
+        {
+            return Err(format!("conversion_storage_{name} is too large").into());
+        }
+    }
+    if policy.retry_max_delay_ms < policy.retry_min_delay_ms {
+        return Err(
+            "conversion_storage_retry_max_delay_ms must be at least retry_min_delay_ms".into(),
+        );
+    }
+    if !policy.retry_factor.is_finite()
+        || policy.retry_factor < 1.0
+        || policy.retry_factor > f32::MAX as f64
+    {
+        return Err(
+            "conversion_storage_retry_factor must be finite and between 1 and f32::MAX".into(),
+        );
     }
     Ok(())
 }
@@ -74,7 +115,12 @@ pub(crate) fn validate_requester_pays(
     if enabled && !locator.starts_with("s3://") {
         return Err("requester_pays requires an S3 root".into());
     }
-    if enabled && (config.access_key_id.is_none() || config.secret_access_key.is_none()) {
+    if enabled
+        && !matches!(
+            config.security.s3()?,
+            Some(crate::security::S3Credentials::Static { .. })
+        )
+    {
         return Err("requester_pays requires a scoped S3 secret with credentials".into());
     }
     Ok(())
@@ -122,13 +168,6 @@ pub(crate) fn validate_boolean(name: &str, value: i32) -> Result<()> {
 pub(crate) fn validate_sink_scheme(url: &Url) -> Result<()> {
     if !matches!(url.scheme(), "file" | "s3") {
         return Err("sink destination must be a local path, file:// URI, or s3:// URI".into());
-    }
-    Ok(())
-}
-
-pub(crate) fn validate_internet_archive_credentials(config: &StorageConfig) -> Result<()> {
-    if config.access_key_id.is_some() != config.secret_access_key.is_some() {
-        return Err("Internet Archive requires both an access key and a secret key".into());
     }
     Ok(())
 }
@@ -338,6 +377,32 @@ pub(crate) fn validate_file_count(value: i64, preserve_order: bool) -> Result<()
     }
     if preserve_order && value != 1 {
         return Err("PRESERVE_ORDER true requires FILE_COUNT 1".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_http_source_method(method: &Method) -> opendal::Result<()> {
+    if *method != Method::GET && *method != Method::HEAD {
+        return Err(http_source_error("unsupported download method"));
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_http_source_url(url: &Url) -> opendal::Result<()> {
+    if !matches!(url.scheme(), "http" | "https")
+        || !url.username().is_empty()
+        || url.password().is_some()
+    {
+        return Err(http_source_error("unsupported HTTP redirect target"));
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_http_source_redirect(current: &Url, next: &Url) -> opendal::Result<()> {
+    if current.scheme() == "https" && next.scheme() != "https" {
+        return Err(http_source_error(
+            "HTTPS source redirect downgrade rejected",
+        ));
     }
     Ok(())
 }

@@ -24,6 +24,8 @@ pub unsafe extern "C" fn duckport_lance_open(
     columns: *const *const c_char,
     column_count: usize,
     options: *const DuckportWriteOptions,
+    secrets: *const crate::blob_auth::DuckportBlobSecret,
+    secret_count: usize,
     storage: *const crate::options::DuckportStorageOptions,
     sources: *const DuckportBlobSource,
     source_count: usize,
@@ -51,7 +53,7 @@ pub unsafe extern "C" fn duckport_lance_open(
                 })
             })
             .collect::<crate::error::Result<Vec<_>>>()?;
-        let sink = RUNTIME.block_on(super::open_with_sources(
+        let sink = RUNTIME.block_on(super::open(
             &string(path)?,
             schema,
             &string(mode)?,
@@ -59,6 +61,7 @@ pub unsafe extern "C" fn duckport_lance_open(
             &storage.read()?,
             write_options,
             options.writer_count,
+            crate::blob_auth::read_secrets(secrets, secret_count)?,
             sources,
         ))?;
         *output = Box::into_raw(Box::new(sink));

@@ -17,8 +17,7 @@ struct BlobSource {
     storage: StorageConfig,
 }
 
-#[allow(clippy::too_many_arguments)]
-async fn open_with_sources(
+pub(crate) async fn open(
     path: &str,
     schema: SchemaRef,
     mode: &str,
@@ -26,9 +25,12 @@ async fn open_with_sources(
     config: &StorageConfig,
     options: WriteOptions,
     writer_count: usize,
+    secrets: Vec<crate::security::ScopedHttpCredentials>,
     sources: Vec<BlobSource>,
 ) -> Result<DuckportSink> {
-    let options = options.with_mode(utils::sink_mode(mode)?);
+    let mut options = options.with_mode(utils::sink_mode(mode)?);
+    let metrics = open_arrow_sink_core::IoMetrics::default();
+    options.io_metrics = Some(metrics.clone().into());
     let paths = columns
         .iter()
         .map(|name| utils::resolve_column_path(&schema, name, "BLOB_COLUMNS"))
@@ -45,6 +47,7 @@ async fn open_with_sources(
     validation::validate_blob_indexes(&options.indexes, &roots)?;
     let columns = paths.into_iter().map(|path| path.join(".")).collect();
     let destination = storage::sink_storage(path, config)?;
+    let downloader = crate::blob_auth::blob_downloader(secrets, config.policy)?;
     let mut resolver = StorageResolver::default();
     for source in sources {
         let root = url::Url::parse(&source.document)?.join("/")?;
@@ -64,10 +67,12 @@ async fn open_with_sources(
         .collect();
     let sink = LanceDatasetSink::new(destination.storage)
         .with_source_resolver(Arc::new(resolver))
+        .with_blob_downloader(std::sync::Arc::new(downloader))
         .layer(DownloadBlobLayer::new(columns))
         .layer(SchemaEvolutionLayer::new(remaps));
     let writer = open_writer(sink, destination.url, schema.clone(), options, writer_count).await?;
     Ok(DuckportSink {
+        metrics,
         writer: Some(writer),
         schema,
         output_schema: None,

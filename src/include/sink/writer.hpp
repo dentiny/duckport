@@ -8,6 +8,7 @@
 #include <tuple>
 
 namespace duckdb {
+class WriterOpenContext;
 enum class SinkWriteMode : uint8_t { CREATE, APPEND, OVERWRITE };
 
 struct ColumnEncodingOptions {
@@ -33,6 +34,7 @@ struct IndexOptions {
 	}
 };
 
+// Plan-owned configuration. Runtime credentials belong to WriterOpenContext.
 struct SinkWriteOptions {
 	SinkWriteMode mode = SinkWriteMode::CREATE;
 	bool preserve_order = false;
@@ -95,6 +97,7 @@ public:
 	// Terminal even on failure; publication-failure cleanup belongs to the
 	// backend.
 	virtual void Commit() = 0;
+	virtual DuckportWriteMetrics Metrics() const = 0;
 	// Best-effort cleanup, including after a failed Write. Must not throw.
 	virtual void Abort() noexcept = 0;
 };
@@ -104,8 +107,7 @@ unique_ptr<SinkWriter> MakeSinkWriter(SinkPtr writer);
 
 // Inputs (including schema/credentials) are borrowed only during open. The
 // backend must copy what it needs before returning its independently owned
-// writer. Context is borrowed for backend-specific source secret resolution.
-using WriterOpen = std::function<unique_ptr<SinkWriter>(ClientContext &context, const string &path,
-                                                        const DuckportStorageOptions &storage,
+// writer.
+using WriterOpen = std::function<unique_ptr<SinkWriter>(const string &path, WriterOpenContext &context,
                                                         const SinkWriteOptions &options, ArrowSchema &schema)>;
 } // namespace duckdb

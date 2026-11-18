@@ -36,16 +36,24 @@ pub unsafe extern "C" fn duckport_federal_register_open(
         let endpoint = unsafe { optional_string(reader_options.endpoint) }?
             .unwrap_or_else(|| "https://www.federalregister.gov".into());
         let attachment_options = crate::utils::attachment_options(&format, record_path.as_deref())?;
-        let connection = Connection::new(&endpoint)?;
-        let connection = if let Some(token) = storage_options.token {
-            connection.with_header("authorization", &format!("Bearer {token}"))?
-        } else {
-            connection
-        };
+        let connection =
+            Connection::new(&endpoint)?.with_http_config(storage_options.policy.config()?)?;
+        let connection = crate::provider_auth::apply(
+            connection,
+            storage_options.security.http()?,
+            crate::provider_auth::HttpAuth::Bearer,
+        )?;
         let files = FederalRegisterService::with_connection(connection)
             .document(&locator)
             .await?;
-        crate::service_files::open(files, file_name, attachment_options, scan_options).await
+        crate::service_files::open(
+            files,
+            file_name,
+            attachment_options,
+            scan_options,
+            storage_options.metrics.clone(),
+        )
+        .await
     };
     unsafe { open_reader(locator, storage_options, scan_options, output, open) }
 }

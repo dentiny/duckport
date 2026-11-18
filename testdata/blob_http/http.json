@@ -1,0 +1,76 @@
+{
+  "routes": [
+    {
+      "path": "/private/a.bin",
+      "file": "payload.bin",
+      "auth_header": "Authorization",
+      "auth_value": "Bearer fixture-key",
+      "redirect": ""
+    },
+    {
+      "path": "/api-key/c.bin",
+      "file": "payload.bin",
+      "auth_header": "X-API-Key",
+      "auth_value": "fixture-custom",
+      "redirect": ""
+    },
+    {
+      "path": "/private/narrow/records.json",
+      "file": "records.json",
+      "auth_header": "Authorization",
+      "auth_value": "Bearer fixture-narrow",
+      "redirect": ""
+    },
+    {
+      "path": "/private/to-narrow.json",
+      "file": "records.json",
+      "auth_header": "Authorization",
+      "auth_value": "Bearer fixture-key",
+      "redirect": "API_ORIGIN/private/narrow/records.json"
+    },
+    {
+      "path": "/private/to-public.json",
+      "file": "records.json",
+      "auth_header": "Authorization",
+      "auth_value": "Bearer fixture-key",
+      "redirect": "API_ORIGIN/public/records.json"
+    },
+    {
+      "path": "/public/records.json",
+      "file": "records.json",
+      "auth_header": "",
+      "auth_value": "",
+      "redirect": ""
+    },
+    {
+      "path": "/public/to-private.json",
+      "file": "records.json",
+      "auth_header": "",
+      "auth_value": "",
+      "redirect": "API_ORIGIN/private/narrow/records.json"
+    },
+    {
+      "path": "/private/to-cross.json",
+      "file": "records.json",
+      "auth_header": "Authorization",
+      "auth_value": "Bearer fixture-key",
+      "redirect": "ORIGIN/public/records.json"
+    },
+    {
+      "path": "/api-key/to-public.json",
+      "file": "records.json",
+      "auth_header": "X-API-Key",
+      "auth_value": "fixture-custom",
+      "redirect": "API_ORIGIN/public/records.json"
+    }
+  ],
+  "downloads": [
+    {
+      "path": "/public/records.json",
+      "file": "records.json",
+      "auth_header": "",
+      "auth_value": "",
+      "redirect": ""
+    }
+  ]
+}

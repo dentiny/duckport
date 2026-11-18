@@ -64,12 +64,13 @@ pub async fn open<P: OaiProvider>(
         until_date.as_deref(),
         set_spec.as_deref(),
     )?;
-    let connection = Connection::new(endpoint)?;
-    let connection = if let Some(token) = storage_options.token {
-        connection.with_header("authorization", &format!("Bearer {token}"))?
-    } else {
-        connection
-    };
+    let connection =
+        Connection::new(endpoint)?.with_http_config(storage_options.policy.config()?)?;
+    let connection = crate::provider_auth::apply(
+        connection,
+        storage_options.security.http()?,
+        crate::provider_auth::HttpAuth::Bearer,
+    )?;
     let service = OaiProviderService::<P>::with_connection(connection)?;
     let page = if locator == "records" {
         service
@@ -87,6 +88,7 @@ pub async fn open<P: OaiProvider>(
             prefix: "oai",
             uri: "http://www.openarchives.org/OAI/2.0/",
         }]),
+        None if page.record_count == 0 => service.record_format(),
         None => service.inferred_record_format(),
     };
     let records = page.records(format);
