@@ -25,6 +25,7 @@ pub unsafe extern "C" fn duckport_internet_archive_open(
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
     let open = |locator: String, storage_options: StorageConfig, scan_options| async move {
+        crate::provider_auth::reject_http_headers(&storage_options.security, "Internet Archive")?;
         let file_name = crate::validation::nonempty(
             unsafe { optional_string(reader_options.file_name) }?,
             "file_name is required",

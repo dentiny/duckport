@@ -27,6 +27,7 @@ pub unsafe extern "C" fn duckport_huggingface_open(
     output: *mut *mut DuckportSource,
 ) -> *mut c_char {
     let open = |locator: String, storage_options: StorageConfig, scan_options| async move {
+        crate::provider_auth::reject_http_headers(&storage_options.security, "Hugging Face")?;
         let revision = unsafe { optional_string(reader_options.revision) }?;
         let config = unsafe { optional_string(reader_options.config) }?;
         let split = unsafe { optional_string(reader_options.split) }?;

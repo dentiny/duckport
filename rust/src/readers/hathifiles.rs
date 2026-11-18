@@ -39,11 +39,11 @@ pub unsafe extern "C" fn duckport_hathifiles_open(
         crate::validation::validate_hathifiles_locator(&locator)?;
         let connection =
             Connection::new(&endpoint)?.with_http_config(storage_options.policy.config()?)?;
-        let connection = if let Some(token) = storage_options.security.token {
-            connection.with_header("authorization", &format!("Bearer {token}"))?
-        } else {
-            connection
-        };
+        let connection = crate::provider_auth::apply(
+            connection,
+            &storage_options.security,
+            crate::provider_auth::HttpAuth::Bearer,
+        )?;
         let files = HathifilesService::with_connection(connection)
             .catalog()
             .await?;

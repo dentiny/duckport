@@ -1,0 +1,29 @@
+{
+  "routes": [
+    {
+      "path": "/api/v1/datasets/:persistentId/versions/1.0",
+      "file": "metadata.json",
+      "auth_header": "X-Dataverse-key",
+      "auth_value": "fixture-key"
+    },
+    {
+      "path": "/api/access/datafile/101",
+      "file": "attachment.bin",
+      "auth_header": "X-Dataverse-key",
+      "auth_value": "fixture-key"
+    },
+    {
+      "path": "/api/access/datafile/102",
+      "file": "attachment.bin",
+      "auth_header": "X-Dataverse-key",
+      "auth_value": "fixture-key",
+      "redirect": "ORIGIN/attachment.bin"
+    }
+  ],
+  "downloads": [
+    {
+      "path": "/attachment.bin",
+      "file": "attachment.bin"
+    }
+  ]
+}

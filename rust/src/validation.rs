@@ -385,9 +385,7 @@ pub(crate) fn validate_file_count(value: i64, preserve_order: bool) -> Result<()
     Ok(())
 }
 
-pub(crate) fn http_credential_headers(
-    config: &crate::security::SecurityConfig,
-) -> Result<HeaderMap> {
+pub(crate) fn http_extra_headers(config: &crate::security::SecurityConfig) -> Result<HeaderMap> {
     let mut headers = HeaderMap::new();
     for (name, value) in &config.http_headers {
         let name = HeaderName::from_bytes(name.as_bytes())
@@ -406,6 +404,13 @@ pub(crate) fn http_credential_headers(
         value.set_sensitive(true);
         headers.insert(name, value);
     }
+    Ok(headers)
+}
+
+pub(crate) fn http_credential_headers(
+    config: &crate::security::SecurityConfig,
+) -> Result<HeaderMap> {
+    let mut headers = http_extra_headers(config)?;
     if let Some(token) = &config.token {
         if headers.contains_key(http::header::AUTHORIZATION) {
             return Err("choose BEARER_TOKEN or an Authorization header".into());

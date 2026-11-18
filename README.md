@@ -112,9 +112,20 @@ CREATE SECRET custom_http_auth (
 | Zenodo, OpenStax, and bearer-enabled provider APIs | `TYPE http`: `BEARER_TOKEN`, scoped to the provider API endpoint. |
 | Figshare | `TYPE http`: raw token in `BEARER_TOKEN`; the adapter uses Figshare's `Authorization: token` scheme. |
 | Dataverse | `TYPE http`: `EXTRA_HTTP_HEADERS MAP {'X-Dataverse-key': 'api-token'}`; use `BEARER_TOKEN` for OIDC installations instead. |
-| Semantic Scholar, BHL, Regulations.gov, USPTO | `TYPE http`: API key stored in `BEARER_TOKEN`; the adapter maps it to the provider's required header/query field. |
+| Semantic Scholar, Regulations.gov, USPTO | `TYPE http`: API key in `BEARER_TOKEN` or `EXTRA_HTTP_HEADERS` under `X-API-Key`. |
+| BHL | `TYPE http`: API key in `BEARER_TOKEN`; the adapter maps it to the `apikey` query field. |
 | Internet Archive | `TYPE s3`: `KEY_ID` and `SECRET`, scoped to its HTTP endpoint; the adapter uses LOW authentication. |
 | Iceberg REST catalog | `TYPE http`: `BEARER_TOKEN` scoped to `CATALOG_URI`, independently of the secret for `STORAGE_ROOT`. |
+
+Connection-based provider adapters (Figshare, OpenStax, bioRxiv, Federal Register,
+GovInfo, HathiFiles, Library of Congress, OAI-PMH, BHL, Semantic Scholar,
+Regulations.gov, and USPTO) also apply `EXTRA_HTTP_HEADERS` to their primary
+origin. Duplicate headers, transport-header overrides, and a token combined with
+its mapped authentication header are rejected before I/O.
+
+Dataverse accepts `X-Dataverse-key` as its only extra header, or `BEARER_TOKEN`
+for OIDC; configuring both is rejected. Zenodo, Hugging Face, and Internet Archive
+do not support extra headers and reject them rather than silently ignoring them.
 
 For example, Dataverse API-key and Figshare secrets use the standard HTTP type:
 
