@@ -23,6 +23,7 @@ pub struct DuckportScanOptions {
 
 #[derive(Default)]
 pub struct StorageConfig {
+    pub(crate) metrics: crate::metrics::ReadMetrics,
     pub endpoint: Option<String>,
     pub region: Option<String>,
     pub virtual_host_style: bool,
@@ -35,6 +36,7 @@ impl DuckportStorageOptions {
     pub(crate) unsafe fn read(&self) -> Result<StorageConfig> {
         self.policy.config()?;
         Ok(StorageConfig {
+            metrics: Default::default(),
             endpoint: unsafe { optional_string(self.endpoint) }?,
             region: unsafe { optional_string(self.region) }?,
             virtual_host_style: utils::boolean("virtual_host_style", self.virtual_host_style)?,

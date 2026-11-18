@@ -11,6 +11,7 @@
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/main/query_result.hpp"
 #include "duckdb/main/settings.hpp"
+#include "duckdb/main/query_profiler.hpp"
 #include "duckdb/parallel/task_scheduler.hpp"
 #include "duckdb/parser/expression/star_expression.hpp"
 #include "duckdb/parser/parsed_data/sample_options.hpp"
@@ -360,11 +361,15 @@ void SinkCopy(ExecutionContext &, FunctionData &, GlobalFunctionData &global, Lo
 }
 void CombineCopy(ExecutionContext &, FunctionData &, GlobalFunctionData &, LocalFunctionData &) {
 }
-void FinalizeCopy(ClientContext &, FunctionData &, GlobalFunctionData &global) {
+void FinalizeCopy(ClientContext &context, FunctionData &, GlobalFunctionData &global) {
 	auto &state = global.Cast<CopyGlobalState>();
 	// Once publication starts, cleanup belongs to Commit, even if it throws.
 	state.terminal = true;
 	state.writer->Commit();
+	const auto metrics = state.writer->Metrics();
+	auto &profiler = QueryProfiler::Get(context);
+	profiler.TrackBytesRead(metrics.bytes_read);
+	profiler.TrackBytesWritten(metrics.bytes_written);
 }
 unique_ptr<SampleOptions> TakeSampleOptions(ClientContext &context, CopyInfo &info) {
 	auto percent = info.options.find(Identifier("sample_percent"));

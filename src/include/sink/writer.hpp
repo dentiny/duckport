@@ -97,6 +97,7 @@ public:
 	// Terminal even on failure; publication-failure cleanup belongs to the
 	// backend.
 	virtual void Commit() = 0;
+	virtual DuckportWriteMetrics Metrics() const = 0;
 	// Best-effort cleanup, including after a failed Write. Must not throw.
 	virtual void Abort() noexcept = 0;
 };

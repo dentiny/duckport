@@ -1,6 +1,6 @@
 # DuckPort
 
-Read file formats and dataset service providers into DuckDB through [open-arrow-access 0.3.1](https://crates.io/crates/open-arrow-access/0.3.1).
+Read file formats and dataset service providers into DuckDB through [open-arrow-access 0.7.0](https://crates.io/crates/open-arrow-access/0.7.0).
 
 ## Build
 
@@ -167,6 +167,24 @@ dataset directories with create and APPEND. Builds require `protoc`.
 The [Iceberg sink](docs/writers/iceberg.md) appends to existing tables through a REST catalog.
 Native `FORMAT PARQUET` writes individual files. All three sinks support
 [COPY sampling](docs/writers/README.md#copy-sampling) with `SAMPLE_PERCENT` and `SAMPLE_ROWS`.
+
+## Progress and profiling
+
+Enable the progress bar with `SET enable_progress_bar = true`. Single-file scans
+and provider attachments report estimated encoded-byte progress when their size
+is known; other scans remain indeterminate. Progress reaches 100% at reader EOF.
+
+Readers report scanned rows and observed input bytes to DuckDB's profiler.
+COPY reports sink read/write bytes after a successful commit, including APPEND
+metadata reads and finalization writes. Byte counts exclude provider discovery
+and hidden transports such as Hugging Face discovery/shards.
+
+```sql
+SET profiling_coverage = 'ALL';
+SET tracked_metrics = ['operator.type', 'operator.rows_scanned',
+                       'io.total_bytes_read', 'io.total_bytes_written'];
+PRAGMA enable_profiling = 'json';
+```
 
 [Tests](test/README.md) · [Development](docs/UPDATING.md)
 
@@ -492,3 +510,24 @@ retain that prefix. `endpoint` defaults to `https://library.oapen.org`.
 To obtain the next resumption token, scan the envelope with
 `record_path := '/oai:OAI-PMH/oai:ListRecords'` and select `"oai:resumptionToken"`.
 Automatic pagination is not enabled. Scoped HTTP bearer tokens are supported.
+
+### arXiv metadata
+
+```sql
+SELECT * FROM duckport_scan_arxiv_metadata('records', from_date := '2026-01-01',
+    until_date := '2026-01-31', set_spec := 'cs');
+-- Pass the upstream resumption token as the locator to read the next page.
+```
+
+Reads one arXiv OAI-PMH metadata page using the upstream `arXivRaw` prefix.
+The `from_date`, `until_date`, `set_spec`, `endpoint`, and `record_path` options
+match the DOAB/OAPEN metadata readers; the default endpoint is
+`https://oaipmh.arxiv.org`. The inferred XML records preserve deleted headers
+and nested metadata. Set `record_path := '/oai:OAI-PMH/oai:ListRecords'` to
+read the envelope and its `"oai:resumptionToken"` for explicit continuation.
+A continuation token cannot be combined with date/set selectors.
+Public metadata needs no key; scoped HTTP bearer secrets are supported for
+custom endpoints. `duckport_scan_arxiv` continues to read bulk TAR members.
+Empty pages, including `noRecordsMatch`, bind with the standard OAI header columns
+`identifier`, `datestamp`, `status`, and `set_specs` and return zero rows. An explicit
+`record_path` continues to select the requested XML envelope.
