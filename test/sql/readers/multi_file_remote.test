@@ -38,6 +38,13 @@ SELECT count(*), sum(id) FROM duckport_scan_json('s3://source-a/*.json');
 ----
 1	1
 
+# A single-component glob lists only immediate children (S3 delimiter=/).
+query T
+SELECT bool_or(contains(target, 'delimiter=%2F') OR contains(target, 'delimiter=/'))
+FROM duckport_fixture_requests('blob_s3') WHERE contains(target, 'list-type=2');
+----
+true
+
 # A file-prefix secret must never be used to list its parent directory.
 statement ok
 CREATE SECRET multi_file_only (TYPE s3, KEY_ID 'wrong-file', SECRET 'wrong-file-secret',

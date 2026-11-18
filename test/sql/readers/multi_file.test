@@ -176,3 +176,23 @@ query II
 SELECT count(*), sum(id) FROM duckport_scan_csv(['testdata/multifile/custom-a.data', 'testdata/multifile/custom-b.data'], delimiter := ';', header := true);
 ----
 3	6
+
+# Existing local filenames are literal, including valid and malformed glob syntax.
+statement ok
+COPY (SELECT 7 AS id) TO '{TEST_DIR}/literal[1].data' (FORMAT CSV, HEADER true);
+
+statement ok
+COPY (SELECT 99 AS id) TO '{TEST_DIR}/literal1.data' (FORMAT CSV, HEADER true);
+
+statement ok
+COPY (SELECT 8 AS id) TO '{TEST_DIR}/literal[.data' (FORMAT CSV, HEADER true);
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_csv('{TEST_DIR}/literal[1].data', header := true);
+----
+1	7
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_csv(['{TEST_DIR}/literal[1].data', '{TEST_DIR}/literal[.data'], header := true);
+----
+2	15

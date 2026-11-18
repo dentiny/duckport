@@ -15,7 +15,8 @@ file extensions, including supported outer compression for text formats. Explici
 globs select the files matching the pattern regardless of extension: `*` matches
 one path component and `**` traverses directories. Discovery results are sorted
 lexicographically and deduplicated within each selection. Empty lists, unmatched
-selections and NULL elements fail.
+selections and NULL elements fail. Existing local files and directories take
+precedence over glob syntax in their names.
 
 Local directories may omit the trailing slash. S3 directory prefixes must end in
 `/`; S3 dot path segments are rejected to preserve credential scopes.

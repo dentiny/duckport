@@ -20,78 +20,50 @@ fn matches_format(path: &str, format: &str, compression: &CompressionFactory) ->
     }
 }
 
-fn location(locator: &str) -> Result<(Url, String, bool)> {
+/// Keep parsing and URL escaping in one place; paths are decoded only for glob matching.
+fn parse(locator: &str) -> Result<Url> {
     if locator.is_empty() {
         return Err("file selection cannot be empty".into());
     }
-    let local = storage::is_local(locator);
-    let (base, path) = if local {
-        let path = utils::local_path(locator)?;
-        (
-            Url::from_file_path(&path).map_err(|_| "invalid local path")?,
-            {
-                let text = path.to_str().ok_or("path must be UTF-8")?;
-                if cfg!(windows) {
-                    text.replace('\\', "/")
-                } else {
-                    text.to_owned()
-                }
-            },
-        )
-    } else {
-        let mut url = Url::parse(locator)?;
-        validation::validate_uri(&url)?;
-        validation::validate_storage_scheme(url.scheme())?;
-        if url.scheme() == "s3" {
-            // URL normalization must not move discovery outside the scope for
-            // which DuckDB selected its credentials.
-            let raw_path = locator
-                .split_once("://")
-                .and_then(|(_, rest)| rest.split_once('/'))
-                .map_or("", |(_, path)| path);
-            if percent_encoding::percent_decode_str(raw_path)
-                .decode_utf8()?
-                .split('/')
-                .any(|part| matches!(part, "." | ".."))
-            {
-                return Err("S3 selections cannot contain dot path segments".into());
-            }
-        }
-        let path = percent_encoding::percent_decode_str(url.path())
+    if storage::is_local(locator) {
+        return Url::from_file_path(utils::local_path(locator)?)
+            .map_err(|_| "invalid local path".into());
+    }
+    let url = Url::parse(locator)?;
+    validation::validate_uri(&url)?;
+    validation::validate_storage_scheme(url.scheme())?;
+    if url.scheme() == "s3" {
+        // Inspect the original path: URL parsing normalizes dot segments, which
+        // could otherwise move discovery outside the selected credential scope.
+        let raw_path = locator
+            .split_once("://")
+            .and_then(|(_, rest)| rest.split_once('/'))
+            .map_or("", |(_, path)| path);
+        if percent_encoding::percent_decode_str(raw_path)
             .decode_utf8()?
-            .into_owned();
-        url.set_path("/");
-        (url, path)
-    };
-    Ok((base, path, local))
-}
-
-fn discovery_root(
-    mut base: Url,
-    path: &str,
-    wildcard: Option<usize>,
-    local: bool,
-) -> Result<(Url, Option<glob::Pattern>)> {
-    let (root, pattern) = if let Some(first) = wildcard {
-        let split = path[..first].rfind('/').map_or(0, |p| p + 1);
-        (&path[..split], Some(glob::Pattern::new(&path[split..])?))
-    } else {
-        (path, None)
-    };
-    if local {
-        base = Url::from_directory_path(root).map_err(|_| "invalid directory selection")?;
-    } else {
-        base.path_segments_mut()
-            .map_err(|_| "invalid directory URI")?
-            .clear()
-            .extend(root.strip_prefix('/').unwrap_or(root).split('/'));
-        if !base.path().ends_with('/') {
-            base.path_segments_mut()
-                .map_err(|_| "invalid directory URI")?
-                .push("");
+            .split('/')
+            .any(|part| matches!(part, "." | ".."))
+        {
+            return Err("S3 selections cannot contain dot path segments".into());
         }
     }
-    Ok((base, pattern))
+    Ok(url)
+}
+
+/// Split a glob into its literal directory URL and relative matching pattern.
+fn glob_root(mut url: Url) -> Result<(Url, Option<glob::Pattern>)> {
+    let path = percent_encoding::percent_decode_str(url.path()).decode_utf8()?;
+    let Some(first) = path.find(['*', '?', '[']) else {
+        return Ok((url, None));
+    };
+    let split = path[..first].rfind('/').map_or(0, |p| p + 1);
+    let pattern = glob::Pattern::new(&path[split..])?;
+    let root = path[..split].to_owned();
+    url.path_segments_mut()
+        .map_err(|_| "invalid directory URI")?
+        .clear()
+        .extend(root.strip_prefix('/').unwrap_or(&root).split('/'));
+    Ok((url, Some(pattern)))
 }
 
 pub(crate) async fn resolve(
@@ -99,14 +71,32 @@ pub(crate) async fn resolve(
     format: &str,
     config: &crate::options::StorageConfig,
 ) -> Result<Vec<String>> {
-    let (base, path, local) = location(locator)?;
-    let wildcard = path.find(['*', '?', '[']);
-    let directory =
-        path.ends_with('/') || local && tokio::fs::metadata(&path).await.is_ok_and(|m| m.is_dir());
-    if wildcard.is_none() && !directory {
+    let mut base = parse(locator)?;
+    let metadata = if base.scheme() == "file" {
+        tokio::fs::metadata(utils::local_path(locator)?).await.ok()
+    } else {
+        None
+    };
+    // Existing local paths take precedence over glob syntax in their names.
+    if metadata.as_ref().is_some_and(|m| m.is_file()) {
         return Ok(vec![locator.to_owned()]);
     }
-    let (base, pattern) = discovery_root(base, &path, wildcard, local)?;
+    let directory = base.path().ends_with('/') || metadata.is_some_and(|m| m.is_dir());
+    let pattern = if directory {
+        if !base.path().ends_with('/') {
+            base.path_segments_mut()
+                .map_err(|_| "invalid directory URI")?
+                .push("");
+        }
+        None
+    } else {
+        let (root, pattern) = glob_root(base)?;
+        let Some(pattern) = pattern else {
+            return Ok(vec![locator.to_owned()]);
+        };
+        base = root;
+        Some(pattern)
+    };
     let operator = storage::directory_operator(base.as_str(), config)?;
     let match_options = glob::MatchOptions {
         case_sensitive: true,
@@ -116,7 +106,11 @@ pub(crate) async fn resolve(
     let compression = CompressionFactory::default();
     let objects = list_files(
         &OpenDalAccessor::new(operator),
-        ListRequest::new("").with_recursive(true),
+        ListRequest::new("").with_recursive(
+            pattern
+                .as_ref()
+                .is_none_or(|p| p.as_str().contains('/') || p.as_str().contains("**")),
+        ),
         |relative| {
             Ok(!relative.is_empty()
                 && !relative.ends_with('/')
@@ -134,21 +128,10 @@ pub(crate) async fn resolve(
         .into_iter()
         .map(|object| {
             let mut url = base.clone();
-            let root = percent_encoding::percent_decode_str(base.path())
-                .decode_utf8()?
-                .into_owned();
-            let root = root.strip_prefix('/').unwrap_or(&root);
-            let root = root.strip_suffix('/').unwrap_or(root);
-            {
-                let mut segments = url
-                    .path_segments_mut()
-                    .map_err(|_| "invalid directory URI")?;
-                segments.clear();
-                if !root.is_empty() {
-                    segments.extend(root.split('/'));
-                }
-                segments.extend(object.locator().split('/'));
-            }
+            url.path_segments_mut()
+                .map_err(|_| "invalid directory URI")?
+                .pop_if_empty()
+                .extend(object.locator().split('/'));
             Ok(url.to_string())
         })
         .collect()
@@ -156,11 +139,10 @@ pub(crate) async fn resolve(
 
 /// URI used by the SQL layer to select discovery credentials before I/O.
 pub(crate) fn credential_scope(locator: &str) -> Result<String> {
-    let (base, path, local) = location(locator)?;
-    match path.find(['*', '?', '[']) {
-        Some(first) => Ok(discovery_root(base, &path, Some(first), local)?
-            .0
-            .to_string()),
-        None => Ok(locator.to_owned()),
+    let url = parse(locator)?;
+    if url.scheme() == "file" {
+        // Local paths do not need scoped remote credentials or glob parsing.
+        return Ok(locator.to_owned());
     }
+    Ok(glob_root(url)?.0.to_string())
 }
