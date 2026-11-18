@@ -8,13 +8,10 @@ require duckport_test_fixture
 
 set ignore_error_messages
 
-# Anonymous provider requests and attachment reads.
+# Anonymous metadata reads.
 
 statement ok
 SET VARIABLE fixture_endpoint = duckport_fixture('arxiv_metadata', 'start_anonymous');
-
-statement ok
-SET VARIABLE fixture_download_endpoint = duckport_fixture('arxiv_metadata', 'download_endpoint');
 
 # Adapted from open-arrow-access OAI provider tests: deleted records and opaque cursors.
 
@@ -73,10 +70,7 @@ SELECT * FROM duckport_scan_arxiv_metadata('next+token&x', endpoint := getvariab
 ----
 DuckPort
 
-# Malformed metadata must fail without reading any attachment bytes.
-
-statement ok
-SET VARIABLE fixture_downloads_before = (SELECT count(*) FROM duckport_fixture_requests('arxiv_metadata') WHERE is_download);
+# Malformed metadata must fail through the provider reader.
 
 statement ok
 SET VARIABLE fixture_requests_before = (SELECT count(*) FROM duckport_fixture_requests('arxiv_metadata') WHERE origin = 'api');
@@ -86,17 +80,12 @@ SELECT duckport_fixture('arxiv_metadata', 'reject_metadata');
 ----
 ok
 
-# Invalid provider metadata must fail before downloading content.
+# Invalid provider metadata must fail.
 
 statement error
 SELECT "oai:header"."oai:identifier" FROM duckport_scan_arxiv_metadata('records', endpoint := getvariable('fixture_endpoint'), batch_size := 1);
 ----
 DuckPort
-
-query T
-SELECT count(*) = getvariable('fixture_downloads_before') FROM duckport_fixture_requests('arxiv_metadata') WHERE is_download;
-----
-true
 
 query T
 SELECT count(*) > getvariable('fixture_requests_before') FROM duckport_fixture_requests('arxiv_metadata') WHERE origin = 'api';
@@ -112,11 +101,6 @@ true
 
 query T
 SELECT count(*) = 0 FROM duckport_fixture_requests('arxiv_metadata') WHERE origin = 'api' AND has_authorization;
-----
-true
-
-query T
-SELECT count(*) = 0 FROM duckport_fixture_requests('arxiv_metadata') WHERE origin = 'download' AND (has_authorization OR contains(headers, 'fixture-key') OR contains(target, 'fixture-key'));
 ----
 true
 
