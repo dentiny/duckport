@@ -34,6 +34,7 @@ fn remote_operator(
     url.set_path("/");
     let operator = if scheme == "http" || scheme == "https" {
         crate::validation::validate_http_config(config)?;
+        config.security.http()?;
         let builder = opendal::services::Http::default()
             .endpoint(url.as_str().trim_end_matches('/'))
             .root(root.unwrap_or("/"));
@@ -51,14 +52,23 @@ fn remote_operator(
         if let Some(endpoint) = &config.endpoint {
             builder = builder.endpoint(endpoint);
         }
-        if let Some(key) = &config.security.access_key_id {
-            builder = builder.access_key_id(key);
-        }
-        if let Some(secret) = &config.security.secret_access_key {
-            builder = builder.secret_access_key(secret);
-        }
-        if let Some(token) = &config.security.session_token {
-            builder = builder.session_token(token);
+        match config.security.s3()? {
+            Some(crate::security::S3Credentials::Static {
+                access_key_id,
+                secret_access_key,
+                session_token,
+            }) => {
+                builder = builder
+                    .access_key_id(access_key_id)
+                    .secret_access_key(secret_access_key);
+                if let Some(token) = session_token {
+                    builder = builder.session_token(token);
+                }
+            }
+            Some(crate::security::S3Credentials::Anonymous) => {
+                builder = builder.skip_signature();
+            }
+            None => {}
         }
         if requester_pays {
             builder = builder.enable_request_payer();
@@ -66,13 +76,11 @@ fn remote_operator(
         if config.virtual_host_style {
             builder = builder.enable_virtual_host_style();
         }
-        if config.security.allow_anonymous {
-            builder = builder.skip_signature();
-        }
         opendal::Operator::new(builder)?
     };
     let operator = if matches!(scheme.as_str(), "http" | "https") {
-        let transport = crate::blob_auth::scoped_http_transport(config)?;
+        let transport =
+            crate::blob_auth::scoped_http_transport(std::sync::Arc::clone(&config.http_secrets))?;
         let context = operator.base_context().with_http_transport(transport);
         operator.with_context(context)
     } else {

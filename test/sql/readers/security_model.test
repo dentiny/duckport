@@ -1,0 +1,72 @@
+# name: test/sql/readers/security_model.test
+# description: Flat C ABI credentials are checked and narrowed before use
+# group: [sql]
+
+require duckport_test_fixture
+
+set ignore_error_messages
+
+query T
+SELECT duckport_fixture_security('none');
+----
+none
+
+query T
+SELECT duckport_fixture_security('http');
+----
+http
+
+query T
+SELECT duckport_fixture_security('s3');
+----
+s3-static
+
+query T
+SELECT duckport_fixture_security('s3-session');
+----
+s3-static
+
+query T
+SELECT duckport_fixture_security('s3-anonymous');
+----
+s3-anonymous
+
+statement error
+SELECT duckport_fixture_security('mixed');
+----
+HTTP and S3 credentials must not be combined
+
+statement error
+SELECT duckport_fixture_security('partial');
+----
+S3 requires both a nonempty access key and a secret key
+
+statement error
+SELECT duckport_fixture_security('session-only');
+----
+S3 requires both a nonempty access key and a secret key
+
+statement error
+SELECT duckport_fixture_security('empty-key');
+----
+S3 requires both a nonempty access key and a secret key
+
+statement error
+SELECT duckport_fixture_security('s3-anonymous-key');
+----
+anonymous S3 access cannot include credentials
+
+statement error
+SELECT duckport_fixture_security('duplicates');
+----
+duplicate HTTP credential header
+
+statement error
+SELECT duckport_fixture_security('transport-header');
+----
+HTTP credential headers must not override transport headers
+
+statement error
+SELECT duckport_fixture_security('bad-value');
+----
+invalid HTTP credential header value

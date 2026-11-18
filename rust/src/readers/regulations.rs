@@ -44,7 +44,7 @@ pub unsafe extern "C" fn duckport_regulations_open(
             Connection::new(&endpoint)?.with_http_config(storage_options.policy.config()?)?;
         let connection = crate::provider_auth::apply(
             connection,
-            &storage_options.security,
+            storage_options.security.http()?,
             crate::provider_auth::HttpAuth::ApiKeyHeader("x-api-key"),
         )?;
         let files = RegulationsService::with_connection(connection)

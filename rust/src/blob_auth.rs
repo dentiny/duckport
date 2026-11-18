@@ -2,8 +2,8 @@
 //! DuckDB, and no credential or URL is included in transport error messages.
 use crate::{
     error::{Result, http_source_error},
-    options::{DuckportStorageOptions, StorageConfig},
-    security::{ScopedHttpSecret, SecurityConfig},
+    options::DuckportStorageOptions,
+    security::ScopedHttpCredentials,
     utils, validation,
 };
 use http::{Request, Response};
@@ -18,29 +18,29 @@ pub struct DuckportBlobSecret {
     pub r#type: *const c_char,
     pub config: DuckportStorageOptions,
 }
-pub(crate) struct SourceSecret {
-    pub scope: String,
-    pub kind: String,
-    pub config: StorageConfig,
-}
 pub(crate) unsafe fn read_secrets(
     raw: *const DuckportBlobSecret,
     count: usize,
-) -> Result<Vec<SourceSecret>> {
+) -> Result<Vec<ScopedHttpCredentials>> {
     unsafe { utils::ffi_slice(raw, count, "null Blob secrets") }?
         .iter()
         .map(|s| unsafe {
-            Ok(SourceSecret {
-                scope: utils::string(s.scope)?,
-                kind: utils::string(s.r#type)?,
-                config: s.config.read()?,
-            })
+            if utils::string(s.r#type)? != "http" {
+                return Err("unsupported Blob source secret type".into());
+            }
+            crate::security::read_http_secret(s.scope, &s.config.security)
         })
         .collect()
 }
+// The transport owns only prepared headers, so redirect hops never parse raw
+// credentials or depend on provider/storage configuration.
+struct HttpSourceCredentials {
+    scope: String,
+    headers: http::HeaderMap,
+}
 // Match DuckDB's prefix-based scopes, preserving the first entry on a tie.
-pub(crate) fn select<'a>(secrets: &'a [ScopedHttpSecret], url: &str) -> Option<&'a SecurityConfig> {
-    let mut best: Option<&ScopedHttpSecret> = None;
+fn select<'a>(secrets: &'a [HttpSourceCredentials], url: &str) -> Option<&'a http::HeaderMap> {
+    let mut best: Option<&HttpSourceCredentials> = None;
     for secret in secrets {
         if url.starts_with(&secret.scope)
             && best.is_none_or(|old| secret.scope.len() > old.scope.len())
@@ -48,13 +48,22 @@ pub(crate) fn select<'a>(secrets: &'a [ScopedHttpSecret], url: &str) -> Option<&
             best = Some(secret);
         }
     }
-    best.map(|s| &s.security)
+    best.map(|s| &s.headers)
 }
 struct CredentialTransport {
-    credentials: Arc<Vec<ScopedHttpSecret>>,
+    credentials: Vec<HttpSourceCredentials>,
     inner: HttpTransporter,
 }
-fn transport(credentials: Arc<Vec<ScopedHttpSecret>>) -> Result<HttpTransporter> {
+fn transport(credentials: Arc<Vec<ScopedHttpCredentials>>) -> Result<HttpTransporter> {
+    let credentials = credentials
+        .iter()
+        .map(|secret| {
+            Ok(HttpSourceCredentials {
+                scope: secret.scope.clone(),
+                headers: secret.credentials.download_headers()?,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
     // Disable automatic redirects so every hop is checked before any credential
     // can be sent. OpenDAL still owns retries, timeouts and the body stream.
     let client = reqwest::Client::builder()
@@ -67,11 +76,13 @@ fn transport(credentials: Arc<Vec<ScopedHttpSecret>>) -> Result<HttpTransporter>
         )),
     }))
 }
-pub(crate) fn scoped_http_transport(config: &StorageConfig) -> Result<HttpTransporter> {
-    transport(Arc::clone(&config.http_secrets))
+pub(crate) fn scoped_http_transport(
+    secrets: Arc<Vec<ScopedHttpCredentials>>,
+) -> Result<HttpTransporter> {
+    transport(secrets)
 }
 pub(crate) fn blob_downloader(
-    secrets: Vec<SourceSecret>,
+    secrets: Vec<ScopedHttpCredentials>,
     policy: crate::storage_policy::DuckportStoragePolicy,
 ) -> Result<BlobDownloader> {
     let source = policy.config()?;
@@ -90,16 +101,8 @@ pub(crate) fn blob_downloader(
                 io_timeout: t.io_timeout,
             }),
     };
-    let backend = OpenDalDownloader::new(policy)?.with_http_transport(transport(Arc::new(
-        secrets
-            .into_iter()
-            .filter(|s| s.kind == "http")
-            .map(|s| ScopedHttpSecret {
-                scope: s.scope,
-                security: s.config.security,
-            })
-            .collect(),
-    ))?);
+    let backend =
+        OpenDalDownloader::new(policy)?.with_http_transport(transport(Arc::new(secrets))?);
     Ok(BlobDownloader::with_defaults()?.with_downloader(Arc::new(backend)))
 }
 impl HttpTransport for CredentialTransport {
@@ -123,12 +126,8 @@ impl HttpTransport for CredentialTransport {
             *outgoing = parts.headers.clone();
             outgoing.remove(http::header::AUTHORIZATION);
             if !crossed_origin {
-                let auth = select(&self.credentials, url.as_str())
-                    .map(validation::http_credential_headers)
-                    .transpose()
-                    .map_err(|_| http_source_error("invalid scoped HTTP credentials"))?;
-                if let Some(auth) = auth {
-                    outgoing.extend(auth);
+                if let Some(headers) = select(&self.credentials, url.as_str()) {
+                    outgoing.extend(headers.clone());
                 }
             }
             let request = builder

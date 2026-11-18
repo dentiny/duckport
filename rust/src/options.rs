@@ -28,7 +28,7 @@ pub struct StorageConfig {
     pub virtual_host_style: bool,
     pub policy: DuckportStoragePolicy,
     pub security: crate::security::SecurityConfig,
-    pub(crate) http_secrets: std::sync::Arc<Vec<crate::security::ScopedHttpSecret>>,
+    pub(crate) http_secrets: std::sync::Arc<Vec<crate::security::ScopedHttpCredentials>>,
 }
 
 impl DuckportStorageOptions {

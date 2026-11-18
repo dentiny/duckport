@@ -150,12 +150,17 @@ pub(crate) fn sanitize_storage_root(mut root: Url) -> Url {
 }
 
 pub(crate) fn internet_archive_credentials(config: &StorageConfig) -> Result<Option<(&str, &str)>> {
-    validation::validate_internet_archive_credentials(config)?;
-    Ok(config
-        .security
-        .access_key_id
-        .as_deref()
-        .zip(config.security.secret_access_key.as_deref()))
+    match config.security.s3()? {
+        Some(crate::security::S3Credentials::Static {
+            access_key_id,
+            secret_access_key,
+            session_token: None,
+        }) => Ok(Some((access_key_id, secret_access_key))),
+        Some(crate::security::S3Credentials::Static { .. }) => {
+            Err("Internet Archive does not support session tokens".into())
+        }
+        Some(crate::security::S3Credentials::Anonymous) | None => Ok(None),
+    }
 }
 
 pub(crate) fn courtlistener_header(

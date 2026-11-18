@@ -23,6 +23,8 @@ struct DuckportHttpHeader {
     const char *value;
 };
 
+// Use one authentication family. Static S3 keys must be paired; anonymous S3
+// must not include keys. HTTP tokens/headers cannot be mixed with S3 credentials.
 struct DuckportSecurityOptions {
     const char *access_key_id;
     const char *secret_access_key;

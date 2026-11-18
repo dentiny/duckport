@@ -134,3 +134,39 @@ pub unsafe extern "C" fn duckport_fixture_field_metadata(
         Ok(())
     })
 }
+
+/// Inspect only the credential kind, without exposing any credential material.
+/// # Safety
+/// Options and output are live for the call, following the production C ABI contract.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn duckport_fixture_security(
+    raw: *const crate::security::DuckportSecurityOptions,
+    output: *mut *mut c_char,
+) -> *mut c_char {
+    call(|| unsafe {
+        validation::non_null(output, "null fixture output")?;
+        *output = ptr::null_mut();
+        let raw = validation::required(raw.as_ref(), "null fixture credentials")?;
+        let kind = match raw.read()? {
+            crate::security::SecurityConfig::None => "none",
+            crate::security::SecurityConfig::Http(credentials) => {
+                if !credentials
+                    .headers()
+                    .values()
+                    .all(|value| value.is_sensitive())
+                {
+                    return Err("HTTP credential headers must be sensitive".into());
+                }
+                "http"
+            }
+            crate::security::SecurityConfig::S3(crate::security::S3Credentials::Anonymous) => {
+                "s3-anonymous"
+            }
+            crate::security::SecurityConfig::S3(crate::security::S3Credentials::Static {
+                ..
+            }) => "s3-static",
+        };
+        *output = CString::new(kind)?.into_raw();
+        Ok(())
+    })
+}

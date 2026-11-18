@@ -1,5 +1,5 @@
 //! Explicit provider token mappings and shared validation of HTTP credential headers.
-use crate::{error::Result, security::SecurityConfig, validation};
+use crate::{error::Result, security::HttpCredentials, validation};
 use open_arrow_access::service::common::{ApiKey, Connection};
 
 #[derive(Clone, Copy)]
@@ -14,11 +14,13 @@ pub(crate) enum HttpAuth {
 /// connection keeps headers/query credentials on its origin during downloads.
 pub(crate) fn apply(
     mut connection: Connection,
-    security: &SecurityConfig,
+    security: Option<&HttpCredentials>,
     auth: HttpAuth,
 ) -> Result<Connection> {
-    let headers = validation::http_extra_headers(security)?;
-    let token = security.token.as_deref();
+    let anonymous = HttpCredentials::default();
+    let security = security.unwrap_or(&anonymous);
+    let headers = security.headers();
+    let token = security.token();
     let token_header = match auth {
         HttpAuth::Bearer | HttpAuth::FigshareToken => Some("authorization"),
         HttpAuth::ApiKeyHeader(name) => Some(name),
@@ -57,14 +59,17 @@ pub(crate) fn apply(
             connection = connection.with_api_key(ApiKey::Query(name), key)?;
         }
     }
-    for (name, value) in &headers {
+    for (name, value) in headers {
         connection = connection.with_header(name.as_str(), value.to_str()?)?;
     }
     Ok(connection)
 }
 
-pub(crate) fn reject_http_headers(security: &SecurityConfig, adapter: &'static str) -> Result<()> {
-    if !security.http_headers.is_empty() {
+pub(crate) fn reject_http_headers(
+    security: Option<&HttpCredentials>,
+    adapter: &'static str,
+) -> Result<()> {
+    if security.is_some_and(|credentials| !credentials.headers().is_empty()) {
         return Err(format!("{adapter} does not support EXTRA_HTTP_HEADERS").into());
     }
     Ok(())

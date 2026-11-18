@@ -17,7 +17,7 @@ pub(crate) async fn open(
     config: &StorageConfig,
     options: WriteOptions,
     writer_count: usize,
-    secrets: Vec<crate::blob_auth::SourceSecret>,
+    secrets: Vec<crate::security::ScopedHttpCredentials>,
 ) -> Result<DuckportSink> {
     let options = options.with_mode(utils::sink_mode(mode)?);
     let paths = columns

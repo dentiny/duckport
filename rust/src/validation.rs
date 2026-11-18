@@ -3,7 +3,7 @@ use crate::{
     options::StorageConfig,
     storage_policy::DuckportStoragePolicy,
 };
-use http::{HeaderMap, HeaderName, HeaderValue, Method};
+use http::Method;
 use open_arrow_sink_core::{CompressionSpec, IndexSpec};
 use std::{
     collections::HashSet,
@@ -116,7 +116,10 @@ pub(crate) fn validate_requester_pays(
         return Err("requester_pays requires an S3 root".into());
     }
     if enabled
-        && (config.security.access_key_id.is_none() || config.security.secret_access_key.is_none())
+        && !matches!(
+            config.security.s3()?,
+            Some(crate::security::S3Credentials::Static { .. })
+        )
     {
         return Err("requester_pays requires a scoped S3 secret with credentials".into());
     }
@@ -165,13 +168,6 @@ pub(crate) fn validate_boolean(name: &str, value: i32) -> Result<()> {
 pub(crate) fn validate_sink_scheme(url: &Url) -> Result<()> {
     if !matches!(url.scheme(), "file" | "s3") {
         return Err("sink destination must be a local path, file:// URI, or s3:// URI".into());
-    }
-    Ok(())
-}
-
-pub(crate) fn validate_internet_archive_credentials(config: &StorageConfig) -> Result<()> {
-    if config.security.access_key_id.is_some() != config.security.secret_access_key.is_some() {
-        return Err("Internet Archive requires both an access key and a secret key".into());
     }
     Ok(())
 }
@@ -383,44 +379,6 @@ pub(crate) fn validate_file_count(value: i64, preserve_order: bool) -> Result<()
         return Err("PRESERVE_ORDER true requires FILE_COUNT 1".into());
     }
     Ok(())
-}
-
-pub(crate) fn http_extra_headers(config: &crate::security::SecurityConfig) -> Result<HeaderMap> {
-    let mut headers = HeaderMap::new();
-    for (name, value) in &config.http_headers {
-        let name = HeaderName::from_bytes(name.as_bytes())
-            .map_err(|_| "invalid HTTP credential header name")?;
-        if matches!(
-            name.as_str(),
-            "host" | "content-length" | "range" | "connection" | "transfer-encoding"
-        ) {
-            return Err("HTTP credential headers must not override transport headers".into());
-        }
-        if headers.contains_key(&name) {
-            return Err("duplicate HTTP credential header".into());
-        }
-        let mut value =
-            HeaderValue::from_str(value).map_err(|_| "invalid HTTP credential header value")?;
-        value.set_sensitive(true);
-        headers.insert(name, value);
-    }
-    Ok(headers)
-}
-
-pub(crate) fn http_credential_headers(
-    config: &crate::security::SecurityConfig,
-) -> Result<HeaderMap> {
-    let mut headers = http_extra_headers(config)?;
-    if let Some(token) = &config.token {
-        if headers.contains_key(http::header::AUTHORIZATION) {
-            return Err("choose BEARER_TOKEN or an Authorization header".into());
-        }
-        let mut value = HeaderValue::from_str(&format!("Bearer {token}"))
-            .map_err(|_| "invalid HTTP bearer token")?;
-        value.set_sensitive(true);
-        headers.insert(http::header::AUTHORIZATION, value);
-    }
-    Ok(headers)
 }
 
 pub(crate) fn validate_http_source_method(method: &Method) -> opendal::Result<()> {

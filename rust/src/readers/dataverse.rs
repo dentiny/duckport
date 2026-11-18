@@ -42,12 +42,14 @@ pub unsafe extern "C" fn duckport_dataverse_open(
         let attachment_options = crate::utils::attachment_options(&format, record_path.as_deref())?;
         let service =
             DataverseService::new(&endpoint)?.with_http_config(storage_options.policy.config()?)?;
-        let headers = crate::validation::http_extra_headers(&storage_options.security)?;
+        let anonymous = crate::security::HttpCredentials::default();
+        let credentials = storage_options.security.http()?.unwrap_or(&anonymous);
+        let headers = credentials.headers();
         if headers.keys().any(|name| name != "x-dataverse-key") {
             return Err("Dataverse supports only X-Dataverse-key in EXTRA_HTTP_HEADERS".into());
         }
         let api_key = headers.get("x-dataverse-key");
-        let service = match (storage_options.security.token.as_deref(), api_key) {
+        let service = match (credentials.token(), api_key) {
             (Some(_), Some(_)) => {
                 return Err("choose BEARER_TOKEN or X-Dataverse-key for Dataverse".into());
             }
