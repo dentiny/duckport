@@ -12,7 +12,7 @@ requires a missing destination; APPEND requires an existing directory with a
 matching schema. An empty create still writes a readable schema/footer.
 Local paths, file URIs and S3 use the [scoped storage secret](../secrets.md).
 
-TARGET_FILE_SIZE is a positive soft byte target. FILE_COUNT controls writer
+TARGET_FILE_SIZE is a positive soft byte target. WRITE_CONCURRENCY controls writer
 streams, not exact file count. Both [ordering modes](README.md#copy-ordering),
 [sampling](README.md#copy-sampling), [generated columns](README.md#generated-columns)
 and supported top-level [column codecs](README.md#column-compression-and-encoding)

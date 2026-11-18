@@ -108,6 +108,39 @@ pub unsafe extern "C" fn duckport_source_destroy(source: *mut DuckportSource) {
     });
 }
 
+/// # Safety
+/// Source is live; output is writable. Called before starting its Arrow stream.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn duckport_source_configure_copy(
+    source: *const DuckportSource,
+    read_concurrency: usize,
+    inspect_size: bool,
+    bytes: *mut u64,
+    known: *mut bool,
+) -> *mut c_char {
+    call(|| unsafe {
+        let source = validation::required(source.as_ref(), "null source argument")?;
+        validation::non_null(bytes, "null size output")?;
+        validation::non_null(known, "null size output")?;
+        *known = false;
+        let source = source.source.as_ref().unwrap();
+        if read_concurrency > 0 {
+            source.set_read_concurrency(read_concurrency);
+        }
+        if inspect_size {
+            match RUNTIME.block_on(source.statistics())?.source_bytes {
+                open_arrow_access::Statistic::Exact(value)
+                | open_arrow_access::Statistic::Estimated(value) => {
+                    *bytes = value;
+                    *known = true;
+                }
+                open_arrow_access::Statistic::Unknown => {}
+            }
+        }
+        Ok(())
+    })
+}
+
 pub(crate) unsafe fn open_reader<F, Fut>(
     locator: *const c_char,
     storage_options: &DuckportStorageOptions,
@@ -140,6 +173,7 @@ where
         let scan = scan_options.read()?;
         let metrics = storage.metrics.clone();
         let source = RUNTIME.block_on(open(locator, storage, scan))?;
+        source.set_read_concurrency(scan_options.read_concurrency);
         *output = Box::into_raw(Box::new(DuckportSource {
             source: Some(source),
             metrics,

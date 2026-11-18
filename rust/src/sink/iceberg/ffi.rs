@@ -48,7 +48,7 @@ pub unsafe extern "C" fn duckport_iceberg_open(
             &storage_root,
             &storage.read()?,
             write_options,
-            options.writer_count,
+            options.ingestion()?,
         ))?;
         *output = Box::into_raw(Box::new(sink));
         Ok(())

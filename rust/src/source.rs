@@ -1,17 +1,28 @@
 pub(crate) mod files;
+mod scan;
 use crate::error::Result;
 use arrow_schema::SchemaRef;
 use open_arrow_access::{
-    Accessor, AccessorExt, ByteAccessor, FactoryAccessor, OuterCompression, PreparedSource,
-    ReadOptions, ReadOptionsProvider, ReadRequest, ReaderFactory, RecordReader,
+    Accessor, AccessorExt, ByteAccessor, OuterCompression, PreparedSource, ReadOptions,
+    ReadOptionsProvider, ReadRequest, ReaderFactory, RecordReader,
     decompression::AutoDecompressionLayer,
     storage::{OpenDalAccessor, opendal},
 };
+use std::{
+    num::NonZeroUsize,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+};
 
 pub struct DuckportSource {
-    source: PreparedSource,
+    source: Arc<PreparedSource>,
+    capability: open_arrow_access::RecordCapability,
+    planned: bool,
+    read_concurrency: AtomicUsize,
     options: ReadOptions,
-    media: Option<std::sync::Arc<crate::readers::atif::MediaResolver>>,
+    media: Option<Arc<crate::readers::atif::MediaResolver>>,
 }
 
 impl DuckportSource {
@@ -21,11 +32,67 @@ impl DuckportSource {
         A::Request: Clone + Sync + ReadOptionsProvider + 'static,
     {
         let options = request.read_options().clone();
-        Ok(Self {
-            source: PreparedSource::prepare(accessor, request).await?,
+        let capability = accessor.capability();
+        Ok(Self::prepared(
+            PreparedSource::prepare(accessor, request).await?,
             options,
+            capability,
+            false,
+        ))
+    }
+
+    fn prepared(
+        source: PreparedSource,
+        options: ReadOptions,
+        capability: open_arrow_access::RecordCapability,
+        planned: bool,
+    ) -> Self {
+        Self {
+            source: Arc::new(source),
+            options,
+            capability,
+            planned,
+            read_concurrency: AtomicUsize::new(1),
             media: None,
-        })
+        }
+    }
+
+    pub(crate) async fn plannable<A>(accessor: A, request: A::Request) -> Result<Self>
+    where
+        A: open_arrow_access::ScanPlanner + 'static,
+        A::Request: Clone + Sync + ReadOptionsProvider + 'static,
+    {
+        let options = request.read_options().clone();
+        let capability = accessor.capability();
+        Ok(Self::prepared(
+            PreparedSource::prepare_plannable(accessor, request).await?,
+            options,
+            capability,
+            true,
+        ))
+    }
+
+    pub(crate) async fn with_statistics<A>(accessor: A, request: A::Request) -> Result<Self>
+    where
+        A: open_arrow_access::ScanPlanner + open_arrow_access::StatisticsProvider + 'static,
+        A::Request: Clone + Sync + ReadOptionsProvider + 'static,
+    {
+        let options = request.read_options().clone();
+        let capability = accessor.capability();
+        Ok(Self::prepared(
+            PreparedSource::prepare_plannable_with_statistics(accessor, request).await?,
+            options,
+            capability,
+            true,
+        ))
+    }
+
+    pub(crate) fn set_read_concurrency(&self, count: usize) {
+        self.read_concurrency.store(count, Ordering::Relaxed);
+    }
+
+    pub(crate) async fn statistics(&self) -> Result<open_arrow_access::ScanStatistics> {
+        Ok(self.source.statistics(self.options.clone()).await?)
     }
 
     pub fn schema(&self) -> SchemaRef {
@@ -51,7 +118,18 @@ impl DuckportSource {
         } else {
             Some(projection)
         };
-        let reader = self.source.scan(options).await?;
+        let concurrency = self.read_concurrency.load(Ordering::Relaxed);
+        let reader = if self.planned && concurrency > 1 {
+            scan::PreparedScan(self.source.clone(), self.capability)
+                .layer(open_arrow_access::layers::ParallelReadLayer::new(
+                    NonZeroUsize::new(concurrency).unwrap(),
+                    NonZeroUsize::MIN,
+                ))
+                .open(options)
+                .await?
+        } else {
+            self.source.scan(options).await?
+        };
         match &self.media {
             Some(resolver) => Ok(resolver.reader(reader)),
             None => Ok(reader),
@@ -68,19 +146,25 @@ pub(crate) async fn open_file_source<F>(
 ) -> Result<DuckportSource>
 where
     F: ReaderFactory<Request = ReadRequest, Reader = dyn RecordReader> + 'static,
+    open_arrow_access::file_format::FileAccessor<Arc<dyn ByteAccessor>, F>:
+        open_arrow_access::ScanPlanner<Request = ReadRequest>,
 {
     let storage =
         crate::metrics::ObservedBytes::new(OpenDalAccessor::new(operator), metrics.clone());
-    let storage: std::sync::Arc<dyn ByteAccessor> = match compression {
-        OuterCompression::None => std::sync::Arc::new(storage),
-        OuterCompression::Auto => std::sync::Arc::new(storage.layer(AutoDecompressionLayer::new())),
+    let storage: Arc<dyn ByteAccessor> = match compression {
+        OuterCompression::None => Arc::new(storage),
+        OuterCompression::Auto => Arc::new(storage.layer(AutoDecompressionLayer::new())),
     };
-    DuckportSource::new(FactoryAccessor::new(storage, format), request).await
+    DuckportSource::plannable(
+        open_arrow_access::file_format::FileAccessor::from_format(storage, format),
+        request,
+    )
+    .await
 }
 
 impl DuckportSource {
     pub(crate) fn with_atif(mut self, resolver: crate::readers::atif::MediaResolver) -> Self {
-        self.media = Some(std::sync::Arc::new(resolver));
+        self.media = Some(Arc::new(resolver));
         self
     }
 }

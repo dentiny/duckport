@@ -1,4 +1,5 @@
 #include "source_metadata.hpp"
+#include "source/reader.hpp"
 #include "sink/copy.hpp"
 #include "sink/copy_options.hpp"
 #include "sink/copy_query.hpp"
@@ -56,7 +57,9 @@ struct CopyBindData : FunctionData {
 		return types == bind.types && names == bind.names && generated_expressions == bind.generated_expressions &&
 		       path == bind.path && options.mode == bind.options.mode &&
 		       options.blob_columns == bind.options.blob_columns &&
-		       options.preserve_order == bind.options.preserve_order && options.file_count == bind.options.file_count &&
+		       options.read_concurrency == bind.options.read_concurrency &&
+		       options.preserve_order == bind.options.preserve_order &&
+		       options.write_concurrency == bind.options.write_concurrency &&
 		       options.write_options.blob_inline_size_threshold ==
 		           bind.options.write_options.blob_inline_size_threshold &&
 		       options.write_options.blob_dedicated_size_threshold ==
@@ -125,7 +128,7 @@ unique_ptr<GlobalFunctionData> InitCopy(ClientContext &context, FunctionData &da
 	ExportGeneratedExpressions(schema.arrow_schema, bind.generated_expressions);
 	StorageParameters storage(context, bind.options.storage_root.empty() ? path : bind.options.storage_root, {});
 	auto options = bind.options;
-	options.write_options.writer_count = options.file_count.value_or(
+	options.write_options.writer_count = options.write_concurrency.value_or(
 	    options.preserve_order ? 1 : TaskScheduler::GetScheduler(context).NumberOfThreads());
 	WriterOpenContext open_context(context, storage.config);
 	state->writer = bind.info->Cast<WriterInfo>().open(path, open_context, options, schema.arrow_schema);
@@ -207,6 +210,15 @@ BoundStatement PlanCopy(Binder &binder, CopyStatement &statement) {
 	}
 	CopyFunctionBindInput input(*info, function.function_info);
 	auto data = BindCopy(binder.context, input, source.names, source.types);
+	auto &options = data->Cast<CopyBindData>().options;
+	const auto automatic = !options.preserve_order && !options.write_concurrency &&
+	                       options.write_options.target_file_size > 0 && options.blob_columns.empty() &&
+	                       generated.empty();
+	auto bytes = ConfigureCopySources(*source.plan, options.read_concurrency.value_or(0), automatic);
+	if (bytes) {
+		options.write_options.source_bytes = *bytes;
+		options.write_options.source_bytes_known = true;
+	}
 	if (!generated.empty()) {
 		auto &expressions = data->Cast<CopyBindData>().generated_expressions;
 		expressions.resize(source.names.size() - generated.size());

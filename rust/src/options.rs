@@ -30,6 +30,7 @@ pub struct SelectedFile {
 pub struct DuckportScanOptions {
     /// Target rows per Arrow record batch; SQL default: 8192.
     pub batch_size: usize,
+    pub read_concurrency: usize,
     pub files: *const DuckportSelectedFile,
     pub file_count: usize,
 }
@@ -66,6 +67,10 @@ impl DuckportStorageOptions {
 
 impl DuckportScanOptions {
     pub(crate) fn read(&self) -> Result<ReadOptions> {
+        crate::validation::required(
+            std::num::NonZeroUsize::new(self.read_concurrency),
+            "read concurrency must be positive",
+        )?;
         Ok(ReadOptions {
             batch_size: utils::batch_size(self.batch_size)?,
             ..Default::default()

@@ -38,6 +38,7 @@ mod tests {
                     path.as_ptr(),
                     &DuckportStorageOptions::default(),
                     &DuckportScanOptions {
+                        read_concurrency: 1,
                         batch_size: 8,
                         files: ptr::null(),
                         file_count: 0

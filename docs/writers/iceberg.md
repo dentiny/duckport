@@ -46,7 +46,7 @@ OVERWRITE, BLOB_COLUMNS, blob thresholds, storage version, per-column codecs,
 structural encoding, indexes and partitioned tables are unsupported. ATIF media
 references are preserved without downloads. The shared
 [ordering](README.md#copy-ordering), [sampling](README.md#copy-sampling),
-[generated-column](README.md#generated-columns), FILE_COUNT and TARGET_FILE_SIZE
+[generated-column](README.md#generated-columns), WRITE_CONCURRENCY and TARGET_FILE_SIZE
 options remain available subject to those schema constraints.
 
 ## Publication

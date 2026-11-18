@@ -7,6 +7,13 @@ namespace duckdb {
 SourceFactory::SourceFactory(SourcePtr source_p) : source(std::move(source_p)) {
 }
 
+optional<uint64_t> SourceFactory::ConfigureCopy(idx_t read_concurrency, bool inspect_size) {
+	uint64_t bytes = 0;
+	bool known = false;
+	CheckError(duckport_source_configure_copy(source.get(), read_concurrency, inspect_size, &bytes, &known));
+	return known ? optional<uint64_t>(bytes) : nullopt;
+}
+
 void SourceFactory::GetSchema(ArrowSchema &schema) {
 	CheckError(duckport_source_get_schema(source.get(), &schema));
 }

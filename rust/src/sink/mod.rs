@@ -7,28 +7,20 @@ use crate::{error::Result, validation};
 use arrow_array::RecordBatch;
 use arrow_schema::SchemaRef;
 use open_arrow_sink_core::{ParallelSink, Sink, SinkExt, WriteOptions, Writer};
-use open_arrow_sink_layer::UnorderedWriteLayer;
-use std::num::NonZeroUsize;
+use open_arrow_sink_layer::ParallelIngestionLayer;
 
 pub(crate) async fn open_writer<S: ParallelSink>(
     sink: S,
     request: S::Request,
     schema: SchemaRef,
     options: WriteOptions,
-    writer_count: usize,
+    ingestion: ParallelIngestionLayer,
 ) -> Result<Box<dyn Writer>> {
     // DuckDB delivers batches serially; one writer retains their input sequence.
-    if writer_count == 1 {
+    if ingestion.plan().writers.get() == 1 {
         return Ok(sink.open(request, schema, options).await?);
     }
-    let count = validation::required(
-        NonZeroUsize::new(writer_count),
-        "writer count must be positive",
-    )?;
-    Ok(sink
-        .layer(UnorderedWriteLayer::new(count))
-        .open(request, schema, options)
-        .await?)
+    Ok(sink.layer(ingestion).open(request, schema, options).await?)
 }
 
 pub struct DuckportSink {

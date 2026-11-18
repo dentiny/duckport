@@ -60,7 +60,7 @@ pub unsafe extern "C" fn duckport_lance_open(
             columns,
             &storage.read()?,
             write_options,
-            options.writer_count,
+            options.ingestion()?,
             crate::blob_auth::read_secrets(secrets, secret_count)?,
             sources,
         ))?;

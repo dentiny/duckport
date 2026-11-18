@@ -3,6 +3,7 @@
 #include "duckdb/common/unique_ptr.hpp"
 #include "duckdb/function/table/arrow.hpp"
 #include "duckport.h"
+#include "duckdb/common/optional.hpp"
 #include "duckdb/common/atomic.hpp"
 
 namespace duckdb {
@@ -16,6 +17,7 @@ public:
 	unique_ptr<ArrowArrayStreamWrapper> ProduceStream(ArrowStreamParameters &parameters) override;
 
 	DuckportReadMetrics Snapshot() const;
+	optional<uint64_t> ConfigureCopy(idx_t read_concurrency, bool inspect_size);
 	void ReportBytes(ClientContext &context);
 	uint64_t ReportRows(uint64_t rows);
 

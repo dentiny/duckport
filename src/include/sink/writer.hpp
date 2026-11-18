@@ -38,7 +38,8 @@ struct IndexOptions {
 struct SinkWriteOptions {
 	SinkWriteMode mode = SinkWriteMode::CREATE;
 	bool preserve_order = false;
-	optional<int64_t> file_count;
+	optional<int64_t> write_concurrency;
+	optional<int64_t> read_concurrency;
 	vector<string> blob_columns;
 	DuckportWriteOptions write_options {
 	    .blob_inline_size_threshold = -1,
@@ -50,6 +51,8 @@ struct SinkWriteOptions {
 	    .indexes = nullptr,
 	    .index_count = 0,
 	    .writer_count = 1,
+	    .source_bytes = 0,
+	    .source_bytes_known = false,
 	};
 	string catalog_uri;
 	string warehouse;

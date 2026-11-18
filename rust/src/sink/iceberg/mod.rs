@@ -25,7 +25,7 @@ pub(crate) async fn open(
     storage_root: &str,
     config: &StorageConfig,
     options: WriteOptions,
-    writer_count: usize,
+    ingestion: open_arrow_sink_layer::ParallelIngestionLayer,
 ) -> Result<DuckportSink> {
     let uri = url::Url::parse(catalog_uri)?;
     validation::validate_iceberg_catalog_uri(&uri)?;
@@ -56,7 +56,7 @@ pub(crate) async fn open(
         identifier,
         schema,
         options,
-        writer_count,
+        ingestion,
         metrics,
     )
     .await
@@ -95,7 +95,7 @@ pub(crate) async fn open_catalog(
     identifier: TableIdent,
     schema: SchemaRef,
     options: WriteOptions,
-    writer_count: usize,
+    ingestion: open_arrow_sink_layer::ParallelIngestionLayer,
     metrics: open_arrow_sink_core::IoMetrics,
 ) -> Result<DuckportSink> {
     // DuckPort owns table creation; the sink backend writes the resulting table
@@ -112,14 +112,7 @@ pub(crate) async fn open_catalog(
     // DuckDB does not export Iceberg field IDs. Match names and types first,
     // then attach the catalog schema, including IDs and requiredness.
     validation::validate_iceberg_schema(&schema, &output_schema)?;
-    let writer = open_writer(
-        sink,
-        identifier,
-        output_schema.clone(),
-        options,
-        writer_count,
-    )
-    .await?;
+    let writer = open_writer(sink, identifier, output_schema.clone(), options, ingestion).await?;
     Ok(DuckportSink {
         metrics,
         writer: Some(writer),

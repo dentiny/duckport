@@ -32,7 +32,7 @@ pub unsafe extern "C" fn duckport_parquet_open(
             &string(mode)?,
             &storage.read()?,
             write_options,
-            options.writer_count,
+            options.ingestion()?,
         ))?;
         *output = Box::into_raw(Box::new(sink));
         Ok(())

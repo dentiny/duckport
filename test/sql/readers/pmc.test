@@ -22,10 +22,10 @@ EXECUTE pmc_scan;
 ----
 PMC123	1	Test article
 
-query TTI
-SELECT trim(pmcid), license_code, version FROM duckport_scan_pmc('testdata/pmc/metadata.json');
+query TTIII
+SELECT trim(pmcid), license_code, version, pmid, metadata.pmid FROM duckport_scan_pmc('testdata/pmc/metadata.json');
 ----
-pmc00123	CC BY	2
+pmc00123	CC BY	2	36537061	36537061
 
 query I
 SELECT count(*) FROM duckport_scan_pmc_inventory('testdata/pmc/inventory/manifest.json', batch_size := 1);

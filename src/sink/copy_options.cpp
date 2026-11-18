@@ -156,13 +156,13 @@ bool ParseIndexOption(const Identifier &name, const vector<Value> &values, SinkW
 	return true;
 }
 
-int64_t ParseFileCount(const vector<Value> &values) {
+int64_t ParseConcurrency(const Identifier &name, const vector<Value> &values) {
 	if (values.size() != 1 || values[0].IsNull() || !values[0].type().IsIntegral()) {
-		throw BinderException("FILE_COUNT requires one integer");
+		throw BinderException("%s requires one integer", name);
 	}
 	auto value = values[0].DefaultTryCastAs(LogicalType::BIGINT);
-	if (!value) {
-		throw BinderException("FILE_COUNT requires an integer that fits in BIGINT");
+	if (!value || value->GetValue<int64_t>() <= 0) {
+		throw BinderException("%s requires a positive integer that fits in BIGINT", name);
 	}
 	return value->GetValue<int64_t>();
 }
@@ -196,8 +196,10 @@ void ParseCopyOption(ClientContext &context, const Identifier &name, const vecto
 	}
 	if (name == "blob_columns") {
 		options.blob_columns = ParseBlobColumns(values);
-	} else if (name == "file_count") {
-		options.file_count = ParseFileCount(values);
+	} else if (name == "write_concurrency") {
+		options.write_concurrency = ParseConcurrency(name, values);
+	} else if (name == "read_concurrency") {
+		options.read_concurrency = ParseConcurrency(name, values);
 	} else if (name == "preserve_order") {
 		options.preserve_order = ParseBooleanOption(context, Identifier("PRESERVE_ORDER"), values);
 	} else {
@@ -219,8 +221,8 @@ SinkWriteOptions ParseCopyOptions(ClientContext &context, const CopyInfo &info) 
 	for (const auto &entry : info.options) {
 		ParseCopyOption(context, entry.first, entry.second, options, has_mode);
 	}
-	if (options.file_count) {
-		CheckCopyOptionError(duckport_validate_file_count(*options.file_count, options.preserve_order));
+	if (options.write_concurrency) {
+		CheckCopyOptionError(duckport_validate_write_concurrency(*options.write_concurrency, options.preserve_order));
 	}
 	return options;
 }
@@ -237,9 +239,10 @@ void RegisterCopyOptions(ClientContext &, CopyOptionsInput &input) {
 	input.options["overwrite"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
 	input.options["preserve_order"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
 	// Preserve original values for validation.
-	for (const auto &option : {"file_count", "target_file_size", "blob_inline_size_threshold",
-	                           "blob_dedicated_size_threshold", "sample_percent", "sample_rows", "column_compression",
-	                           "column_compression_level", "column_structural_encoding", "generated_columns"}) {
+	for (const auto &option :
+	     {"read_concurrency", "write_concurrency", "target_file_size", "blob_inline_size_threshold",
+	      "blob_dedicated_size_threshold", "sample_percent", "sample_rows", "column_compression",
+	      "column_compression_level", "column_structural_encoding", "generated_columns"}) {
 		input.options[option] = CopyOption(LogicalType::ANY, CopyOptionMode::WRITE_ONLY);
 	}
 }

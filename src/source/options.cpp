@@ -45,10 +45,18 @@ DuckportScanOptions ReadScanOptions(const TableFunctionBindInput &input) {
 		}
 	}
 	constexpr idx_t DEFAULT_BATCH_SIZE = 8192;
-	DuckportScanOptions scan {DEFAULT_BATCH_SIZE, nullptr, 0};
+	DuckportScanOptions scan {DEFAULT_BATCH_SIZE, 1, nullptr, 0};
 	auto batch = input.named_parameters.find("batch_size");
 	if (batch != input.named_parameters.end()) {
 		scan.batch_size = idx_t(BigIntValue::Get(batch->second));
+	}
+	auto concurrency = input.named_parameters.find("read_concurrency");
+	if (concurrency != input.named_parameters.end()) {
+		auto value = BigIntValue::Get(concurrency->second);
+		if (value <= 0) {
+			throw BinderException("READ_CONCURRENCY must be positive");
+		}
+		scan.read_concurrency = idx_t(value);
 	}
 	return scan;
 }

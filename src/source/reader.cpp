@@ -7,6 +7,8 @@
 #include "source/source_factory.hpp"
 #include "source_metadata.hpp"
 #include "storage_options.hpp"
+#include "duckdb/planner/operator/logical_get.hpp"
+#include "duckdb/common/string_util.hpp"
 
 namespace duckdb {
 namespace {
@@ -122,6 +124,27 @@ double ReaderProgress(ClientContext &, const FunctionData *data, const GlobalTab
 	return MinValue(99.0, 100.0 * double(metrics.progress_bytes) / double(metrics.total_bytes));
 }
 } // namespace
+optional<uint64_t> ConfigureCopySources(LogicalOperator &plan, idx_t read_concurrency, bool inspect_size) {
+	if (plan.type == LogicalOperatorType::LOGICAL_GET) {
+		auto &get = plan.Cast<LogicalGet>();
+		if (StringUtil::StartsWith(get.function.GetName().GetIdentifierName(), "duckport_scan_") &&
+		    get.function.function == ArrowTableFunction::ArrowScanFunction) {
+			return GetFactory(get.bind_data.get()).ConfigureCopy(read_concurrency, inspect_size);
+		}
+		return nullopt;
+	}
+	// Joins, aggregates, limits and other transformations have unknown output size.
+	const auto direct = plan.type == LogicalOperatorType::LOGICAL_PROJECTION && plan.children.size() == 1;
+	optional<uint64_t> bytes;
+	for (auto &child : plan.children) {
+		auto child_bytes = ConfigureCopySources(*child, read_concurrency, inspect_size && direct);
+		if (direct) {
+			bytes = child_bytes;
+		}
+	}
+	return bytes;
+}
+
 static void RegisterReaderImpl(ExtensionLoader &loader, const string &name, ReaderBind open,
                                const std::function<void(TypedKwargs &)> &add_reader_options, bool files) {
 	auto format = files ? name.substr(string("duckport_scan_").size()) : string();
@@ -131,6 +154,7 @@ static void RegisterReaderImpl(ExtensionLoader &loader, const string &name, Read
 		function.function_info = make_shared_ptr<ReaderInfo>(open, format);
 		function.GetSignature().WithTypedKwargs("options", [&](TypedKwargs &options) {
 			options.Add("batch_size", LogicalType::BIGINT);
+			options.Add("read_concurrency", LogicalType::BIGINT);
 			if (add_reader_options) {
 				add_reader_options(options);
 			}
