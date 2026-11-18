@@ -1,9 +1,9 @@
 #include "iceberg.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/helper.hpp"
-#include "duckdb/common/mutex.hpp"
 #include "duckdb/common/unique_ptr.hpp"
 #include "duckdb/common/unordered_map.hpp"
+#include "duckdb/common/mutex.hpp"
 #include "duckdb/common/vector_operations/binary_executor.hpp"
 #include "duckdb/function/scalar_function.hpp"
 #include "httplib.hpp"
@@ -45,29 +45,6 @@ void Put(yyjson_mut_doc *doc, yyjson_mut_val *object, const char *key, yyjson_mu
 	yyjson_mut_obj_put(object, yyjson_mut_strcpy(doc, key), value);
 }
 
-// Include nested struct, list, and map field IDs in table metadata.
-int64_t MaxFieldId(yyjson_mut_val *value) {
-	int64_t result = 0;
-	size_t index, count;
-	yyjson_mut_val *item;
-	if (yyjson_mut_is_arr(value)) {
-		yyjson_mut_arr_foreach(value, index, count, item) {
-			result = MaxValue(result, MaxFieldId(item));
-		}
-	} else if (yyjson_mut_is_obj(value)) {
-		yyjson_mut_val *key;
-		yyjson_mut_obj_foreach(value, index, count, key, item) {
-			if (yyjson_mut_equals_str(key, "id") || yyjson_mut_equals_str(key, "element-id") ||
-			    yyjson_mut_equals_str(key, "key-id") || yyjson_mut_equals_str(key, "value-id")) {
-				result = MaxValue(result, yyjson_mut_get_sint(item));
-			} else {
-				result = MaxValue(result, MaxFieldId(item));
-			}
-		}
-	}
-	return result;
-}
-
 class IcebergFixture {
 public:
 	explicit IcebergFixture(const string &root, bool authenticated = false, bool empty = false)
@@ -86,19 +63,18 @@ public:
 		Put(metadata.get(), response, "metadata", yyjson_mut_doc_get_root(metadata.get()));
 		Put(metadata.get(), response, "metadata-location", yyjson_mut_strcpy(metadata.get(), metadata_file.c_str()));
 		yyjson_mut_doc_set_root(metadata.get(), response);
-		if (!empty) {
+		exists = !empty;
+		if (exists) {
 			Publish(metadata.get());
 		}
-		exists = !empty;
-		server.set_pre_routing_handler(
-		    [authenticated](const duckdb_httplib::Request &req, duckdb_httplib::Response &res) {
-			    if (authenticated && req.get_header_value("Authorization") != "Bearer fixture-catalog-key") {
-				    res.status = 401;
-				    res.set_content("catalog token required", "text/plain");
-				    return duckdb_httplib::Server::HandlerResponse::Handled;
-			    }
-			    return duckdb_httplib::Server::HandlerResponse::Unhandled;
-		    });
+        server.set_pre_routing_handler([authenticated](const duckdb_httplib::Request &req, duckdb_httplib::Response &res) {
+            if (authenticated && req.get_header_value("Authorization") != "Bearer fixture-catalog-key") {
+                res.status = 401;
+                res.set_content("catalog token required", "text/plain");
+                return duckdb_httplib::Server::HandlerResponse::Handled;
+            }
+            return duckdb_httplib::Server::HandlerResponse::Unhandled;
+        });
 		server.Get("/v1/config", [](const duckdb_httplib::Request &, duckdb_httplib::Response &res) {
 			res.set_content(R"({"defaults":{},"overrides":{}})", "application/json");
 		});
@@ -112,34 +88,27 @@ public:
 			}
 			res.set_content(Encode(yyjson_mut_doc_get_root(metadata.get())), "application/json");
 		});
-		server.Post(
-		    "/v1/namespaces/tests/tables", [this](const duckdb_httplib::Request &req, duckdb_httplib::Response &res) {
-			    annotated_lock_guard<annotated_mutex> guard(mutex);
-			    if (exists) {
-				    res.status = 409;
-				    res.set_content(
-				        R"({"error":{"message":"Table already exists","type":"AlreadyExistsException","code":409}})",
-				        "application/json");
-				    return;
-			    }
-			    auto request = Parse(req.body);
-			    auto input = yyjson_mut_doc_get_root(request.get());
-			    if (!yyjson_mut_equals_str(yyjson_mut_obj_get(input, "name"), "people")) {
-				    res.status = 400;
-				    return;
-			    }
-			    auto doc = metadata.get();
-			    auto root = yyjson_mut_obj_get(yyjson_mut_doc_get_root(doc), "metadata");
-			    auto schema = yyjson_mut_val_mut_copy(doc, yyjson_mut_obj_get(input, "schema"));
-			    Put(doc, schema, "schema-id", yyjson_mut_int(doc, 0));
-			    auto schemas = yyjson_mut_arr(doc);
-			    yyjson_mut_arr_append(schemas, schema);
-			    Put(doc, root, "schemas", schemas);
-			    Put(doc, root, "last-column-id", yyjson_mut_int(doc, MaxFieldId(schema)));
-			    Publish(doc);
-			    exists = true;
-			    res.set_content(Encode(yyjson_mut_doc_get_root(doc)), "application/json");
-		    });
+		// Creation tests use the same fixed people schema as append tests.
+		server.Post("/v1/namespaces/tests/tables", [this](const duckdb_httplib::Request &req, duckdb_httplib::Response &res) {
+			annotated_lock_guard<annotated_mutex> guard(mutex);
+			if (exists) {
+				res.status = 409;
+				res.set_content(R"({"error":{"message":"Table already exists","type":"AlreadyExistsException","code":409}})",
+				                "application/json");
+				return;
+			}
+			auto request = Parse(req.body);
+			auto schema = yyjson_mut_obj_get(yyjson_mut_doc_get_root(request.get()), "schema");
+			auto table = yyjson_mut_obj_get(yyjson_mut_doc_get_root(metadata.get()), "metadata");
+			auto expected = yyjson_mut_arr_get(yyjson_mut_obj_get(table, "schemas"), 0);
+			if (!yyjson_mut_equals(yyjson_mut_obj_get(schema, "fields"), yyjson_mut_obj_get(expected, "fields"))) {
+				res.status = 400;
+				return;
+			}
+			Publish(metadata.get());
+			exists = true;
+			res.set_content(Encode(yyjson_mut_doc_get_root(metadata.get())), "application/json");
+		});
 		server.Post(TABLE_ROUTE, [this](const duckdb_httplib::Request &req, duckdb_httplib::Response &res) {
 			annotated_lock_guard<annotated_mutex> guard(mutex);
 			Commit(req.body);

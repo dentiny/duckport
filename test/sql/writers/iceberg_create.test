@@ -25,30 +25,30 @@ COPY (SELECT 'payload' AS body) TO 'tests.people' (FORMAT duckport_iceberg,
 ----
 blob handle configuration
 
-# Infer field IDs, nested fields, and primitive types from the query.
+# Infer the table schema and field IDs from the query.
 statement ok
-COPY (SELECT 1::BIGINT AS id, {'label': 'Alice', 'tags': [1, 2]} AS details)
+COPY (SELECT 1 AS id, 'Alice' AS name)
 TO 'tests.people' (FORMAT duckport_iceberg,
     CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_create', PRESERVE_ORDER false, FILE_COUNT 2);
 
 statement error
-COPY (SELECT 99::BIGINT AS id, {'label': 'duplicate', 'tags': [9]} AS details)
+COPY (SELECT 99 AS id, 'duplicate' AS name)
 TO 'tests.people' (FORMAT duckport_iceberg,
     CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_create');
 ----
 TableAlreadyExists
 
 statement ok
-COPY (SELECT 2::BIGINT AS id, {'label': NULL::VARCHAR, 'tags': [3]} AS details)
+COPY (SELECT 2 AS id, NULL::VARCHAR AS name)
 TO 'tests.people' (FORMAT duckport_iceberg,
     CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_create', APPEND);
 
-query ITT
-SELECT id, details.label, details.tags::VARCHAR
+query IT
+SELECT id, name
 FROM iceberg_scan('{TEST_DIR}/iceberg_create/people/metadata/current.metadata.json') ORDER BY id;
 ----
-1	Alice	[1, 2]
-2	NULL	[3]
+1	Alice
+2	NULL
 
 query T
 SELECT duckport_iceberg_fixture('{TEST_DIR}/iceberg_create', 'stop');

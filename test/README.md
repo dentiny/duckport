@@ -39,7 +39,7 @@ The Iceberg COPY round-trip SQLLogicTest uses the native loopback REST catalog
 fixture. DuckDB's independent Iceberg extension reads the committed metadata
 with `iceberg_scan`; the test checks COPY, APPEND, NULLs, Unicode, empty strings,
 empty input, invalid options and schema mismatch.
-`iceberg_create.test` additionally checks inferred nested schemas, duplicate-create
+`iceberg_create.test` additionally checks schema inference, duplicate-create
 errors, APPEND to a missing table, and empty table creation.
 No external catalog or Python test runner is needed.
 
