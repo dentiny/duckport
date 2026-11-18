@@ -44,7 +44,6 @@ void LoadInternal(ExtensionLoader &loader) {
 		options.Add("until_date", LogicalType::VARCHAR);
 		options.Add("set_spec", LogicalType::VARCHAR);
 		options.Add("record_path", LogicalType::VARCHAR);
-		options.Add("auto_paginate", LogicalType::BOOLEAN);
 		options.Add("max_pages", LogicalType::BIGINT);
 		options.Add("max_records", LogicalType::BIGINT);
 	});
@@ -54,7 +53,6 @@ void LoadInternal(ExtensionLoader &loader) {
 		options.Add("until_date", LogicalType::VARCHAR);
 		options.Add("set_spec", LogicalType::VARCHAR);
 		options.Add("record_path", LogicalType::VARCHAR);
-		options.Add("auto_paginate", LogicalType::BOOLEAN);
 		options.Add("max_pages", LogicalType::BIGINT);
 		options.Add("max_records", LogicalType::BIGINT);
 	});
@@ -64,7 +62,6 @@ void LoadInternal(ExtensionLoader &loader) {
 		options.Add("until_date", LogicalType::VARCHAR);
 		options.Add("set_spec", LogicalType::VARCHAR);
 		options.Add("record_path", LogicalType::VARCHAR);
-		options.Add("auto_paginate", LogicalType::BOOLEAN);
 		options.Add("max_pages", LogicalType::BIGINT);
 		options.Add("max_records", LogicalType::BIGINT);
 	});

@@ -18,7 +18,7 @@ char *OpenArxivMetadata(ClientContext &context, const string &locator,
   reader_options.set_spec = set_spec ? set_spec->c_str() : nullptr;
   auto record_path = ReadStringOption(input, "record_path");
   reader_options.record_path = record_path ? record_path->c_str() : nullptr;
-  ReadPaginationOptions(input, reader_options.auto_paginate, reader_options.max_pages, reader_options.max_records);
+  ReadPaginationOptions(input, reader_options.max_pages, reader_options.max_records);
   StorageParameters storage(context,
                             endpoint.value_or("https://oaipmh.arxiv.org") + "/",
                             /*secret_type=*/{});

@@ -14,8 +14,7 @@ void ReadBooleanOption(const TableFunctionBindInput &input, const char *name, in
 		output = BooleanValue::Get(entry->second) ? 1 : 0;
 	}
 }
-void ReadPaginationOptions(const TableFunctionBindInput &input, int32_t &enabled, int64_t &max_pages, int64_t &max_records) {
-	ReadBooleanOption(input, "auto_paginate", enabled);
+void ReadPaginationOptions(const TableFunctionBindInput &input, int64_t &max_pages, int64_t &max_records) {
 	for (const auto &name : {"max_pages", "max_records"}) {
 		auto entry = input.named_parameters.find(name);
 		if (entry == input.named_parameters.end()) {

@@ -16,7 +16,7 @@ char *OpenDoab(ClientContext &context, const string &locator, const DuckportScan
 	reader_options.set_spec = set_spec ? set_spec->c_str() : nullptr;
 	auto record_path = ReadStringOption(input, "record_path");
 	reader_options.record_path = record_path ? record_path->c_str() : nullptr;
-	ReadPaginationOptions(input, reader_options.auto_paginate, reader_options.max_pages, reader_options.max_records);
+	ReadPaginationOptions(input, reader_options.max_pages, reader_options.max_records);
 	StorageParameters storage(context, endpoint.value_or("https://directory.doabooks.org") + "/", /*secret_type=*/ {});
 	return duckport_doab_open(locator.c_str(), storage.config, scan, reader_options, output);
 }

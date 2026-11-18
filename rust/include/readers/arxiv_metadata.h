@@ -7,7 +7,6 @@ struct ArxivMetadataOptions {
   const char *until_date;
   const char *set_spec;
   const char *record_path;
-  int32_t auto_paginate;
   int64_t max_pages;
   int64_t max_records;
 };
