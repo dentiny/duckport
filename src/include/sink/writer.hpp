@@ -38,15 +38,16 @@ struct IndexOptions {
 struct SinkWriteOptions {
 	SinkWriteMode mode = SinkWriteMode::CREATE;
 	bool preserve_order = false;
-	// An unset count means auto; read_concurrency_set distinguishes inheritance from an explicit auto override.
-	optional<int64_t> write_concurrency;
+	// Omission uses one writer; an unset count explicitly requests auto.
+	// read_concurrency_set distinguishes inheritance from an explicit auto override.
+	optional<int64_t> write_concurrency = 1;
 	optional<int64_t> read_concurrency;
 	bool read_concurrency_set = false;
 	vector<string> blob_columns;
 	DuckportWriteOptions write_options {
 	    .blob_inline_size_threshold = -1,
 	    .blob_dedicated_size_threshold = -1,
-	    .target_file_size = -1,
+	    .target_file_size = 512LL * 1024 * 1024,
 	    .storage_version = nullptr,
 	    .column_encodings = nullptr,
 	    .column_encoding_count = 0,

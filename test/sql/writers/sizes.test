@@ -46,3 +46,13 @@ SELECT (
 1
 
 endloop
+
+# The default single writer rotates files; a file target is not a writer count.
+foreach files lance/data/*.lance parquet/*.parquet iceberg/people/data/*.parquet
+
+query I
+SELECT (count(*) > 1)::INTEGER FROM glob('{TEST_DIR}/1024/{files}');
+----
+1
+
+endloop

@@ -69,8 +69,10 @@ SELECT * FROM read_parquet('events_dataset/*.parquet');
 | [Iceberg REST catalog](docs/writers/iceberg.md) | `duckport_iceberg` | Create, APPEND | Schema-derived table creation and snapshot publication |
 
 All three accept sampling, generated columns, `TARGET_FILE_SIZE`, `READ_CONCURRENCY`,
-`WRITE_CONCURRENCY` and `PRESERVE_ORDER`. Read and write concurrency default to
-`'auto'`; use a positive integer to set concurrency explicitly, or 1 for serial execution. Backend-specific options are validated against the sink's
+`WRITE_CONCURRENCY` and `PRESERVE_ORDER`. Writes default to one writer and a
+512 MiB soft file-size target, rolling to a new file as needed. Use
+`WRITE_CONCURRENCY 'auto'` to opt into automatic writer planning. Read concurrency
+defaults to `'auto'`. Backend-specific options are validated against the sink's
 capabilities. Use native `FORMAT PARQUET` to write a single file.
 
 ## Configure secrets once

@@ -82,7 +82,7 @@ impl Default for DuckportWriteOptions {
         Self {
             blob_inline_size_threshold: -1,
             blob_dedicated_size_threshold: -1,
-            target_file_size: -1,
+            target_file_size: 512 * 1024 * 1024,
             storage_version: std::ptr::null(),
             column_encodings: std::ptr::null(),
             column_encoding_count: 0,

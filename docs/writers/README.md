@@ -48,9 +48,14 @@ COPY events TO 'parallel_dataset'
 (FORMAT duckport_parquet, WRITE_CONCURRENCY 4);
 ```
 
-`READ_CONCURRENCY` and `WRITE_CONCURRENCY` each accept `'auto'` (the default)
-or a positive integer. Omitting an option is equivalent to `'auto'`; the one
-exception is that an omitted COPY `READ_CONCURRENCY` inherits each scan's setting.
+`WRITE_CONCURRENCY` defaults to 1. Set a positive integer for a fixed writer
+count, or explicitly select `'auto'` for metadata-driven writer planning.
+`TARGET_FILE_SIZE` defaults to 512 MiB (536870912 bytes). Each writer rolls to a
+new file when its current file reaches the soft target; one writer can therefore
+produce many files without parallel writers.
+
+`READ_CONCURRENCY` accepts `'auto'` (the scan default) or a positive integer.
+An omitted COPY `READ_CONCURRENCY` inherits each scan's setting.
 The old `FILE_COUNT` option is no longer accepted: concurrency controls writer
 streams, not an exact final file count. A writer can roll multiple files or
 receive no rows.
@@ -64,7 +69,7 @@ later scans. Always use ORDER BY when a query result must be sorted.
 ## Parallel reads and automatic writer planning
 
 ```sql
--- Automatic concurrency is enabled by default, with or without TARGET_FILE_SIZE.
+-- Explicitly opt into automatic writer planning.
 COPY (SELECT * FROM duckport_scan_parquet(['a.parquet', 'b.parquet']))
 TO 'parallel.lance' (FORMAT duckport_lance, READ_CONCURRENCY 'auto',
     WRITE_CONCURRENCY 'auto', TARGET_FILE_SIZE 536870912);
@@ -86,13 +91,13 @@ The upstream reader preserves logical partition order and limits resident
 partitions, but streaming-file queues are not byte bounded. The automatic cap is
 conservative, not a memory limit.
 
-Automatic writes use DuckDB's `threads` as the writer budget, so omitting
-`WRITE_CONCURRENCY` does not force serial writing. With `TARGET_FILE_SIZE` and a
-direct DuckPort file scan (optionally projected), source byte statistics let the
-upstream ingestion planner choose fewer writers within that budget. Without a
-usable size hint or target, auto falls back to the thread budget. Ordered output
-uses one writer. Blob downloads, generated columns and queries whose output size
-is unknown use the thread-budget fallback. No row-counting scan is performed.
+Only explicit `WRITE_CONCURRENCY 'auto'` uses DuckDB's `threads` as the writer
+budget. For a direct DuckPort file scan (optionally projected), source byte
+statistics and the file-size target let the upstream ingestion planner choose
+writers within that budget. The default 512 MiB target applies when no target
+is specified. Without a usable size hint, auto falls back to one writer. Ordered
+output, blob downloads, generated columns and queries whose output size is
+unknown also use one writer. No row-counting scan is performed.
 DuckDB delivers COPY batches serially; the Rust upstream writer pool handles
 concurrent writes.
 

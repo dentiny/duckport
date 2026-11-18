@@ -130,8 +130,10 @@ unique_ptr<GlobalFunctionData> InitCopy(ClientContext &context, FunctionData &da
 	ExportGeneratedExpressions(schema.arrow_schema, bind.generated_expressions);
 	StorageParameters storage(context, bind.options.storage_root.empty() ? path : bind.options.storage_root, {});
 	auto options = bind.options;
-	options.write_options.writer_count = options.write_concurrency.value_or(
-	    options.preserve_order ? 1 : TaskScheduler::GetScheduler(context).NumberOfThreads());
+	options.write_options.writer_count =
+	    options.write_concurrency.value_or(options.preserve_order || !options.write_options.source_bytes_known
+	                                           ? 1
+	                                           : TaskScheduler::GetScheduler(context).NumberOfThreads());
 	WriterOpenContext open_context(context, storage.config);
 	state->writer = bind.info->Cast<WriterInfo>().open(path, open_context, options, schema.arrow_schema);
 	if (!state->writer) {

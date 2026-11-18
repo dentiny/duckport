@@ -8,7 +8,7 @@ require parquet
 statement ok
 SET threads = 4;
 
-# Omission and explicit auto both support COPY and retain every row.
+# Omission uses one writer; explicit auto is opt-in. Both retain every row.
 statement ok
 COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true))
 TO '{TEST_DIR}/default' (FORMAT duckport_parquet);
@@ -25,6 +25,31 @@ SELECT count(*), sum(id) FROM read_parquet('{TEST_DIR}/{path}/*.parquet');
 3	6
 
 endloop
+
+# With multiple DuckDB threads, omission still writes one small output file.
+statement ok
+COPY (SELECT i AS id FROM range(10000) t(i))
+TO '{TEST_DIR}/default_one' (FORMAT duckport_parquet);
+
+query I
+SELECT count(*) FROM glob('{TEST_DIR}/default_one/*.parquet');
+----
+1
+
+# A single default writer rolls to more files at a smaller soft target.
+statement ok
+COPY (SELECT i AS id, sha256(i::VARCHAR) AS payload FROM range(10000) t(i))
+TO '{TEST_DIR}/default_rolling' (FORMAT duckport_parquet, TARGET_FILE_SIZE 1024);
+
+query I
+SELECT (count(*) > 1)::INTEGER FROM glob('{TEST_DIR}/default_rolling/*.parquet');
+----
+1
+
+query II
+SELECT count(*), sum(id) FROM read_parquet('{TEST_DIR}/default_rolling/*.parquet');
+----
+10000	49995000
 
 # Auto respects ordered output, and a fixed writer count still accepts a file target.
 statement ok
