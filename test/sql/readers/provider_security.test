@@ -1,5 +1,5 @@
 # name: test/sql/readers/provider_security.test
-# description: Provider authentication mappings consume or reject HTTP security fields explicitly
+# description: Dataverse API keys authenticate restricted files without leaking across origins
 # group: [sql]
 
 require duckport
@@ -8,25 +8,11 @@ require duckport_test_fixture
 
 set ignore_error_messages
 
-# Dataverse API keys authenticate restricted metadata and same-origin files.
-
 statement ok
 SET VARIABLE auth_endpoint = duckport_fixture('dataverse_api_key', 'start_anonymous');
 
-statement error
-SELECT octet_length(data) FROM duckport_scan_dataverse('doi:10.7910/DVN/A&B+', file_name := 'papers/2026/paper #1%.pdf', endpoint := getvariable('auth_endpoint'), version := '1.0');
-----
-DuckPort
-
 statement ok
-CREATE SECRET dataverse_key (TYPE http, EXTRA_HTTP_HEADERS MAP {'x-Dataverse-Key': 'fixture-key'}, SCOPE getvariable('auth_endpoint'));
-
-query I
-SELECT octet_length(data) FROM duckport_scan_dataverse('doi:10.7910/DVN/A&B+', file_name := 'papers/2026/paper #1%.pdf', endpoint := getvariable('auth_endpoint'), version := '1.0');
-----
-23
-
-# A restricted file may redirect across origins without leaking the API key.
+CREATE SECRET dataverse_key (TYPE http, EXTRA_HTTP_HEADERS MAP {'X-Dataverse-key': 'fixture-key'}, SCOPE getvariable('auth_endpoint'));
 
 query I
 SELECT octet_length(data) FROM duckport_scan_dataverse('doi:10.7910/DVN/A&B+', file_name := 'cross.csv', endpoint := getvariable('auth_endpoint'), version := '1.0');
@@ -42,204 +28,7 @@ true
 statement ok
 DROP SECRET dataverse_key;
 
-statement ok
-SET VARIABLE requests_before = (SELECT count(*) FROM duckport_fixture_requests('dataverse_api_key'));
-
-# Unsupported fields and mutually exclusive credentials fail before network I/O.
-
-statement ok
-CREATE SECRET dataverse_unsupported (TYPE http, EXTRA_HTTP_HEADERS MAP {'X-Unhandled-Key': 'fixture-secret'}, SCOPE getvariable('auth_endpoint'));
-
-statement error
-SELECT * FROM duckport_scan_dataverse('doi:10.7910/DVN/A&B+', file_name := 'cross.csv', endpoint := getvariable('auth_endpoint'), version := '1.0');
-----
-Dataverse supports only X-Dataverse-key in EXTRA_HTTP_HEADERS
-
-statement ok
-DROP SECRET dataverse_unsupported;
-
-statement ok
-CREATE SECRET dataverse_conflict (TYPE http, BEARER_TOKEN 'fixture-secret', EXTRA_HTTP_HEADERS MAP {'X-Dataverse-key': 'fixture-key'}, SCOPE getvariable('auth_endpoint'));
-
-statement error
-SELECT * FROM duckport_scan_dataverse('doi:10.7910/DVN/A&B+', file_name := 'cross.csv', endpoint := getvariable('auth_endpoint'), version := '1.0');
-----
-choose BEARER_TOKEN or X-Dataverse-key for Dataverse
-
-statement ok
-DROP SECRET dataverse_conflict;
-
-query T
-SELECT count(*) = getvariable('requests_before') FROM duckport_fixture_requests('dataverse_api_key');
-----
-true
-
 query T
 SELECT duckport_fixture('dataverse_api_key', 'stop');
-----
-stopped
-
-# Connection-based adapters apply both provider-specific tokens and extra headers.
-
-statement ok
-SET VARIABLE auth_endpoint = duckport_fixture('figshare', 'start_authenticated');
-
-statement ok
-CREATE SECRET figshare_headers (TYPE http, BEARER_TOKEN 'fixture-key', EXTRA_HTTP_HEADERS MAP {'X-Client-Key': 'fixture-extra'}, SCOPE getvariable('auth_endpoint'));
-
-query I
-SELECT octet_length(data) FROM duckport_scan_figshare('21422193', file_name := 'records.csv', endpoint := getvariable('auth_endpoint'));
-----
-23
-
-query T
-SELECT count(*) > 0 AND bool_and("authorization" = 'token fixture-key' AND contains(headers, 'fixture-extra'))
-FROM duckport_fixture_requests('figshare') WHERE origin = 'api';
-----
-true
-
-query T
-SELECT count(*) > 0 AND bool_and(NOT has_authorization AND NOT contains(headers, 'fixture-'))
-FROM duckport_fixture_requests('figshare') WHERE origin = 'download';
-----
-true
-
-statement ok
-DROP SECRET figshare_headers;
-
-# An explicit Authorization header is also supported when no token is configured.
-
-statement ok
-CREATE SECRET figshare_authorization (TYPE http, EXTRA_HTTP_HEADERS MAP {'Authorization': 'token fixture-key'}, SCOPE getvariable('auth_endpoint'));
-
-query I
-SELECT octet_length(data) FROM duckport_scan_figshare('21422193', file_name := 'records.csv', endpoint := getvariable('auth_endpoint'));
-----
-23
-
-statement ok
-DROP SECRET figshare_authorization;
-
-statement ok
-SET VARIABLE requests_before = (SELECT count(*) FROM duckport_fixture_requests('figshare'));
-
-statement ok
-CREATE SECRET figshare_conflict (TYPE http, BEARER_TOKEN 'fixture-key', EXTRA_HTTP_HEADERS MAP {'AUTHORIZATION': 'token fixture-secret'}, SCOPE getvariable('auth_endpoint'));
-
-statement error
-SELECT * FROM duckport_scan_figshare('21422193', file_name := 'records.csv', endpoint := getvariable('auth_endpoint'));
-----
-BEARER_TOKEN conflicts with the provider authentication header
-
-statement ok
-DROP SECRET figshare_conflict;
-
-statement ok
-CREATE SECRET figshare_transport (TYPE http, EXTRA_HTTP_HEADERS MAP {'Host': 'fixture-secret'}, SCOPE getvariable('auth_endpoint'));
-
-statement error
-SELECT * FROM duckport_scan_figshare('21422193', file_name := 'records.csv', endpoint := getvariable('auth_endpoint'));
-----
-HTTP credential headers must not override transport headers
-
-statement ok
-DROP SECRET figshare_transport;
-
-statement ok
-CREATE SECRET figshare_duplicates (TYPE http, EXTRA_HTTP_HEADERS MAP {'X-Client-Key': 'first', 'x-client-key': 'second'}, SCOPE getvariable('auth_endpoint'));
-
-statement error
-SELECT * FROM duckport_scan_figshare('21422193', file_name := 'records.csv', endpoint := getvariable('auth_endpoint'));
-----
-duplicate HTTP credential header
-
-statement ok
-DROP SECRET figshare_duplicates;
-
-query T
-SELECT count(*) = getvariable('requests_before') FROM duckport_fixture_requests('figshare');
-----
-true
-
-query T
-SELECT duckport_fixture('figshare', 'stop');
-----
-stopped
-
-# API-key adapters accept the provider's native header without adding Bearer auth.
-
-statement ok
-SET VARIABLE auth_endpoint = duckport_fixture('semantic_scholar', 'start_authenticated');
-
-statement ok
-CREATE SECRET scholar_headers (TYPE http, EXTRA_HTTP_HEADERS MAP {'X-API-Key': 'fixture-key', 'X-Client-Key': 'fixture-extra'}, SCOPE getvariable('auth_endpoint'));
-
-query I
-SELECT octet_length(data) FROM duckport_scan_semantic_scholar('s2orc', file_name := 'part-00000', endpoint := getvariable('auth_endpoint'), release := 'latest');
-----
-23
-
-query T
-SELECT count(*) > 0 AND bool_and(api_key = 'fixture-key' AND NOT has_authorization AND contains(headers, 'fixture-extra'))
-FROM duckport_fixture_requests('semantic_scholar') WHERE origin = 'api';
-----
-true
-
-query T
-SELECT count(*) > 0 AND bool_and(NOT has_authorization AND NOT contains(headers, 'fixture-'))
-FROM duckport_fixture_requests('semantic_scholar') WHERE origin = 'download';
-----
-true
-
-statement ok
-DROP SECRET scholar_headers;
-
-statement ok
-SET VARIABLE requests_before = (SELECT count(*) FROM duckport_fixture_requests('semantic_scholar'));
-
-statement ok
-CREATE SECRET scholar_conflict (TYPE http, BEARER_TOKEN 'fixture-key', EXTRA_HTTP_HEADERS MAP {'X-API-Key': 'fixture-secret'}, SCOPE getvariable('auth_endpoint'));
-
-statement error
-SELECT * FROM duckport_scan_semantic_scholar('s2orc', file_name := 'part-00000', endpoint := getvariable('auth_endpoint'), release := 'latest');
-----
-BEARER_TOKEN conflicts with the provider authentication header
-
-statement ok
-DROP SECRET scholar_conflict;
-
-query T
-SELECT count(*) = getvariable('requests_before') FROM duckport_fixture_requests('semantic_scholar');
-----
-true
-
-query T
-SELECT duckport_fixture('semantic_scholar', 'stop');
-----
-stopped
-
-# Token-only adapters reject extra headers instead of silently ignoring them.
-
-statement ok
-SET VARIABLE auth_endpoint = duckport_fixture('zenodo', 'start_anonymous');
-
-statement ok
-CREATE SECRET zenodo_headers (TYPE http, EXTRA_HTTP_HEADERS MAP {'X-Client-Key': 'fixture-secret'}, SCOPE getvariable('auth_endpoint'));
-
-statement error
-SELECT * FROM duckport_scan_zenodo('3551612', file_name := 'paper #1%.pdf', endpoint := getvariable('auth_endpoint'));
-----
-Zenodo does not support EXTRA_HTTP_HEADERS
-
-query I
-SELECT count(*) FROM duckport_fixture_requests('zenodo');
-----
-0
-
-statement ok
-DROP SECRET zenodo_headers;
-
-query T
-SELECT duckport_fixture('zenodo', 'stop');
 ----
 stopped

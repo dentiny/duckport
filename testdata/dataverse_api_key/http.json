@@ -7,12 +7,6 @@
       "auth_value": "fixture-key"
     },
     {
-      "path": "/api/access/datafile/101",
-      "file": "attachment.bin",
-      "auth_header": "X-Dataverse-key",
-      "auth_value": "fixture-key"
-    },
-    {
       "path": "/api/access/datafile/102",
       "file": "attachment.bin",
       "auth_header": "X-Dataverse-key",

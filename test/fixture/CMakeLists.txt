@@ -9,8 +9,6 @@ build_static_extension(duckport_test_fixture ${FIXTURE_SOURCE})
 build_loadable_extension(duckport_test_fixture "" ${FIXTURE_SOURCE})
 foreach(FIXTURE_TARGET duckport_test_fixture_extension duckport_test_fixture_loadable_extension)
   target_include_directories(${FIXTURE_TARGET} PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../rust/include
     ${CMAKE_SOURCE_DIR}/third_party/httplib
     ${CMAKE_SOURCE_DIR}/third_party/yyjson/include)
   target_compile_definitions(${FIXTURE_TARGET} PRIVATE DUCKPORT_TESTDATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../testdata")

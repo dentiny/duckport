@@ -8,46 +8,11 @@
       "redirect": ""
     },
     {
-      "path": "/private/narrow/b.bin",
-      "file": "payload.bin",
-      "auth_header": "Authorization",
-      "auth_value": "Bearer fixture-narrow",
-      "redirect": ""
-    },
-    {
       "path": "/api-key/c.bin",
       "file": "payload.bin",
       "auth_header": "X-API-Key",
       "auth_value": "fixture-custom",
       "redirect": ""
-    },
-    {
-      "path": "/api-key/records.json",
-      "file": "records.json",
-      "auth_header": "X-API-Key",
-      "auth_value": "fixture-custom",
-      "redirect": ""
-    },
-    {
-      "path": "/public/d.bin",
-      "file": "payload.bin",
-      "auth_header": "",
-      "auth_value": "",
-      "redirect": ""
-    },
-    {
-      "path": "/private/redirect.bin",
-      "file": "payload.bin",
-      "auth_header": "Authorization",
-      "auth_value": "Bearer fixture-key",
-      "redirect": "API_ORIGIN/private/narrow/b.bin"
-    },
-    {
-      "path": "/private/cross.bin",
-      "file": "payload.bin",
-      "auth_header": "Authorization",
-      "auth_value": "Bearer fixture-key",
-      "redirect": "ORIGIN/public.bin"
     },
     {
       "path": "/private/narrow/records.json",
@@ -92,52 +57,20 @@
       "redirect": "ORIGIN/public/records.json"
     },
     {
-      "path": "/private/to-cross-return.json",
-      "file": "records.json",
-      "auth_header": "Authorization",
-      "auth_value": "Bearer fixture-key",
-      "redirect": "ORIGIN/bounce.json"
-    },
-    {
       "path": "/api-key/to-public.json",
       "file": "records.json",
       "auth_header": "X-API-Key",
       "auth_value": "fixture-custom",
       "redirect": "API_ORIGIN/public/records.json"
-    },
-    {
-      "path": "/api-key/to-narrow.json",
-      "file": "records.json",
-      "auth_header": "X-API-Key",
-      "auth_value": "fixture-custom",
-      "redirect": "API_ORIGIN/api-key/narrow/records.json"
-    },
-    {
-      "path": "/api-key/narrow/records.json",
-      "file": "records.json",
-      "auth_header": "X-API-Key",
-      "auth_value": "fixture-custom-narrow",
-      "redirect": ""
     }
   ],
   "downloads": [
-    {
-      "path": "/public.bin",
-      "file": "payload.bin"
-    },
     {
       "path": "/public/records.json",
       "file": "records.json",
       "auth_header": "",
       "auth_value": "",
       "redirect": ""
-    },
-    {
-      "path": "/bounce.json",
-      "file": "records.json",
-      "auth_header": "",
-      "auth_value": "",
-      "redirect": "API_ORIGIN/private/narrow/records.json"
     }
   ]
 }

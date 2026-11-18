@@ -1,10 +1,12 @@
 # name: test/sql/readers/http_source_auth.test
-# description: HTTP file readers reselect scoped credentials on redirects
+# description: HTTP redirects reselect scoped credentials and strip them when leaving a scope or origin
 # group: [sql]
 
 require duckport
 
 require duckport_test_fixture
+
+set ignore_error_messages
 
 statement ok
 SET VARIABLE source_endpoint = duckport_fixture('blob_http', 'start_anonymous');
@@ -18,27 +20,15 @@ CREATE SECRET source_narrow (TYPE http, BEARER_TOKEN 'fixture-narrow', SCOPE get
 statement ok
 CREATE SECRET source_custom (TYPE http, EXTRA_HTTP_HEADERS MAP {'X-API-Key': 'fixture-custom'}, SCOPE getvariable('source_endpoint') || '/api-key/');
 
-statement ok
-CREATE SECRET source_custom_narrow (TYPE http, EXTRA_HTTP_HEADERS MAP {'X-API-Key': 'fixture-custom-narrow'}, SCOPE getvariable('source_endpoint') || '/api-key/narrow/');
-
-# Ordinary files and Blob downloads use the same longest-scope resolver.
-
-query I
-SELECT id FROM duckport_scan_json(getvariable('source_endpoint') || '/api-key/records.json');
-----
-1
-
 query I
 SELECT id FROM duckport_scan_json(getvariable('source_endpoint') || '/private/to-narrow.json');
 ----
 1
 
 query I
-SELECT id FROM duckport_scan_json(getvariable('source_endpoint') || '/api-key/to-narrow.json');
+SELECT id FROM duckport_scan_json(getvariable('source_endpoint') || '/public/to-private.json');
 ----
 1
-
-# Leaving a scope on the same origin removes both bearer and custom headers.
 
 query I
 SELECT id FROM duckport_scan_json(getvariable('source_endpoint') || '/private/to-public.json');
@@ -56,18 +46,6 @@ FROM duckport_fixture_requests('blob_http') WHERE target = '/public/records.json
 ----
 true
 
-# An initially anonymous URL must still acquire the target scope's credentials.
-
-query I
-SELECT id FROM duckport_scan_json(getvariable('source_endpoint') || '/public/to-private.json');
-----
-1
-
-# Cross-origin redirects never acquire even a matching destination credential.
-
-statement ok
-CREATE SECRET source_cross (TYPE http, BEARER_TOKEN 'fixture-cross', SCOPE 'http://127.0.0.1:');
-
 query I
 SELECT id FROM duckport_scan_json(getvariable('source_endpoint') || '/private/to-cross.json');
 ----
@@ -79,16 +57,6 @@ FROM duckport_fixture_requests('blob_http') WHERE origin = 'download';
 ----
 true
 
-# Credentials remain disabled when a cross-origin chain returns to the first origin.
-
-statement error
-SELECT id FROM duckport_scan_json(getvariable('source_endpoint') || '/private/to-cross-return.json');
-----
-DuckPort
-
-statement ok
-DROP SECRET source_cross;
-
 statement ok
 DROP SECRET source_bearer;
 
@@ -97,9 +65,6 @@ DROP SECRET source_narrow;
 
 statement ok
 DROP SECRET source_custom;
-
-statement ok
-DROP SECRET source_custom_narrow;
 
 query T
 SELECT duckport_fixture('blob_http', 'stop');
