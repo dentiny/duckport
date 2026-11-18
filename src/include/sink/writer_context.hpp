@@ -15,6 +15,7 @@ public:
 
 	const DuckportStorageOptions &storage;
 	const vector<BlobSecret> &BlobSecrets();
+	ClientContext &Client() { return client; }
 
 private:
 	ClientContext &client;

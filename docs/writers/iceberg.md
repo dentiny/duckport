@@ -17,8 +17,8 @@ TO 'analytics.events' (
 Create the namespace and an unpartitioned table in the catalog first. The destination
 is a dot-separated namespace and table name (nested namespaces are supported).
 `CATALOG_URI` and `STORAGE_ROOT` are required. `WAREHOUSE` is optional and is
-forwarded to the REST catalog. Set `DUCKPORT_ICEBERG_TOKEN` in the process environment
-for a catalog bearer token. Catalog credentials are independent of data storage credentials.
+forwarded to the REST catalog. Configure a scoped DuckDB HTTP secret for catalog
+bearer authentication. Catalog credentials are independent of data storage credentials.
 
 `STORAGE_ROOT` selects data/metadata storage: a local directory, `file://` directory,
 or `s3://bucket/`. All table locations must resolve within that local directory or
@@ -42,3 +42,20 @@ External access must be enabled.
 `TARGET_FILE_SIZE` accepts a positive integer byte count and sets a soft target
 for data-file size; batches, row groups and file overhead can exceed it. Omit it
 to preserve the backend default. This option is supported by all DuckPort sinks.
+
+## Catalog authentication
+
+Catalog requests use the best matching DuckDB HTTP secret for `CATALOG_URI`:
+
+```sql
+CREATE SECRET catalog_auth (
+    TYPE http, BEARER_TOKEN 'catalog-access-token',
+    SCOPE 'https://catalog.example.com'
+);
+```
+
+This credential is independent of the storage secret selected by `STORAGE_ROOT`.
+It covers catalog configuration, table loading and commits, not data/blob storage.
+Without a matching catalog token, requests are anonymous. An explicitly empty
+catalog token is rejected. Tokens are resolved at writer open and are not COPY
+options.

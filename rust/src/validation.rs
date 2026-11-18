@@ -406,3 +406,16 @@ pub(crate) fn validate_http_source_redirect(current: &Url, next: &Url) -> openda
     }
     Ok(())
 }
+
+// Catalog authentication is independent of the data-storage credential family.
+pub(crate) fn iceberg_catalog_token(
+    security: &crate::security::SecurityConfig,
+) -> Result<Option<&str>> {
+    let credentials = security.http()?;
+    crate::provider_auth::reject_http_headers(credentials, "Iceberg catalog")?;
+    let token = credentials.and_then(|credentials| credentials.token());
+    if token == Some("") {
+        return Err("Iceberg catalog BEARER_TOKEN must not be empty".into());
+    }
+    Ok(token)
+}
