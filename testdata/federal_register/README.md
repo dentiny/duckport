@@ -1,7 +1,9 @@
-SQL integration fixtures adapted from the MIT-licensed
-[open-arrow-access service tests](https://github.com/dentiny/open-arrow-access/tree/v0.1.0/service/tests)
-and corresponding `testdata/federal-register` fixtures in version 0.1.0.
+# Federal Register fixtures
 
-HTTP fixtures retain provider response shapes and replace download origins with
-local servers. Small CSV payloads replace publication content where appropriate.
-The arXiv TAR fixture is generated deterministically using the upstream manifest shape.
+Document metadata and named publication attachments, with remote origins replaced by loopback placeholders.
+
+Adapted from the MIT-licensed [open-arrow-access v0.1.0 service tests](https://github.com/dentiny/open-arrow-access/tree/v0.1.0/service/tests) and its `federal-register` fixture data. Local payloads are reduced/synthetic adaptations.
+
+[http.json](http.json) defines response routes and synthetic authentication. Route syntax and loopback commands are documented in the [test guide](../../test/README.md#native-http-fixtures).
+
+[Fixture inventory and provenance](../README.md) · [SQL reader tests](../../test/sql/readers/)

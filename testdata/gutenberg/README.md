@@ -1,7 +1,7 @@
-SQL integration fixtures adapted from the MIT-licensed
-[open-arrow-access service tests](https://github.com/dentiny/open-arrow-access/tree/v0.1.0/service/tests)
-and corresponding `testdata/gutenberg` fixtures in version 0.1.0.
+# Gutenberg fixtures
 
-HTTP fixtures retain provider response shapes and replace download origins with
-local servers. Small CSV payloads replace publication content where appropriate.
-The arXiv TAR fixture is generated deterministically using the upstream manifest shape.
+RDF book metadata, metadata-only records and malformed dates/ebook IDs.
+
+Adapted from the MIT-licensed [open-arrow-access v0.1.0 service tests](https://github.com/dentiny/open-arrow-access/tree/v0.1.0/service/tests) and its `gutenberg` fixture data. Local payloads are reduced/synthetic adaptations.
+
+[Fixture inventory and provenance](../README.md) · [SQL reader tests](../../test/sql/readers/)
