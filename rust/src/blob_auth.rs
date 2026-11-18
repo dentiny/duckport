@@ -2,12 +2,16 @@
 //! DuckDB, and no credential or URL is included in transport error messages.
 use crate::{
     error::{Result, http_source_error},
-    options::DuckportStorageOptions,
+    options::{DuckportStorageOptions, StorageConfig},
     security::ScopedHttpCredentials,
     utils, validation,
 };
+use futures::TryStreamExt;
 use http::{Request, Response};
-use open_arrow_sink_storage::{BlobDownloader, OpenDalDownloader};
+use open_arrow_sink_core::{Error, async_trait};
+use open_arrow_sink_storage::{
+    BlobDownloader, DownloadContext, DownloadStream, Downloader, OpenDalDownloader,
+};
 use opendal::{Buffer, HttpBody, HttpTransport, HttpTransporter};
 use std::{ffi::c_char, sync::Arc};
 use url::Url;
@@ -18,20 +22,62 @@ pub struct DuckportBlobSecret {
     pub r#type: *const c_char,
     pub config: DuckportStorageOptions,
 }
+pub(crate) struct SourceSecrets {
+    http: Vec<ScopedHttpCredentials>,
+    s3: Vec<(String, StorageConfig)>,
+    huggingface: Vec<(String, StorageConfig)>,
+}
+
 pub(crate) unsafe fn read_secrets(
     raw: *const DuckportBlobSecret,
     count: usize,
-) -> Result<Vec<ScopedHttpCredentials>> {
-    unsafe { utils::ffi_slice(raw, count, "null Blob secrets") }?
-        .iter()
-        .map(|s| unsafe {
-            if utils::string(s.r#type)? != "http" {
-                return Err("unsupported Blob source secret type".into());
+) -> Result<SourceSecrets> {
+    let mut sources = SourceSecrets {
+        http: Vec::new(),
+        s3: Vec::new(),
+        huggingface: Vec::new(),
+    };
+    for secret in unsafe { utils::ffi_slice(raw, count, "null Blob secrets") }? {
+        match unsafe { utils::string(secret.r#type) }?.as_str() {
+            "http" => sources.http.push(unsafe {
+                crate::security::read_http_secret(secret.scope, &secret.config.security)
+            }?),
+            "s3" => {
+                let config = unsafe { secret.config.read() }?;
+                config.security.s3()?;
+                sources
+                    .s3
+                    .push((unsafe { utils::string(secret.scope) }?, config));
             }
-            crate::security::read_http_secret(s.scope, &s.config.security)
-        })
-        .collect()
+            "huggingface" => {
+                let config = unsafe { secret.config.read() }?;
+                crate::provider_auth::reject_http_headers(config.security.http()?, "Hugging Face")?;
+                sources
+                    .huggingface
+                    .push((unsafe { utils::string(secret.scope) }?, config));
+            }
+            _ => return Err("unsupported Blob source secret type".into()),
+        }
+    }
+    Ok(sources)
 }
+
+// Match prefix scopes, preserving the first secret on a tie.
+fn select_source<'a>(
+    sources: &'a [(String, StorageConfig)],
+    source: &str,
+) -> Option<&'a StorageConfig> {
+    let mut best = None;
+    let mut length = 0;
+    for (scope, config) in sources {
+        if source.starts_with(scope) && (best.is_none() || scope.len() > length) {
+            best = Some(config);
+            length = scope.len();
+        }
+    }
+    best
+}
+
 // The transport owns only prepared headers, so redirect hops never parse raw
 // credentials or depend on provider/storage configuration.
 struct HttpSourceCredentials {
@@ -82,9 +128,10 @@ pub(crate) fn scoped_http_transport(
     transport(secrets)
 }
 pub(crate) fn blob_downloader(
-    secrets: Vec<ScopedHttpCredentials>,
+    secrets: SourceSecrets,
     policy: crate::storage_policy::DuckportStoragePolicy,
 ) -> Result<BlobDownloader> {
+    let raw_policy = policy;
     let source = policy.config()?;
     let policy = open_arrow_sink_storage::StorageConfig {
         retry: source.retry.map(|r| open_arrow_sink_storage::RetryConfig {
@@ -101,8 +148,15 @@ pub(crate) fn blob_downloader(
                 io_timeout: t.io_timeout,
             }),
     };
-    let backend =
-        OpenDalDownloader::new(policy)?.with_http_transport(transport(Arc::new(secrets))?);
+    let fallback = OpenDalDownloader::new(policy.clone())?
+        .with_http_transport(transport(Arc::new(secrets.http))?);
+    let backend = SourceDownloader {
+        fallback,
+        sources: secrets.s3,
+        huggingface: secrets.huggingface,
+        policy,
+        raw_policy,
+    };
     Ok(BlobDownloader::with_defaults()?.with_downloader(Arc::new(backend)))
 }
 impl HttpTransport for CredentialTransport {
@@ -158,5 +212,119 @@ impl HttpTransport for CredentialTransport {
             drop(response);
         }
         Err(http_source_error("too many HTTP source redirects"))
+    }
+}
+
+struct SourceDownloader {
+    fallback: OpenDalDownloader,
+    sources: Vec<(String, StorageConfig)>,
+    huggingface: Vec<(String, StorageConfig)>,
+    policy: open_arrow_sink_storage::StorageConfig,
+    raw_policy: crate::storage_policy::DuckportStoragePolicy,
+}
+#[async_trait]
+impl Downloader for SourceDownloader {
+    async fn open(
+        &self,
+        source: &str,
+        context: DownloadContext,
+    ) -> open_arrow_sink_core::Result<DownloadStream> {
+        let url = Url::parse(source).map_err(Error::backend)?;
+        if url.scheme() == "hf" {
+            return self.open_huggingface(source, &url, context).await;
+        }
+        if url.scheme() != "s3" {
+            return self.fallback.open(source, context).await;
+        }
+        crate::validation::validate_uri(&url).map_err(Error::Backend)?;
+        // Explicit source secrets always win, even when the source shares a
+        // namespace with the destination. Never consult context.primary here.
+        let storage = if let Some(config) = select_source(&self.sources, source) {
+            let (operator, _) = crate::storage::operator(source, config).map_err(Error::Backend)?;
+            open_arrow_sink_storage::Storage::for_url(operator, &url)?
+        } else {
+            open_arrow_sink_storage::Storage::from_url(&url)?.with_config(self.policy.clone())?
+        };
+        self.fallback
+            .open(source, context.with_source_storage(storage))
+            .await
+    }
+}
+impl SourceDownloader {
+    async fn open_huggingface(
+        &self,
+        source: &str,
+        url: &Url,
+        context: DownloadContext,
+    ) -> open_arrow_sink_core::Result<DownloadStream> {
+        use open_arrow_access::{
+            Accessor, ByteReadRequest,
+            service::huggingface::{HuggingFaceOptions, HuggingFaceRepository, HuggingFaceService},
+        };
+        crate::validation::validate_uri(url).map_err(Error::Backend)?;
+        if url.host_str() != Some("datasets") {
+            return Err(Error::InvalidInput(
+                "Hugging Face Blob sources require hf://datasets/<owner>/<repo>/<file>".into(),
+            ));
+        }
+        let mut path = url.path().trim_start_matches('/').splitn(3, '/');
+        let owner = path
+            .next()
+            .filter(|v| !v.is_empty())
+            .ok_or_else(|| Error::InvalidInput("missing Hugging Face owner".into()))?;
+        let repo = path
+            .next()
+            .filter(|v| !v.is_empty())
+            .ok_or_else(|| Error::InvalidInput("missing Hugging Face repository".into()))?;
+        let file = path
+            .next()
+            .filter(|v| !v.is_empty())
+            .ok_or_else(|| Error::InvalidInput("missing Hugging Face Blob file".into()))?;
+        let (repo, revision) = repo.split_once('@').unwrap_or((repo, "main"));
+        let decode = |value: &str| {
+            percent_encoding::percent_decode_str(value)
+                .decode_utf8()
+                .map(|v| v.into_owned())
+                .map_err(Error::backend)
+        };
+        let mut options = HuggingFaceOptions::default();
+        let policy = if let Some(config) = select_source(&self.huggingface, source) {
+            let token = config
+                .security
+                .http()
+                .map_err(Error::Backend)?
+                .and_then(|credentials| credentials.token())
+                .filter(|s| !s.is_empty())
+                .ok_or_else(|| {
+                    Error::InvalidConfig("Hugging Face secret TOKEN must not be empty".into())
+                })?;
+            options = options.with_token(token.to_owned());
+            config.policy
+        } else {
+            self.raw_policy
+        };
+        let service = HuggingFaceService::new(options)
+            .await
+            .map_err(Error::backend)?
+            .with_http_config(policy.config().map_err(Error::Backend)?)
+            .map_err(Error::backend)?;
+        let repository =
+            HuggingFaceRepository::new(format!("{}/{}", decode(owner)?, decode(repo)?))
+                .with_revision(decode(revision)?);
+        let files = service
+            .repository(repository)
+            .await
+            .map_err(Error::backend)?
+            .with_chunk_size(
+                std::num::NonZeroUsize::new(context.chunk_bytes())
+                    .ok_or_else(|| Error::InvalidConfig("zero Blob chunk size".into()))?,
+            );
+        let reader = files
+            .open(ByteReadRequest::new(decode(file)?))
+            .await
+            .map_err(Error::backend)?;
+        Ok(Box::pin(
+            open_arrow_access::into_stream(reader).map_err(Error::backend),
+        ))
     }
 }

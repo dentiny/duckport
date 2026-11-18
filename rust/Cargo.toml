@@ -60,12 +60,12 @@ open-arrow-access = { version = "0.7.0", default-features = false, features = [
     "service-zenodo",
 ] }
 iceberg-catalog-rest = "0.11"
-open-arrow-sink-core = "0.3.0"
-open-arrow-sink-iceberg = "0.3.0"
-open-arrow-sink-lance = "0.3.0"
-open-arrow-sink-layer = "0.3.0"
-open-arrow-sink-parquet = "0.3.0"
-open-arrow-sink-storage = "0.3.0"
+open-arrow-sink-core = { git = "https://github.com/dentiny/open-arrow-sink", rev = "321e58b36b5fdb8fc63499f509e0c49f93a89fdd" }
+open-arrow-sink-iceberg = { git = "https://github.com/dentiny/open-arrow-sink", rev = "321e58b36b5fdb8fc63499f509e0c49f93a89fdd" }
+open-arrow-sink-lance = { git = "https://github.com/dentiny/open-arrow-sink", rev = "321e58b36b5fdb8fc63499f509e0c49f93a89fdd" }
+open-arrow-sink-layer = { git = "https://github.com/dentiny/open-arrow-sink", rev = "321e58b36b5fdb8fc63499f509e0c49f93a89fdd" }
+open-arrow-sink-parquet = { git = "https://github.com/dentiny/open-arrow-sink", rev = "321e58b36b5fdb8fc63499f509e0c49f93a89fdd" }
+open-arrow-sink-storage = { git = "https://github.com/dentiny/open-arrow-sink", rev = "321e58b36b5fdb8fc63499f509e0c49f93a89fdd" }
 opendal = { version = "0.59", default-features = false, features = [
     "auto-register-services",
     "http-transport-reqwest",
@@ -82,3 +82,8 @@ test-fixtures = []
 
 [profile.dev]
 debug = 0
+
+# Match the sink library's temporary pins until OpenDAL publishes retry_delay.
+[patch.crates-io]
+opendal-core = { git = "https://github.com/dentiny/opendal.git", rev = "2bf4c9cd289f8881289910afcdc239a4192c4421" }
+opendal-layer-retry = { git = "https://github.com/dentiny/opendal.git", rev = "2bf4c9cd289f8881289910afcdc239a4192c4421" }

@@ -17,7 +17,7 @@ pub(crate) async fn open(
     config: &StorageConfig,
     options: WriteOptions,
     writer_count: usize,
-    secrets: Vec<crate::security::ScopedHttpCredentials>,
+    secrets: crate::blob_auth::SourceSecrets,
 ) -> Result<DuckportSink> {
     let mut options = options.with_mode(utils::sink_mode(mode)?);
     let metrics = open_arrow_sink_core::IoMetrics::default();
