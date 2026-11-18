@@ -1,10 +1,29 @@
 # DuckPort
 
-Read file formats and dataset service providers into DuckDB through [open-arrow-access 0.8.0](https://crates.io/crates/open-arrow-access/0.8.0).
+Read files and dataset services with DuckDB SQL, then stream any query result to
+Lance, a Parquet dataset directory, or an Iceberg table.
 
-## Build
+```sql
+COPY (
+    SELECT id, image_url AS image
+    FROM read_parquet('catalog/*.parquet')
+    WHERE image_url IS NOT NULL
+) TO 'images.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('image'));
+```
 
-Requires CMake 3.20+, C++17, and Rust 1.97+.
+DuckDB runs the query: its readers, tables, views, filters, joins, casts and
+expressions remain available. DuckPort adapts the result to Arrow and the selected
+sink without an intermediate export. A query may still buffer data for its own
+operators, sampling or backend work.
+
+## Start here
+
+[Build and load](docs/UPDATING.md#build-and-load) ·
+[Reader catalog](docs/readers/README.md) · [COPY reference](docs/writers/README.md) ·
+[Secrets](docs/secrets.md) · [Settings and profiling](docs/storage.md) ·
+[Documentation index](docs/README.md)
+
+Build from source with the pinned DuckDB checkout:
 
 ```sh
 git clone --recurse-submodules https://github.com/dentiny/duckport.git
@@ -13,573 +32,107 @@ make
 ./build/release/duckdb
 ```
 
-The built shell includes DuckPort. A separate shell must match the build's DuckDB version; start it with `-unsigned` and load `build/release/extension/duckport/duckport.duckdb_extension`.
-
-## Read
+The built shell includes DuckPort. For another shell built against the same
+DuckDB revision, start with `-unsigned` and load the local extension:
 
 ```sql
-SELECT * FROM duckport_scan_parquet('people.parquet', batch_size := 4096);
-SELECT * FROM duckport_scan_parquet('https://example.com/people.parquet');
+LOAD 'build/release/extension/duckport/duckport.duckdb_extension';
+```
+
+Do not substitute the community `lance_conversion` package: it is a different
+extension with different function and setting names.
+
+## Read with SQL
+
+```sql
+SELECT * FROM duckport_scan_csv('people.csv', header := true);
+SELECT * FROM duckport_scan_json('events.jsonl');
+SELECT * FROM duckport_scan_parquet('people.parquet');
+SELECT * FROM duckport_scan_huggingface('lhoestq/demo1', split := 'train');
+SELECT * FROM duckport_scan_arxiv_metadata('records',
+    from_date := '2024-10-01', until_date := '2024-10-31', max_records := 1000);
+```
+
+Readers include CSV/TSV, JSON/JSONL/NDJSON, Parquet, XML, WARC, Common Crawl,
+ATIF trajectories, arXiv bulk archives and OAI-PMH, PMC, Gutenberg, MECA,
+CourtListener, and selected attachments from research and public-data services.
+The [reader catalog](docs/readers/README.md) documents every SQL function and its
+selection rules. Provider readers do not imply unrestricted discovery or a full
+dataset download.
+
+All readers accept `batch_size` (default 8192, range 1–1,048,576). Local paths,
+`file://`, HTTP(S) and S3 are supported by the applicable reader. Standard file readers accept [file lists, directories and globs](docs/readers/files.md)
+with matching schemas. DuckPort pushes top-level projections into its readers; filters execute in DuckDB.
+
+## Write query results
+
+```sql
+CREATE TABLE events AS SELECT 1 AS id, 'hello' AS body;
+
+COPY events TO 'events.lance' (FORMAT duckport_lance);
+COPY events TO 'events.lance' (FORMAT duckport_lance, APPEND);
+COPY events TO 'events_dataset' (FORMAT duckport_parquet);
+SELECT * FROM read_parquet('events_dataset/*.parquet');
+```
+
+| Destination | COPY format | Modes | Additional behavior |
+| --- | --- | --- | --- |
+| [Lance](docs/writers/lance.md) | `duckport_lance` | Create, APPEND, OVERWRITE | Nested URL blob ingestion, automatic tagged ATIF media, indexes, column encodings |
+| [Parquet directory](docs/writers/parquet.md) | `duckport_parquet` | Create, APPEND | Multiple data files and top-level column compression |
+| [Iceberg REST catalog](docs/writers/iceberg.md) | `duckport_iceberg` | Create, APPEND | Schema-derived table creation and snapshot publication |
+
+All three accept sampling, generated columns, `TARGET_FILE_SIZE`, `FILE_COUNT`
+and `PRESERVE_ORDER`. Backend-specific options are validated against the sink's
+capabilities. Use native `FORMAT PARQUET` to write a single file.
+
+## Configure secrets once
+
+DuckPort resolves DuckDB secrets by URI scope. Scan/COPY options contain data
+selection, not tokens or access keys. Load `httpfs` for its S3 and Hugging Face
+secret types:
+
+```sql
+INSTALL httpfs;
 LOAD httpfs;
-CREATE SECRET source_s3 (
-    TYPE s3, KEY_ID 'key', SECRET 'secret', REGION 'us-east-1',
-    SCOPE 's3://bucket/'
+CREATE SECRET source_store (
+    TYPE s3, KEY_ID 'access-key', SECRET 'secret-key', REGION 'us-east-1',
+    SCOPE 's3://source-bucket/'
 );
-SELECT * FROM duckport_scan_parquet('s3://bucket/people.parquet');
-```
-
-Local paths, `file://`, HTTP(S), and S3 use OpenDAL. S3 connection settings and credentials come from the matching DuckDB `CREATE SECRET`. HTTP bearer tokens use a scoped HTTP secret. Scan functions accept only scan options. `batch_size` defaults to 8192 and accepts 1–1,048,576 rows.
-
-Parquet page codecs: Snappy, Zstd, LZ4, gzip, Brotli. For standalone Parquet scans, archive members, HTTP query/signed URLs, and outer compression such as `.parquet.gz` are unsupported.
-
-Top-level column projection is passed to readers at scan time. For example,
-`SELECT record_id FROM duckport_scan_warc(...)` excludes `body` from the Arrow
-output; `COUNT(*)` uses a zero-column scan that preserves row counts. Columns
-needed by filters are still requested, and filters execute in DuckDB. Nested-field
-and predicate pushdown are not enabled. Projection savings depend on the format:
-Parquet can skip unselected column data, while WARC must still parse and consume
-record bodies even when they are omitted from Arrow output. Schema binding may
-still inspect unselected fields.
-
-## File lists, directories and globs
-
-Parquet, CSV/TSV, JSON/JSONL/NDJSON, XML and WARC readers accept a path or
-`VARCHAR[]` file list:
-
-```sql
-SELECT * FROM duckport_scan_parquet(['part-a.parquet', 'part-b.parquet']);
-SELECT * FROM duckport_scan_csv('data/', header := true);
-SELECT * FROM duckport_scan_json('s3://bucket/data/**/*.jsonl');
-```
-
-Explicit lists keep their selection order and duplicates; use SQL `ORDER BY` when
-result order matters. Each element can also
-be a directory or glob. Directory discovery is recursive and selects the reader's
-file extensions, including supported outer compression for text formats. Explicit
-globs select the files matching the pattern regardless of extension: `*` matches
-one path component and `**` traverses directories. Discovery results are sorted
-lexicographically and deduplicated within each selection. Empty lists, unmatched
-selections and NULL elements fail.
-
-Local directories may omit the trailing slash. S3 directory prefixes must end in
-`/`; S3 dot path segments are rejected to preserve credential scopes.
-Explicit lists can mix local, HTTP(S) and S3 files; each file resolves its own
-scoped DuckDB secret. Directory/glob listing uses the secret matched to its actual
-discovery root, independently of file-prefix secrets. HTTP directory/glob listing
-is unsupported. URI query strings
-remain unsupported for ordinary file readers.
-
-All files must have exactly matching Arrow schemas, including nullability and metadata. Complete
-schemas are checked before emitting rows, even when selecting fewer columns or
-using `COUNT(*)`. `union_by_name`, source-file columns, ATIF and provider-specific
-multi-file inputs are not exposed here. Existing reader options apply to every
-selected file, including headers, delimiters, XML `record_path` and batch size.
-
-File discovery happens during binding, so prepared statements retain the selected
-file list; it is not a filesystem snapshot. Record decoding remains sequential
-and files are opened as needed after schema preflight. Multi-file encoded-byte
-metrics are accumulated, but progress is indeterminate until EOF. These readers
-can be used as ordinary COPY sources with the existing sinks.
-
-## Storage timeouts and retries
-
-The current connection's settings are copied when a reader or COPY writer opens.
-Remote HTTP(S)/S3 file readers and all three sinks' S3 destination operations
-share this policy, including provider-owned directory reads (arXiv, Common Crawl,
-PMC inventory). Provider HTTP metadata and attachment requests, including Hugging
-Face discovery and Parquet reads, use the same policy through the upstream HTTP
-transport. Auxiliary provider connections also inherit it.
-
-| Setting | Default | Meaning |
-| --- | --- | --- |
-| `conversion_storage_timeout_ms` | `30000` | Control operation timeout per attempt, such as `stat`; provider HTTP request timeout |
-| `conversion_storage_io_timeout_ms` | `30000` | Timeout per I/O operation and reader/writer body method |
-| `conversion_storage_retry_max_times` | `5` | Retries after the initial attempt; `0` disables retries |
-| `conversion_storage_retry_min_delay_ms` | `500` | Initial exponential backoff |
-| `conversion_storage_retry_max_delay_ms` | `10000` | Maximum exponential backoff before jitter |
-| `conversion_storage_retry_factor` | `2.0` | Backoff multiplier, finite and between `1` and `f32::MAX` |
-
-```sql
-SET conversion_storage_timeout_ms = 30000;
-SET conversion_storage_io_timeout_ms = 30000;
-SET conversion_storage_retry_max_times = 5;
-SET conversion_storage_retry_min_delay_ms = 500;
-SET conversion_storage_retry_max_delay_ms = 10000;
-SET conversion_storage_retry_factor = 2.0;
-```
-
-Timeouts and delays must be positive; the maximum delay must be at least the
-minimum delay when opening a reader or writer. `RESET` restores each default.
-Timeouts apply to each attempt, rather than to the entire query. OpenDAL retries
-temporary errors with exponential backoff and jitter, with timeout inside retry.
-Provider HTTP transports apply retry safety rules and do not replay a response
-body after bytes have been delivered. Local filesystem operations, Iceberg REST
-catalog requests, and backend-owned `BLOB_COLUMNS` URL downloads retain their
-library defaults. Other DuckDB extensions use their own settings.
-
-## Authentication with DuckDB secrets
-
-Use DuckDB's existing `CREATE SECRET` system. Credentials are selected by the
-request/source URL's `SCOPE`; do not put tokens in scan/COPY options or URLs.
-Load `httpfs` to register its S3 and Hugging Face secret types.
-
-```sql
-LOAD httpfs;
-CREATE SECRET object_storage (
-    TYPE s3, KEY_ID 'access-key', SECRET 'secret-key',
-    SESSION_TOKEN 'optional-session-token', REGION 'us-east-1',
-    SCOPE 's3://private-bucket/'
-);
-CREATE SECRET private_hub (
-    TYPE huggingface, TOKEN 'hf-access-token',
-    SCOPE 'hf://datasets/owner/private-repo'
-);
-CREATE SECRET authenticated_http (
+CREATE SECRET media_store (
     TYPE http, BEARER_TOKEN 'access-token',
-    SCOPE 'https://service.example.com/private/'
-);
-CREATE SECRET custom_http_auth (
-    TYPE http, EXTRA_HTTP_HEADERS MAP {'X-API-Key': 'api-key'},
-    SCOPE 'https://api.example.com/files/'
+    SCOPE 'https://media.example.com/private/'
 );
 ```
 
-| Backend/service | DuckDB secret type and authentication fields |
-| --- | --- |
-| S3-compatible storage | `TYPE s3`: `KEY_ID`, `SECRET`, optional `SESSION_TOKEN`; endpoint/region/addressing settings belong to the same secret. |
-| Hugging Face | `TYPE huggingface`: `TOKEN`, scoped to the logical `hf://datasets/...` path. |
-| HTTP files and HTTP Blob sources | `TYPE http`: `BEARER_TOKEN` or `EXTRA_HTTP_HEADERS` for API keys/custom Authorization. |
-| Zenodo, OpenStax, and bearer-enabled provider APIs | `TYPE http`: `BEARER_TOKEN`, scoped to the provider API endpoint. |
-| Figshare | `TYPE http`: raw token in `BEARER_TOKEN`; the adapter uses Figshare's `Authorization: token` scheme. |
-| Dataverse | `TYPE http`: `EXTRA_HTTP_HEADERS MAP {'X-Dataverse-key': 'api-token'}`; use `BEARER_TOKEN` for OIDC installations instead. |
-| Semantic Scholar, Regulations.gov, USPTO | `TYPE http`: API key in `BEARER_TOKEN` or `EXTRA_HTTP_HEADERS` under `X-API-Key`. |
-| BHL | `TYPE http`: API key in `BEARER_TOKEN`; the adapter maps it to the `apikey` query field. |
-| Internet Archive | `TYPE s3`: `KEY_ID` and `SECRET`, scoped to its HTTP endpoint; the adapter uses LOW authentication. |
-| Iceberg REST catalog | `TYPE http`: `BEARER_TOKEN` scoped to `CATALOG_URI`, independently of the secret for `STORAGE_ROOT`. |
-
-Connection-based provider adapters (Figshare, OpenStax, bioRxiv, Federal Register,
-GovInfo, HathiFiles, Library of Congress, OAI-PMH, BHL, Semantic Scholar,
-Regulations.gov, and USPTO) also apply `EXTRA_HTTP_HEADERS` to their primary
-origin. Duplicate headers, transport-header overrides, and a token combined with
-its mapped authentication header are rejected before I/O.
-
-Dataverse accepts `X-Dataverse-key` as its only extra header, or `BEARER_TOKEN`
-for OIDC; configuring both is rejected. Zenodo, Hugging Face, and Internet Archive
-do not support extra headers and reject them rather than silently ignoring them.
-
-For example, Dataverse API-key and Figshare secrets use the standard HTTP type:
-
-```sql
-CREATE SECRET dataverse_auth (
-    TYPE http, EXTRA_HTTP_HEADERS MAP {'X-Dataverse-key': 'dataverse-api-token'},
-    SCOPE 'https://dataverse.harvard.edu/'
-);
-CREATE SECRET figshare_auth (
-    TYPE http, BEARER_TOKEN 'figshare-personal-or-oauth-token',
-    SCOPE 'https://api.figshare.com/v2/articles/'
-);
-CREATE SECRET catalog_auth (
-    TYPE http, BEARER_TOKEN 'catalog-access-token',
-    SCOPE 'https://catalog.example.com'
-);
-```
-
-Use narrow scopes when different datasets/services have different identities.
-Provider credentials stay on their intended origin. COPY source credentials are
-resolved independently of the destination; an S3 destination key or catalog token
-is not a credential for an unrelated media URL.
-
-For HTTP file reads and HTTP Blob downloads, same-origin redirects reselect the
-longest matching credential scope. Leaving a scope removes its credentials. Any
-cross-origin hop disables credentials for the rest of that redirect chain, even
-if it returns to the original origin. HTTPS-to-HTTP redirects are rejected.
-
-## Write
-
-```sql
-COPY (SELECT id, image_url AS image FROM my_table)
-TO 'images.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('image'));
-```
-
-The [Lance sink](docs/writers/lance.md) supports create, APPEND and OVERWRITE,
-including URL blob ingestion. The [Parquet sink](docs/writers/parquet.md) writes
-dataset directories with create and APPEND. Builds require `protoc`.
-The [Iceberg sink](docs/writers/iceberg.md) creates tables and appends to existing tables through a REST catalog.
-Native `FORMAT PARQUET` writes individual files. All three sinks support
-[COPY sampling](docs/writers/README.md#copy-sampling) with `SAMPLE_PERCENT` and `SAMPLE_ROWS`.
-
-## Progress and profiling
-
-Enable the progress bar with `SET enable_progress_bar = true`. Single-file scans
-and provider attachments report estimated encoded-byte progress when their size
-is known; other scans remain indeterminate. Progress reaches 100% at reader EOF.
-
-Readers report scanned rows and observed input bytes to DuckDB's profiler.
-COPY reports sink read/write bytes after a successful commit, including APPEND
-metadata reads and finalization writes. Byte counts exclude provider discovery
-and hidden transports such as Hugging Face discovery/shards.
-
-```sql
-SET profiling_coverage = 'ALL';
-SET tracked_metrics = ['operator.type', 'operator.rows_scanned',
-                       'io.total_bytes_read', 'io.total_bytes_written'];
-PRAGMA enable_profiling = 'json';
-```
-
-[Tests](test/README.md) · [Development](docs/UPDATING.md)
-
-### Gutenberg
-
-```sql
-SELECT ebook_id, title FROM duckport_scan_gutenberg('testdata/gutenberg/book.rdf', batch_size := 1);
-```
-
-Reads one RDF book metadata row; linked book files remain metadata.
-Local, HTTP(S), and S3 sources use the existing scoped DuckDB secrets.
-
-### Pmc
-
-```sql
-SELECT pmcid, version, title FROM duckport_scan_pmc('testdata/pmc/PMC123.json', batch_size := 1);
-```
-
-Reads one PMC article-version metadata row. `duckport_scan_pmc_inventory(manifest_uri)` streams the gzip CSV shards named by an S3 inventory manifest; the manifest and shard keys must share a bucket root. Linked article content is not fetched.
-Local, HTTP(S), and S3 sources use the existing scoped DuckDB secrets.
-
-### Zenodo
-
-```sql
-SELECT * FROM duckport_scan_zenodo('<identifier>', file_name := '<logical attachment name>');
-```
-
-Reads one explicitly named attachment from the provider-resolved file namespace.
-`format` defaults to `binary` (one BLOB `data` column); `csv`, `tsv`, `json`,
-`jsonl`, `parquet`, and `xml` decode records. XML requires `record_path`.
-CSV/TSV expect headers. Text formats support outer compression. Binary mode buffers
-the selected attachment into one BLOB; use a record format for large tabular files.
-`endpoint` defaults to `https://zenodo.org`. No discovery pagination or whole-dataset download
-is implied. Unknown file names fail through the provider accessor.
-Scoped HTTP secrets supply Zenodo bearer tokens for metadata and attachment reads:
-
-```sql
-CREATE SECRET zenodo_auth (
-    TYPE http, BEARER_TOKEN 'your-token', SCOPE 'https://zenodo.org/api/records/'
-);
-```
-
-Tokens are omitted after redirects to another origin. Public records also work
-without a secret.
-All reader options above are VARCHAR; `batch_size` remains BIGINT.
-
-### Dataverse
-
-```sql
-SELECT * FROM duckport_scan_dataverse('<identifier>', file_name := '<logical attachment name>', version := '<version>');
-```
-
-Reads one explicitly named attachment from the provider-resolved file namespace.
-`format` defaults to `binary` (one BLOB `data` column); `csv`, `tsv`, `json`,
-`jsonl`, `parquet`, and `xml` decode records. XML requires `record_path`.
-CSV/TSV expect headers. Text formats support outer compression. Binary mode buffers
-the selected attachment into one BLOB; use a record format for large tabular files.
-`endpoint` defaults to `https://dataverse.harvard.edu`. No discovery pagination or whole-dataset download
-is implied. Unknown file names fail through the provider accessor.
-Scoped HTTP bearer tokens are used where the upstream service supports connection headers.
-All reader options above are VARCHAR; `batch_size` remains BIGINT.
-
-### Figshare
-
-```sql
-SELECT * FROM duckport_scan_figshare('<identifier>', file_name := '<logical attachment name>');
-```
-
-Reads one explicitly named attachment from the provider-resolved file namespace.
-`format` defaults to `binary` (one BLOB `data` column); `csv`, `tsv`, `json`,
-`jsonl`, `parquet`, and `xml` decode records. XML requires `record_path`.
-CSV/TSV expect headers. Text formats support outer compression. Binary mode buffers
-the selected attachment into one BLOB; use a record format for large tabular files.
-`endpoint` defaults to `https://api.figshare.com`. No discovery pagination or whole-dataset download
-is implied. Unknown file names fail through the provider accessor.
-A scoped HTTP secret stores the Figshare token in `BEARER_TOKEN`; DuckPort sends
-`Authorization: token <value>` as required by the Figshare API. Tokens stay on
-the API origin and are not forwarded to cross-origin attachment hosts.
-All reader options above are VARCHAR; `batch_size` remains BIGINT.
-
-### InternetArchive
-
-```sql
-SELECT * FROM duckport_scan_internet_archive('<identifier>', file_name := '<logical attachment name>');
-```
-
-Reads one explicitly named attachment from the provider-resolved file namespace.
-`format` defaults to `binary` (one BLOB `data` column); `csv`, `tsv`, `json`,
-`jsonl`, `parquet`, and `xml` decode records. XML requires `record_path`.
-CSV/TSV expect headers. Text formats support outer compression. Binary mode buffers
-the selected attachment into one BLOB; use a record format for large tabular files.
-`endpoint` defaults to `https://archive.org`. No discovery pagination or whole-dataset download
-is implied. Unknown file names fail through the provider accessor.
-Anonymous reads remain the default. For account-authorized reads, load `httpfs`
-and create an S3-type secret with Internet Archive keys scoped to the HTTP endpoint:
-
-```sql
-CREATE SECRET ia_account (
-    TYPE s3, KEY_ID 'access-key', SECRET 'secret-key', SCOPE 'https://archive.org/'
-);
-```
-
-The upstream service sends `Authorization: LOW <key>:<secret>` only to its origin.
-These credentials do not grant access beyond the account's permissions or borrow books.
-All reader options above are VARCHAR; `batch_size` remains BIGINT.
-
-### FederalRegister
-
-```sql
-SELECT * FROM duckport_scan_federal_register('<identifier>', file_name := '<logical attachment name>');
-```
-
-Reads one explicitly named attachment from the provider-resolved file namespace.
-`format` defaults to `binary` (one BLOB `data` column); `csv`, `tsv`, `json`,
-`jsonl`, `parquet`, and `xml` decode records. XML requires `record_path`.
-CSV/TSV expect headers. Text formats support outer compression. Binary mode buffers
-the selected attachment into one BLOB; use a record format for large tabular files.
-`endpoint` defaults to `https://www.federalregister.gov`. No discovery pagination or whole-dataset download
-is implied. Unknown file names fail through the provider accessor.
-Scoped HTTP bearer tokens are used where the upstream service supports connection headers.
-All reader options above are VARCHAR; `batch_size` remains BIGINT.
-
-### GovInfo
-
-```sql
-SELECT * FROM duckport_scan_govinfo('<identifier>', file_name := '<logical attachment name>');
-```
-
-Reads one explicitly named attachment from the provider-resolved file namespace.
-`format` defaults to `binary` (one BLOB `data` column); `csv`, `tsv`, `json`,
-`jsonl`, `parquet`, and `xml` decode records. XML requires `record_path`.
-CSV/TSV expect headers. Text formats support outer compression. Binary mode buffers
-the selected attachment into one BLOB; use a record format for large tabular files.
-`endpoint` defaults to `https://www.govinfo.gov`. No discovery pagination or whole-dataset download
-is implied. Unknown file names fail through the provider accessor.
-Scoped HTTP bearer tokens are used where the upstream service supports connection headers.
-All reader options above are VARCHAR; `batch_size` remains BIGINT.
-
-### Hathifiles
-
-```sql
-SELECT * FROM duckport_scan_hathifiles('<catalog>', file_name := '<logical attachment name>');
-```
-
-Reads one explicitly named attachment from the provider-resolved file namespace.
-`format` defaults to `binary` (one BLOB `data` column); `csv`, `tsv`, `json`,
-`jsonl`, `parquet`, and `xml` decode records. XML requires `record_path`.
-CSV/TSV expect headers. Text formats support outer compression. Binary mode buffers
-the selected attachment into one BLOB; use a record format for large tabular files.
-`endpoint` defaults to `https://www.hathitrust.org`. No discovery pagination or whole-dataset download
-is implied. Unknown file names fail through the provider accessor.
-Scoped HTTP bearer tokens are used where the upstream service supports connection headers.
-All reader options above are VARCHAR; `batch_size` remains BIGINT.
-
-### LibraryOfCongress
-
-```sql
-SELECT * FROM duckport_scan_library_of_congress('<identifier>', file_name := '<logical attachment name>');
-```
-
-Reads one explicitly named attachment from the provider-resolved file namespace.
-`format` defaults to `binary` (one BLOB `data` column); `csv`, `tsv`, `json`,
-`jsonl`, `parquet`, and `xml` decode records. XML requires `record_path`.
-CSV/TSV expect headers. Text formats support outer compression. Binary mode buffers
-the selected attachment into one BLOB; use a record format for large tabular files.
-`endpoint` defaults to `https://www.loc.gov`. No discovery pagination or whole-dataset download
-is implied. Unknown file names fail through the provider accessor.
-Scoped HTTP bearer tokens are used where the upstream service supports connection headers.
-All reader options above are VARCHAR; `batch_size` remains BIGINT.
-
-### SemanticScholar
-
-```sql
-SELECT * FROM duckport_scan_semantic_scholar('<identifier>', file_name := '<logical attachment name>', release := '<release>');
-```
-
-Reads one explicitly named attachment from the provider-resolved file namespace.
-`format` defaults to `binary` (one BLOB `data` column); `csv`, `tsv`, `json`,
-`jsonl`, `parquet`, and `xml` decode records. XML requires `record_path`.
-CSV/TSV expect headers. Text formats support outer compression. Binary mode buffers
-the selected attachment into one BLOB; use a record format for large tabular files.
-`endpoint` defaults to `https://api.semanticscholar.org`. No discovery pagination or whole-dataset download
-is implied. Unknown file names fail through the provider accessor.
-A scoped HTTP secret stores the API key in `BEARER_TOKEN`; DuckPort maps it to the provider authentication field.
-All reader options above are VARCHAR; `batch_size` remains BIGINT.
-
-### OpenStax
-
-```sql
-SELECT * FROM duckport_scan_openstax('<identifier>', file_name := '<logical attachment name>', revision := '<revision>');
-```
-
-Reads one explicitly named attachment from the provider-resolved file namespace.
-`format` defaults to `binary` (one BLOB `data` column); `csv`, `tsv`, `json`,
-`jsonl`, `parquet`, and `xml` decode records. XML requires `record_path`.
-CSV/TSV expect headers. Text formats support outer compression. Binary mode buffers
-the selected attachment into one BLOB; use a record format for large tabular files.
-`endpoint` defaults to `https://api.github.com`. No discovery pagination or whole-dataset download
-is implied. Unknown file names fail through the provider accessor.
-Scoped HTTP bearer tokens are used where the upstream service supports connection headers.
-All reader options above are VARCHAR; `batch_size` remains BIGINT.
-`archive_endpoint` defaults to `https://codeload.github.com`; archive downloads do not inherit API credentials.
-
-### Bhl
-
-```sql
-SELECT * FROM duckport_scan_bhl('<identifier>', file_name := '<logical attachment name>');
-```
-
-Reads one explicitly named attachment from the provider-resolved file namespace.
-`format` defaults to `binary` (one BLOB `data` column); `csv`, `tsv`, `json`,
-`jsonl`, `parquet`, and `xml` decode records. XML requires `record_path`.
-CSV/TSV expect headers. Text formats support outer compression. Binary mode buffers
-the selected attachment into one BLOB; use a record format for large tabular files.
-`endpoint` defaults to `https://www.biodiversitylibrary.org`. No discovery pagination or whole-dataset download
-is implied. Unknown file names fail through the provider accessor.
-A scoped HTTP secret stores the API key in `BEARER_TOKEN`; DuckPort maps it to the provider authentication field.
-All reader options above are VARCHAR; `batch_size` remains BIGINT.
-
-### Regulations
-
-```sql
-SELECT * FROM duckport_scan_regulations('<identifier>', file_name := '<logical attachment name>');
-```
-
-Reads one explicitly named attachment from the provider-resolved file namespace.
-`format` defaults to `binary` (one BLOB `data` column); `csv`, `tsv`, `json`,
-`jsonl`, `parquet`, and `xml` decode records. XML requires `record_path`.
-CSV/TSV expect headers. Text formats support outer compression. Binary mode buffers
-the selected attachment into one BLOB; use a record format for large tabular files.
-`endpoint` defaults to `https://api.regulations.gov`. No discovery pagination or whole-dataset download
-is implied. Unknown file names fail through the provider accessor.
-A scoped HTTP secret stores the API key in `BEARER_TOKEN`; DuckPort maps it to the provider authentication field.
-All reader options above are VARCHAR; `batch_size` remains BIGINT.
-
-### Uspto
-
-```sql
-SELECT * FROM duckport_scan_uspto('<identifier>', file_name := '<logical attachment name>');
-```
-
-Reads one explicitly named attachment from the provider-resolved file namespace.
-`format` defaults to `binary` (one BLOB `data` column); `csv`, `tsv`, `json`,
-`jsonl`, `parquet`, and `xml` decode records. XML requires `record_path`.
-CSV/TSV expect headers. Text formats support outer compression. Binary mode buffers
-the selected attachment into one BLOB; use a record format for large tabular files.
-`endpoint` defaults to `https://api.uspto.gov`. No discovery pagination or whole-dataset download
-is implied. Unknown file names fail through the provider accessor.
-A scoped HTTP secret stores the API key in `BEARER_TOKEN`; DuckPort maps it to the provider authentication field.
-All reader options above are VARCHAR; `batch_size` remains BIGINT.
-
-### Biorxiv
-
-```sql
-SELECT * FROM duckport_scan_biorxiv('<identifier>', file_name := '<logical attachment name>', until := '<until>');
-```
-
-Reads one explicitly named attachment from the provider-resolved file namespace.
-`format` defaults to `binary` (one BLOB `data` column); `csv`, `tsv`, `json`,
-`jsonl`, `parquet`, and `xml` decode records. XML requires `record_path`.
-CSV/TSV expect headers. Text formats support outer compression. Binary mode buffers
-the selected attachment into one BLOB; use a record format for large tabular files.
-`endpoint` defaults to `https://api.biorxiv.org`. No discovery pagination or whole-dataset download
-is implied. Unknown file names fail through the provider accessor.
-Scoped HTTP bearer tokens are used where the upstream service supports connection headers.
-All reader options above are VARCHAR; `batch_size` remains BIGINT.
-
-### Courtlistener
-
-```sql
-SELECT * FROM duckport_scan_courtlistener('s3://free.law/', table_name := 'courts', date := '2026-09-30');
-```
-The locator is a local directory or HTTP(S)/S3 root above `bulk-data/`.
-Reads exactly one validated, dated `.csv.bz2` table export with a header; all columns
-are retained as VARCHAR, including columns containing only null values. S3 uses the existing scoped DuckDB secret.
-
-### Meca
-
-```sql
-SELECT item_id, href, data FROM duckport_scan_meca('submission.meca');
-```
-Reads validated MECA manifest entries as Arrow rows, preserving binary payloads,
-manifest order, media types, and ZIP limits. Local, HTTP(S), and S3 use existing secrets.
-
-### Arxiv
-
-```sql
-SELECT shard_uri, entry_index, entry_name, data
-FROM duckport_scan_arxiv('/data/arxiv-mirror', kind := 'source', month := '2410');
-```
-The locator roots a local/HTTP(S)/S3 mirror above `pdf/` and `src/`. Reads only
-manifest-selected TAR shards; `month` is YYMM, `kind` is `source` (default) or `pdf`.
-Returns unchanged entry names and binary payloads, with upstream TAR limits.
-For an official requester-pays S3 bucket, supply a scoped S3 secret and set
-`requester_pays := true` to explicitly opt into requester billing. The option defaults
-to false and requires S3 credentials. Example: `duckport_scan_arxiv('s3://arxiv/',
-kind := 'source', month := '2410', requester_pays := true)`.
-
-### Doab
-
-```sql
-SELECT * FROM duckport_scan_doab('records', from_date := '2026-01-01');
-```
-Reads OAI-PMH records and follows continuation tokens automatically.
-`endpoint` defaults to `https://directory.doabooks.org`.
-`until_date`, `set_spec`, and `record_path` are optional.
-Scoped HTTP bearer tokens are supported.
-
-### Oapen
-
-```sql
-SELECT * FROM duckport_scan_oapen('records', from_date := '2026-01-01');
-```
-Reads OAI-PMH records and follows continuation tokens automatically.
-`endpoint` defaults to `https://library.oapen.org`.
-Options and output match DOAB; scoped HTTP bearer tokens are supported.
-
-### arXiv metadata
-
-```sql
-SELECT * FROM duckport_scan_arxiv_metadata('records', from_date := '2026-01-01',
-    until_date := '2026-01-31', set_spec := 'cs');
-```
-
-Reads arXiv OAI-PMH metadata using the upstream `arXivRaw` prefix and follows
-continuation tokens automatically. The default endpoint is
-`https://oaipmh.arxiv.org`. Options and output match DOAB/OAPEN.
-Public metadata needs no key; scoped HTTP bearer secrets are supported for
-custom endpoints. `duckport_scan_arxiv` continues to read bulk TAR members.
-
-### OAI-PMH automatic pagination
-
-All three OAI-PMH readers (`duckport_scan_doab`, `duckport_scan_oapen`, and
-`duckport_scan_arxiv_metadata`) always follow continuation tokens:
-
-```sql
-SELECT identifier, status
-FROM duckport_scan_doab('records', max_pages := 100, max_records := 10000);
-```
-
-The default columns are the stable OAI-PMH headers:
-`identifier`, `datestamp`, `status`, and `set_specs`, including deleted records.
-`record_path` can select other XML fields; inferred schemas must remain identical
-across pages or the scan fails. The OAI namespace is bound to `oai` for custom
-paths, such as `/oai:OAI-PMH/oai:ListRecords/oai:record` to infer nested provider
-metadata. Empty pages do not end a scan if a token remains.
-Date/set selectors apply only to the initial request; continuation requests send
-only the opaque token. A token locator can start a scan from a later page, but
-cannot be combined with date/set selectors.
-
-Both limits are optional positive integers.
-`max_pages` counts all fetched pages, including empty pages and the initial or
-resumed page. If that limit is reached with another continuation, the scan fails
-instead of reporting an incomplete harvest as complete. `max_records` deliberately
-returns at most that many output rows, slicing the final batch and stopping without
-fetching another page. A whole current page is still fetched and parsed. Repeated
-tokens, provider errors, and schema changes fail the scan. Pages are requested on
-demand, and each execution of a prepared statement starts its own continuation.
+Use separate scopes for input storage, media URLs, output storage and an Iceberg
+catalog. The [secret guide](docs/secrets.md) includes S3-compatible endpoints,
+Hugging Face, provider API keys, redirect rules, and arXiv's independent PDF and
+metadata-snapshot credentials.
+
+## How this differs from duckdb_lance_conversion
+
+Both extensions stream DuckDB query results to Lance and support APPEND,
+OVERWRITE, sampling, generated columns, Blob v2 policies and indexes. DuckPort
+adds Parquet-directory and Iceberg sinks, a broader provider catalog, nested
+`BLOB_COLUMNS`, and per-source scoped credentials. Its arXiv reader can join PDFs
+to a persisted metadata snapshot in one output table.
+
+The interfaces are different: use `duckport_scan_*`, `FORMAT duckport_lance`
+and `conversion_storage_*`. DuckPort does not expose every read-parallelism or
+memory-budget control of the reference extension. See the
+[feature and migration comparison](docs/comparison.md) for the exact differences.
+
+## Built on two upstream projects
+
+- [open-arrow-access](https://github.com/dentiny/open-arrow-access) provides
+  Arrow readers, service accessors, attachment decoding and prepared scans.
+- [open-arrow-sink](https://github.com/dentiny/open-arrow-sink) provides writer
+  sessions, Lance/Parquet/Iceberg backends and reusable blob, schema and concurrency
+  layers. DuckPort uses its `core`, `layer`, `storage` and backend crates.
+
+The current manifest selects open-arrow-access 0.8.0 and open-arrow-sink 0.5.0
+with Arrow 58. These projects own format/service and storage mechanics; DuckPort
+owns SQL binding, secret lookup and Arrow C ABI adaptation. Read the
+[architecture guide](docs/architecture.md) before extending the bridge.
+
+[Development](docs/UPDATING.md) · [Tests](test/README.md) · [MIT license](LICENSE)

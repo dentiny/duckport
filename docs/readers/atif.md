@@ -1,53 +1,46 @@
-# duckport_scan_atif
+# ATIF agent trajectories
 
 ```sql
 SELECT * FROM duckport_scan_atif('testdata/atif/trajectory.json');
-SELECT * FROM duckport_scan_atif('testdata/atif/trajectories.jsonl', batch_size := 2);
+SELECT * FROM duckport_scan_atif('runs/trajectories.jsonl.gz', batch_size := 4096);
+COPY (SELECT * FROM duckport_scan_atif('runs/trajectory.json'))
+TO 'trajectories.lance' (FORMAT duckport_lance);
 ```
 
-Reads ATIF trajectories with the library's fixed schema. JSON objects are framed automatically from their contents, accepting pretty-printed JSON and JSONL without inspecting filenames or selecting a layout.
+The upstream ATIF reader uses a fixed nested trajectory schema and frames JSON
+objects from their contents. Pretty-printed JSON and JSONL do not require a
+filename-based layout option. `raw_json`, text bytes, content order and media
+attributes are retained; embedded subagent trajectories remain raw JSON.
 
-Image/audio `source.path` values in messages and observation results are normalized
-to absolute URI strings using the document URI as the base. All media references,
-including file references, follow URI resolution rules; ATIF does not interpret
-references as filesystem paths. Encode reserved filename characters in references
-(for example, `image%20%231%25.png` for `image #1%.png`). Relative references resolve
-against the document's directory. `data:` URIs
-are retained. Remote media references must stay on the document's storage origin
-(canonical scheme and authority). URI normalization has no transport allowlist;
-the configured storage/backend determines which protocols COPY can read. Opaque
-non-data URIs and embedded credentials are rejected. Subagent trajectories remain raw JSON.
+## SELECT resolves references
 
-Scanning does not download, open or decode media. Missing files and malformed data
-URI payloads therefore do not fail a scan. Content types, media attributes, text
-bytes and `raw_json` retain their original meaning. Projection pushdown, empty
-projections (`COUNT(*)`) and the normal `batch_size` target are preserved.
+Image/audio `source.path` fields in messages and observation results become
+absolute URI strings relative to the trajectory document. Resolution uses URI
+rules, including file references: encode reserved characters, for example
+`image%20%231%25.png` for `image #1%.png`. `data:` URIs are retained. Remote
+references must stay on the document's canonical storage origin. Opaque non-data
+URIs and embedded credentials fail normalization; the backend controls transport
+availability.
 
-```sql
-COPY (
-    SELECT * FROM duckport_scan_atif('runs/trajectory.json')
-) TO 'trajectory.lance' (FORMAT duckport_lance);
-```
+SELECT does not fetch/decode media. Missing media files and malformed data-URI
+payloads can therefore remain visible as references without failing the scan.
+Projection and COUNT(*) retain the normal reader behavior.
 
-COPY automatically selects tagged media URI fields for the sink's
-`DownloadBlobLayer`; no `BLOB_COLUMNS` is required for ATIF media. The Lance backend
-owns downloading, bounded payload buffers, concurrency and managed Blob v2
-storage. The sink library's downloader handles `data:` URIs and all storage
-backends, including explicitly configured source stores.
-Missing media and invalid data URI payloads fail COPY rather than SELECT.
+## Lance COPY materializes tagged media
 
-ATIF storage metadata survives DuckDB tables, projection and renaming. Tagged text
-uses large binary/lz4 by default; explicit `COLUMN_COMPRESSION` settings override
-that default. These policies apply only to tagged fields. COPY resolves the
-trajectory's HTTP/S3 source secrets independently of destination credentials;
-credential values are never stored in field metadata. Secrets are looked up again
-at COPY time, including after storing URI rows in a DuckDB table. Automatic secret registration follows the remote trajectory's document scope.
-Absolute remote references from local documents use the sink library's default
-source resolution.
+Lance COPY recognizes tagged media fields and downloads them through
+open-arrow-sink's `DownloadBlobLayer`; explicit `BLOB_COLUMNS` is unnecessary for
+those tags. The native materializer writes managed Blob v2 storage using its
+layout thresholds. Missing media and invalid data-URI payloads fail COPY.
+Tagged text defaults to LargeBinary/LZ4 unless an explicit compression overrides
+it. Untagged fields keep their ordinary policy.
 
-See [shared settings](../../README.md#read) and [test instructions](../../test/README.md).
+Source/storage metadata survives direct projections, aliases and stored DuckDB
+tables. Credentials are never written to field metadata: COPY looks up current
+source secrets again. Remote trajectory documents preserve the source store's
+configuration; absolute remote URLs from local documents use the sink's normal
+source resolution. See [source secrets](../secrets.md).
 
-URL downloading, Blob v2 conversion and ATIF text compression defaults apply only
-to `duckport_lance`. `duckport_parquet` preserves the Arrow media URI/string and
-text/binary fields. `duckport_iceberg` also preserves their values, with only the
-existing catalog schema/field-ID/nullability alignment; neither sink fetches media.
+Parquet and Iceberg sinks preserve media reference values and do not download
+ATIF media. Iceberg additionally aligns to its catalog schema. This difference
+also means SELECT and Lance COPY can fail at different times.

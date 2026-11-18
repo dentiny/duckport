@@ -96,11 +96,12 @@ pub(crate) fn sink_mode(value: &str) -> Result<open_arrow_sink_core::WriteMode> 
 pub(crate) fn arxiv_kind(value: &str) -> Result<open_arrow_access::service::arxiv::ArxivKind> {
     validation::required(
         match value {
+            "auto" => Some(ArxivKind::Auto),
             "source" => Some(ArxivKind::Source),
             "pdf" => Some(ArxivKind::Pdf),
             _ => None,
         },
-        "kind must be source or pdf",
+        "kind must be auto, source, or pdf",
     )
 }
 
@@ -262,7 +263,11 @@ pub(crate) fn optional_byte_size(name: &str, value: i64) -> Result<Option<usize>
     byte_size(name, value).map(Some)
 }
 
-pub(crate) fn resolve_column_path(schema: &Schema, name: &str, option: &str) -> Result<Vec<String>> {
+pub(crate) fn resolve_column_path(
+    schema: &Schema,
+    name: &str,
+    option: &str,
+) -> Result<Vec<String>> {
     if let Some(field) = schema
         .fields()
         .iter()

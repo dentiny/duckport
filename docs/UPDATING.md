@@ -1,54 +1,94 @@
 # Development
 
-## Build profiles
+## Build and load
 
-`make` uses Cargo's release profile. For faster Rust builds:
-
-```sh
-make EXT_FLAGS='-DDUCKPORT_CARGO_PROFILE=dev'
-```
-
-Cross builds must set `DUCKPORT_RUST_TARGET` to the matching Rust triple. The build also accepts `Rust_CARGO_TARGET`. Build each macOS architecture separately.
-
-## Update dependencies
-
-1. Check out the target DuckDB release in `duckdb`.
-2. Select a compatible revision of `extension-ci-tools`, which supplies the local Makefile.
-3. Rebuild and run the [tests](../test/README.md).
-4. Commit the new submodule revisions.
-
-DuckPort uses DuckDB's internal C++ API. Review [DuckDB release notes](https://github.com/duckdb/duckdb/releases) and relevant header changes when upgrading.
-
-To update open-arrow-access, change the version requirement in `rust/Cargo.toml`, regenerate `rust/Cargo.lock`, and rerun the SQL tests.
-
-## Cargo manifest formatting
-
-Use [Taplo](https://taplo.tamasfe.dev/configuration/file) to format `rust/Cargo.toml` and keep dependency names and feature lists
-in alphabetical order. `cargo fmt` formats Rust source files only.
+Use CMake 3.20+, a C++17 toolchain, Rust with edition-2024 support compatible
+with `rust/Cargo.lock`, and `protoc` for the Lance dependency. Initialize the
+pinned DuckDB and extension-ci-tools submodules before building:
 
 ```sh
-cargo install taplo-cli --version 0.10.0 --locked
-make toml-format       # Apply formatting and sorting.
-make toml-format-check # Check without modifying files.
+git submodule update --init --recursive
+make
+./build/release/duckdb
 ```
 
-The repository's `taplo.toml` limits formatting to its own manifest, excluding
-submodules. Package metadata retains its existing field order.
+The build's shell includes DuckPort. A separately launched shell must match the
+pinned DuckDB revision and permit an unsigned local extension (`-unsigned`):
 
-## Reader bridge
+```sql
+LOAD 'build/release/extension/duckport/duckport.duckdb_extension';
+```
 
-Openers share `locator`, `DuckportStorageOptions`, and `DuckportScanOptions`. `DuckportScanOptions` contains
-only format/service-independent scan settings: currently `batch_size`. Each reader
-introduces its own typed options in its PR when needed, as a separate opener argument.
-Reader-specific fields do not belong in the common scan options or binder.
-Required option structs are borrowed as C++ `const &` and Rust `&T` for the open call.
-C++ resolves scoped DuckDB secrets and passes named storage fields to Rust. It owns
-input strings for the open call; Rust copies them before asynchronous reads.
+Use `make EXT_FLAGS='-DDUCKPORT_CARGO_PROFILE=dev'` for the Cargo dev profile;
+release is the default. Cross builds require a matching DUCKPORT_RUST_TARGET (or
+Rust_CARGO_TARGET). Build macOS architectures separately. Build paths and flags
+are controlled by CMake and extension-ci-tools; no prebuilt Community Extension
+installation is assumed.
 
-C++ binds SQL parameters and uses DuckDB's Arrow scanner. Rust owns the schema and async reader factory; its FFI layer uses a shared Tokio runtime and open-arrow-access's `BlockingRecordBatchReader` to expose synchronous Arrow streams. The FFI exposes `open`, `get_schema`, `get_stream`, and `destroy`; registrations and source lists are explicit.
+## Source layout
 
-`rust/src/lib.rs` declares modules only. `source.rs` wraps the library's `BoundSource` for reader binding and schema checks. File readers use `open_file_source` for storage, decompression and binding; selected provider attachments use `open_attachment_source`. `ffi/common.rs` owns the shared runtime. `ffi/source.rs` owns source handles, openers, and Arrow stream exports; `ffi/sink.rs` adapts synchronous C callers to the async writer. `error.rs` owns error/panic conversion and error freeing. `validation.rs` owns input checks; `utils.rs` owns C string/slice conversion, URI/path normalization, enum parsing, and request/schema/attachment construction, invoking validation as needed. C option structs live in `options.rs` and storage setup in `storage.rs`. C++ source adapters live under `src/source/`, with headers under `src/include/source/`.
+| Path | Responsibility |
+| --- | --- |
+| `src/source/`, `src/include/source/` | DuckDB scan registration, typed options and Arrow scan factory |
+| `src/sink/`, `src/include/sink/` | COPY option binding, query transformations and backend openers |
+| `src/storage_options.cpp`, `src/security_options.cpp`, `src/blob_secrets.cpp` | Session policy and scoped secret capture |
+| `rust/src/ffi/` | Shared runtime, reader declaration macro, handles and Arrow ABI operations |
+| `rust/src/readers/`, `rust/src/source.rs` | Provider adapters and upstream PreparedSource binding |
+| `rust/src/sink/` | Backend configuration and writer lifecycle |
+| `rust/src/validation.rs`, `rust/src/utils.rs` | Input checks and boundary conversions |
+| `test/sql/`, `test/fixture/`, `testdata/` | SQL assertions, native fixture support and payloads |
 
-Rust tests use `#[tokio::test]`, await async writer operations, and use `tokio::fs`
-for file I/O. Synchronous C ABI calls run in `tokio::task::spawn_blocking`, keeping
-the shared runtime's block_on outside the test executor.
+Read the [architecture guide](architecture.md) before adding functionality.
+
+## Add or change a reader
+
+Reuse open-arrow-access accessors/requests rather than implementing format or
+service protocols in the extension. Declare ordinary C entry points through
+`export_reader!`; keep the provider adapter expression visible at its call site.
+Typed reader options belong in the provider's own C header and Rust repr(C)
+struct. Common scan options currently contain only batch_size.
+
+C++ resolves each storage URI's secrets on the query thread. Separate URI
+namespaces require separate StorageParameters, including arXiv metadata snapshots.
+Copy borrowed options into owned Rust state during open. Update both language
+layouts and registrations together. Keep SQL tests focused on end-to-end data
+behavior. Do not add SQL configuration matrices that repeat option validation
+or checks already owned by the upstream crates.
+
+## Add or change a sink
+
+Reuse open-arrow-sink's core, layer, storage and backend capabilities. Keep
+backend setup in its own module; common COPY planning/options do not need a
+format-name switch. New reusable storage/schema/blob machinery belongs in the
+upstream projects. Backend differences must be reflected in the
+[COPY capability table](writers/README.md#backend-capabilities).
+
+Keep functions focused; extract common operations when they remove duplication.
+A new class can have its own files. Avoid one-use forwarding wrappers and
+framework layers that add more maintenance than the code they replace. Use
+DuckDB common containers, strings, atomics, threads and annotated mutexes when
+available. Annotate guarded state and lock requirements. Resource-owning members
+should clean up in their destructors, with workers destroyed before the state
+captured by their handlers.
+
+## Dependencies and verification
+
+The manifest currently selects open-arrow-access 0.8.0, open-arrow-sink 0.5.0
+and Arrow 58. Check both upstream release notes and the pinned Rust APIs when
+upgrading. Update Cargo.toml/Cargo.lock together and keep the C ABI in sync.
+A DuckDB upgrade also requires reviewing internal C++ headers and updating the
+DuckDB/extension-ci-tools submodule pins.
+
+```sh
+cargo fmt --manifest-path rust/Cargo.toml -- --check
+taplo fmt --check
+git diff --check
+make test
+```
+
+Formatting commands do not compile. `make` and `make test` can compile: run them
+only when builds are allowed. [Test setup](../test/README.md) describes loopback
+and independent-reader requirements. Documentation changes also need local-link,
+SQL function/option-name and capability checks against implementation/tests.
+Taplo configuration is scoped to this repository's Cargo manifest, excluding
+submodules; `make toml-format` applies it and `make toml-format-check` checks it.

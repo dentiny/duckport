@@ -1,20 +1,25 @@
 # WARC and Common Crawl
 
 ```sql
--- One WARC file (local, HTTP, or S3).
-SELECT * FROM duckport_scan_warc('testdata/warc/good_resources.warc');
-
--- All WARC files in one crawl release.
+SELECT record_id, body FROM duckport_scan_warc('archive.warc.gz');
 SELECT * FROM duckport_scan_commoncrawl(
     'testdata/commoncrawl/crawl-data/CC-MAIN-2022-40/');
-
--- All WARC files in one segment of that release.
 SELECT * FROM duckport_scan_commoncrawl_segment(
     'testdata/commoncrawl/crawl-data/CC-MAIN-2022-40/segments/1664030338280.51/');
 ```
 
-All three return physical WARC records and binary bodies; they do not extract HTML text. `batch_size` controls Arrow batch size.
+`duckport_scan_warc` accepts physical WARC objects and same-schema
+[file lists, directories and globs](files.md). The Common Crawl readers
+select one release or segment using `warc.paths.gz` under the normal
+`crawl-data/<crawl>/segments/<segment>/` layout. Selection follows upstream
+manifest order; a segment can contain multiple WARC files. Local mirrors must
+retain the `crawl-data` path structure.
 
-The Common Crawl functions accept local paths, file URIs, HTTP(S) URLs, and S3 URLs with the standard `crawl-data/<crawl>/segments/<segment>/` layout. The upstream accessor reads `warc.paths.gz` and selects files in manifest order. A segment can contain multiple WARC files. HTTP/S3 credentials come from DuckDB secrets scoped to the input URL.
+Rows contain WARC metadata and original binary bodies; no HTML text extraction
+is performed. Top-level projection omits unselected Arrow values, but the parser
+still consumes the WARC body bytes. `batch_size` is the row target.
 
-See [shared settings](../../README.md#read) and [test instructions](../../test/README.md).
+Local paths, file URIs, HTTP(S) and S3 work through the same configured storage.
+Use [scoped secrets](../secrets.md) for remote mirrors. These functions do not
+expose an `index_path` or `max_read_parallelism` SQL argument; do not copy those
+options from `duckdb_lance_conversion` examples.

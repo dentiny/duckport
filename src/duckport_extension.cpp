@@ -68,7 +68,9 @@ void LoadInternal(ExtensionLoader &loader) {
 	RegisterReader(loader, "duckport_scan_arxiv", OpenArxiv, [](TypedKwargs &options) {
 		options.Add("kind", LogicalType::VARCHAR);
 		options.Add("month", LogicalType::VARCHAR);
-        options.Add("requester_pays", LogicalType::BOOLEAN);
+		options.Add("requester_pays", LogicalType::BOOLEAN);
+		options.Add("metadata_uri", LogicalType::VARCHAR);
+		options.Add("metadata_id_column", LogicalType::VARCHAR);
 	});
 	RegisterReader(loader, "duckport_scan_meca", duckport_meca_open);
 	RegisterReader(loader, "duckport_scan_courtlistener", OpenCourtlistener, [](TypedKwargs &options) {
