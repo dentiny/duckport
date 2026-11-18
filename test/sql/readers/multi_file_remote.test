@@ -1,0 +1,93 @@
+# name: test/sql/readers/multi_file_remote.test
+# description: Multi-file discovery and reads independently resolve source secrets
+# group: [sql]
+
+require duckport
+
+require duckport_test_fixture
+
+require httpfs
+
+statement ok
+SET VARIABLE multi_endpoint = duckport_fixture('blob_s3', 'start_anonymous');
+
+statement ok
+CREATE SECRET multi_a (TYPE s3, KEY_ID 'key-a', SECRET 'secret-a', SESSION_TOKEN 'session-a',
+    ENDPOINT substring(getvariable('multi_endpoint'), 8), USE_SSL false, URL_STYLE 'path', SCOPE 's3://source-a/');
+
+statement ok
+CREATE SECRET multi_b (TYPE s3, KEY_ID 'key-b', SECRET 'secret-b', SESSION_TOKEN 'session-b',
+    ENDPOINT substring(getvariable('multi_endpoint'), 8), USE_SSL false, URL_STYLE 'path', SCOPE 's3://source-b/');
+
+statement ok
+CREATE SECRET multi_c (TYPE s3, KEY_ID 'key-c', SECRET 'secret-c', SESSION_TOKEN 'session-c',
+    ENDPOINT substring(getvariable('multi_endpoint'), 8), USE_SSL false, URL_STYLE 'path', SCOPE 's3://source-a/narrow/');
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_json(['s3://source-a/a.json', 's3://source-b/b.json', 's3://source-a/narrow/c.json']);
+----
+3	6
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_json('s3://source-a/');
+----
+2	4
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_json('s3://source-a/*.json');
+----
+1	1
+
+statement ok
+DROP SECRET multi_a;
+
+statement ok
+DROP SECRET multi_b;
+
+statement ok
+DROP SECRET multi_c;
+
+query T
+SELECT duckport_fixture('blob_s3', 'stop');
+----
+stopped
+
+statement ok
+SET VARIABLE multi_http = duckport_fixture('blob_http', 'start_anonymous');
+
+statement ok
+CREATE SECRET multi_http_a (TYPE http, BEARER_TOKEN 'fixture-key', SCOPE getvariable('multi_http') || '/private/');
+
+statement ok
+CREATE SECRET multi_http_b (TYPE http, BEARER_TOKEN 'fixture-narrow', SCOPE getvariable('multi_http') || '/private/narrow/');
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_json([
+    getvariable('multi_http') || '/private/to-narrow.json',
+    getvariable('multi_http') || '/private/narrow/records.json',
+    getvariable('multi_http') || '/public/records.json']);
+----
+3	3
+
+query T
+SELECT count(*) > 0 AND bool_and(NOT has_authorization)
+FROM duckport_fixture_requests('blob_http') WHERE target = '/public/records.json';
+----
+true
+
+# HTTP does not expose directory listing, but explicit HTTP file lists work.
+statement error
+SELECT * FROM duckport_scan_json(getvariable('multi_http') || '/*.json');
+----
+list
+
+statement ok
+DROP SECRET multi_http_a;
+
+statement ok
+DROP SECRET multi_http_b;
+
+query T
+SELECT duckport_fixture('blob_http', 'stop');
+----
+stopped

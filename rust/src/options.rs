@@ -16,14 +16,28 @@ pub struct DuckportStorageOptions {
 }
 
 #[repr(C)]
+pub struct DuckportSelectedFile {
+    pub locator: *const c_char,
+    pub storage: DuckportStorageOptions,
+}
+
+pub struct SelectedFile {
+    pub locator: String,
+    pub storage: StorageConfig,
+}
+
+#[repr(C)]
 pub struct DuckportScanOptions {
     /// Target rows per Arrow record batch; SQL default: 8192.
     pub batch_size: usize,
+    pub files: *const DuckportSelectedFile,
+    pub file_count: usize,
 }
 
 #[derive(Default)]
 pub struct StorageConfig {
     pub(crate) metrics: crate::metrics::ReadMetrics,
+    pub(crate) files: Vec<SelectedFile>,
     pub endpoint: Option<String>,
     pub region: Option<String>,
     pub virtual_host_style: bool,
@@ -37,6 +51,7 @@ impl DuckportStorageOptions {
         self.policy.config()?;
         Ok(StorageConfig {
             metrics: Default::default(),
+            files: Vec::new(),
             endpoint: unsafe { optional_string(self.endpoint) }?,
             region: unsafe { optional_string(self.region) }?,
             virtual_host_style: utils::boolean("virtual_host_style", self.virtual_host_style)?,

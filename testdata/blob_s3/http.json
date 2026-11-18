@@ -23,6 +23,46 @@
       "auth_value": "AWS4-HMAC-SHA256 Credential=key-c/",
       "auth_match": "prefix",
       "session_token": "session-c"
+    },
+    {
+      "path": "/source-a/",
+      "file": "list.xml",
+      "auth_header": "Authorization",
+      "auth_value": "AWS4-HMAC-SHA256 Credential=key-a/",
+      "auth_match": "prefix",
+      "session_token": "session-a"
+    },
+    {
+      "path": "/source-a/a.json",
+      "file": "a.json",
+      "auth_header": "Authorization",
+      "auth_value": "AWS4-HMAC-SHA256 Credential=key-a/",
+      "auth_match": "prefix",
+      "session_token": "session-a"
+    },
+    {
+      "path": "/source-a/narrow/c.json",
+      "file": "c.json",
+      "auth_header": "Authorization",
+      "auth_value": "AWS4-HMAC-SHA256 Credential=key-c/",
+      "auth_match": "prefix",
+      "session_token": "session-c"
+    },
+    {
+      "path": "/source-b/b.json",
+      "file": "b.json",
+      "auth_header": "Authorization",
+      "auth_value": "AWS4-HMAC-SHA256 Credential=key-b/",
+      "auth_match": "prefix",
+      "session_token": "session-b"
+    },
+    {
+      "path": "/source-a",
+      "file": "list.xml",
+      "auth_header": "Authorization",
+      "auth_value": "AWS4-HMAC-SHA256 Credential=key-a/",
+      "auth_match": "prefix",
+      "session_token": "session-a"
     }
   ]
 }

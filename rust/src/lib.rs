@@ -1,4 +1,5 @@
 mod error;
+mod files;
 mod blob_auth;
 mod ffi;
 mod metrics;

@@ -11,9 +11,10 @@
 namespace duckdb {
 namespace {
 struct ReaderInfo : TableFunctionInfo {
-	explicit ReaderInfo(ReaderBind open) : open(std::move(open)) {
+	explicit ReaderInfo(ReaderBind open, string format = {}) : open(std::move(open)), format(std::move(format)) {
 	}
 	ReaderBind open;
+	string format;
 };
 void CheckAccess(ClientContext &context) {
 	if (!Settings::Get<EnableExternalAccessSetting>(context)) {
@@ -23,9 +24,49 @@ void CheckAccess(ClientContext &context) {
 unique_ptr<FunctionData> BindReader(ClientContext &context, TableFunctionBindInput &input, vector<LogicalType> &types,
                                     vector<Identifier> &names) {
 	CheckAccess(context);
-	auto path = ReadSourceString(input.inputs[0]);
 	auto scan = ReadScanOptions(input);
 	const auto &info = input.info->Cast<ReaderInfo>();
+	string path;
+	vector<string> files;
+	vector<unique_ptr<StorageParameters>> storage;
+	vector<DuckportSelectedFile> selected;
+	if (info.format.empty()) {
+		path = ReadSourceString(input.inputs[0]);
+	} else {
+		vector<string> selections;
+		if (input.inputs[0].IsNull()) {
+			throw BinderException("DuckPort arguments cannot be NULL");
+		}
+		if (input.inputs[0].type().id() == LogicalTypeId::LIST) {
+			for (const auto &entry : ListValue::GetChildren(input.inputs[0])) {
+				selections.push_back(ReadSourceString(entry));
+			}
+		} else {
+			selections.push_back(ReadSourceString(input.inputs[0]));
+		}
+		if (selections.empty()) {
+			throw BinderException("file list cannot be empty");
+		}
+		for (const auto &selection : selections) {
+			StorageParameters discovery(context, selection, {});
+			DuckportFileList *raw = nullptr;
+			CheckError(duckport_resolve_files(selection.c_str(), info.format.c_str(), discovery.config, &raw));
+			unique_ptr<DuckportFileList, decltype(&duckport_file_list_destroy)> matches(raw,
+			                                                                            duckport_file_list_destroy);
+			for (idx_t i = 0; i < duckport_file_list_count(matches.get()); i++) {
+				files.emplace_back(duckport_file_list_get(matches.get(), i));
+			}
+		}
+		path = files[0];
+		for (const auto &file : files) {
+			storage.push_back(make_uniq<StorageParameters>(context, file, string()));
+			selected.push_back({file.c_str(), storage.back()->config});
+		}
+		if (files.size() > 1) {
+			scan.files = selected.data();
+			scan.file_count = selected.size();
+		}
+	}
 	DuckportSource *raw = nullptr;
 	CheckError(info.open(context, path, scan, input, &raw));
 	auto factory = make_shared_ptr<SourceFactory>(SourcePtr(raw, duckport_source_destroy));
@@ -68,21 +109,45 @@ double ReaderProgress(ClientContext &, const FunctionData *data, const GlobalTab
 	return MinValue(99.0, 100.0 * double(metrics.progress_bytes) / double(metrics.total_bytes));
 }
 } // namespace
+static void RegisterReaderImpl(ExtensionLoader &loader, const string &name, ReaderBind open,
+                               const std::function<void(TypedKwargs &)> &add_reader_options, bool files) {
+	auto format = files ? name.substr(string("duckport_scan_").size()) : string();
+	auto register_signature = [&](LogicalType input_type) {
+		TableFunction function(Identifier(name), {input_type}, ArrowTableFunction::ArrowScanFunction, BindReader,
+		                       InitReader, ArrowTableFunction::ArrowScanInitLocal);
+		function.function_info = make_shared_ptr<ReaderInfo>(open, format);
+		function.GetSignature().WithTypedKwargs("options", [&](TypedKwargs &options) {
+			options.Add("batch_size", LogicalType::BIGINT);
+			if (add_reader_options) {
+				add_reader_options(options);
+			}
+		});
+		function.get_metrics = GetReaderMetrics;
+		function.table_scan_progress = ReaderProgress;
+		function.projection_pushdown = true;
+		loader.RegisterFunction(function);
+	};
+	register_signature(LogicalType::VARCHAR);
+	if (files) {
+		register_signature(LogicalType::LIST(LogicalType::VARCHAR));
+	}
+}
 void RegisterReader(ExtensionLoader &loader, const string &name, ReaderBind open,
-                    const std::function<void(TypedKwargs &)> &add_reader_options) {
-	TableFunction function(Identifier(name), {LogicalType::VARCHAR}, ArrowTableFunction::ArrowScanFunction, BindReader,
-	                       InitReader, ArrowTableFunction::ArrowScanInitLocal);
-	function.function_info = make_shared_ptr<ReaderInfo>(std::move(open));
-	function.GetSignature().WithTypedKwargs("options", [&](TypedKwargs &options) {
-		options.Add("batch_size", LogicalType::BIGINT);
-		if (add_reader_options) {
-			add_reader_options(options);
-		}
-	});
-	function.get_metrics = GetReaderMetrics;
-	function.table_scan_progress = ReaderProgress;
-	function.projection_pushdown = true;
-	loader.RegisterFunction(function);
+                    const std::function<void(TypedKwargs &)> &options) {
+	RegisterReaderImpl(loader, name, std::move(open), options, false);
+}
+void RegisterFileReader(ExtensionLoader &loader, const string &name, ReaderBind open,
+                        const std::function<void(TypedKwargs &)> &options) {
+	RegisterReaderImpl(loader, name, std::move(open), options, true);
+}
+void RegisterFileReader(ExtensionLoader &loader, const string &name, ReaderOpen open,
+                        const std::function<void(TypedKwargs &)> &options) {
+	ReaderBind bind = [open](ClientContext &context, const string &locator, const DuckportScanOptions &scan,
+	                         const TableFunctionBindInput &, DuckportSource **output) {
+		StorageParameters storage(context, locator, {});
+		return open(locator.c_str(), storage.config, scan, output);
+	};
+	RegisterFileReader(loader, name, std::move(bind), options);
 }
 void RegisterReader(ExtensionLoader &loader, const string &name, ReaderOpen open,
                     const std::function<void(TypedKwargs &)> &add_reader_options) {

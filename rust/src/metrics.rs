@@ -27,6 +27,7 @@ struct State {
     rows: AtomicU64,
     total: AtomicU64,
     known: AtomicBool,
+    indeterminate: AtomicBool,
     finished: AtomicBool,
     started: AtomicBool,
     baseline: AtomicU64,
@@ -41,7 +42,15 @@ impl ReadMetrics {
         self.0.storage_observed.store(true, Relaxed);
     }
 
+    pub(crate) fn set_indeterminate(&self) {
+        self.0.indeterminate.store(true, Relaxed);
+        self.0.known.store(false, Relaxed);
+    }
+
     pub(crate) fn set_total_bytes(&self, bytes: u64) {
+        if self.0.indeterminate.load(Relaxed) {
+            return;
+        }
         self.0.total.store(bytes, Relaxed);
         self.0.known.store(true, Relaxed);
     }

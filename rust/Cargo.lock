@@ -2041,6 +2041,7 @@ dependencies = [
  "arrow-schema",
  "csv-async",
  "futures",
+ "glob",
  "http",
  "iceberg-catalog-rest",
  "open-arrow-access",

@@ -1,0 +1,156 @@
+# name: test/sql/readers/multi_file.test
+# description: File lists, directories and globs use strict schemas and per-file storage
+# group: [sql]
+
+require duckport
+
+require parquet
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_csv(['testdata/multifile/b.csv', 'testdata/multifile/a.csv'], header := true);
+----
+3	6
+
+# Explicit duplicates remain distinct inputs.
+query II
+SELECT count(*), sum(id) FROM duckport_scan_csv(['testdata/multifile/a.csv', 'testdata/multifile/a.csv'], header := true);
+----
+4	6
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_csv('testdata/multifile/*.csv', header := true);
+----
+3	6
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_csv('testdata/multifile/**/*.csv', header := true);
+----
+4	10
+
+# Directory discovery is recursive and filters by format, including compression.
+query II
+SELECT count(*), sum(id) FROM duckport_scan_csv('testdata/multifile', header := true);
+----
+6	13
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_csv('testdata/multifile/', header := true);
+----
+6	13
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_csv(['testdata/multifile/a.csv.gz', 'testdata/multifile/b.csv'], header := true, batch_size := 1);
+----
+3	6
+
+query T
+SELECT name FROM duckport_scan_csv(['testdata/multifile/a.csv', 'testdata/multifile/b.csv'], header := true) WHERE id = 3;
+----
+gamma
+
+query I
+SELECT count(*) FROM duckport_scan_csv(['testdata/multifile/a.csv', 'testdata/multifile/b.csv'], header := true);
+----
+3
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_json('testdata/multifile/*.jsonl');
+----
+3	6
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_ndjson(['testdata/multifile/a.jsonl', 'testdata/multifile/b.jsonl']);
+----
+3	6
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_tsv('testdata/multifile/*.tsv', header := true);
+----
+3	6
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_xml('testdata/multifile/*.xml', record_path := '/rows/row');
+----
+2	3
+
+query I
+SELECT count(*) FROM duckport_scan_warc(['testdata/warc/good_resources.warc', 'testdata/warc/good_resources.warc']);
+----
+4
+
+query I
+SELECT count(*) FROM duckport_scan_parquet(['testdata/parquet/people.parquet', 'testdata/parquet/people.parquet']);
+----
+6
+
+statement ok
+PREPARE multi_scan AS SELECT count(*) FROM duckport_scan_csv('testdata/multifile/*.csv', header := true);
+
+query I
+EXECUTE multi_scan;
+----
+3
+
+query I
+EXECUTE multi_scan;
+----
+3
+
+statement error
+SELECT * FROM duckport_scan_csv([], header := true);
+----
+file list cannot be empty
+
+statement error
+SELECT * FROM duckport_scan_csv(['testdata/multifile/a.csv', NULL], header := true);
+----
+DuckPort arguments cannot be NULL
+
+statement error
+SELECT * FROM duckport_scan_csv('testdata/multifile/missing*.csv', header := true);
+----
+file selection matched no files
+
+# Strict full-schema preflight also applies to count-only and projected scans.
+statement error
+SELECT count(*) FROM duckport_scan_csv(['testdata/multifile/a.csv', 'testdata/multifile/mismatch/extra.data'], header := true);
+----
+schema
+
+statement error
+SELECT id FROM duckport_scan_csv(['testdata/multifile/a.csv', 'testdata/multifile/mismatch/extra.data'], header := true);
+----
+schema
+
+# Discovery must preserve percent, space and fragment characters in local names.
+query II
+SELECT count(*), sum(id) FROM duckport_scan_csv('testdata/multifile/special %/*.data', header := true);
+----
+2	3
+
+statement ok
+COPY (SELECT 10::BIGINT AS id) TO '{TEST_DIR}/part-a.parquet' (FORMAT PARQUET);
+
+statement ok
+COPY (SELECT 20::BIGINT AS id) TO '{TEST_DIR}/part-b.parquet' (FORMAT PARQUET);
+
+query II
+SELECT count(*), sum(id) FROM duckport_scan_parquet('{TEST_DIR}/part-*.parquet');
+----
+2	30
+
+# The result is a normal COPY source.
+statement ok
+COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true))
+TO '{TEST_DIR}/combined.parquet' (FORMAT PARQUET);
+
+query II
+SELECT count(*), sum(id) FROM read_parquet('{TEST_DIR}/combined.parquet');
+----
+3	6
+
+query T
+SELECT name FROM duckport_scan_parquet(['testdata/parquet/people.parquet', 'testdata/parquet/people.parquet']) WHERE id = 1;
+----
+Alice
+Alice

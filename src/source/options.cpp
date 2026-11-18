@@ -45,7 +45,7 @@ DuckportScanOptions ReadScanOptions(const TableFunctionBindInput &input) {
 		}
 	}
 	constexpr idx_t DEFAULT_BATCH_SIZE = 8192;
-	DuckportScanOptions scan{DEFAULT_BATCH_SIZE};
+	DuckportScanOptions scan {DEFAULT_BATCH_SIZE, nullptr, 0};
 	auto batch = input.named_parameters.find("batch_size");
 	if (batch != input.named_parameters.end()) {
 		scan.batch_size = idx_t(BigIntValue::Get(batch->second));
