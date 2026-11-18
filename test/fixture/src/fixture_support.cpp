@@ -15,7 +15,7 @@ string ReadFixtureFile(const string &provider, const string &name) {
 }
 
 void RegisterBinaryFixtureCommand(ExtensionLoader &loader, const string &name,
-                                  std::function<string(const string &, const string &)> command) {
+                                  string (*command)(const string &, const string &)) {
 	ScalarFunction function(
 	    Identifier(name), {LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::VARCHAR,
 	    [command](DataChunk &args, ExpressionState &, Vector &result) {

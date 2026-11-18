@@ -15,26 +15,23 @@ void duckport_source_error_free(char *);
 
 namespace duckdb {
 namespace {
-string ReadDiagnostic(const char *label, const std::function<char *(char **)> &read) {
+template <class Read, class... Args>
+string_t ReadDiagnostic(Vector &result, const char *label, Read read, Args... args) {
 	char *raw = nullptr;
-	unique_ptr<char, decltype(&duckport_source_error_free)> error(read(&raw), duckport_source_error_free);
+	unique_ptr<char, decltype(&duckport_source_error_free)> error(read(args..., &raw), duckport_source_error_free);
 	unique_ptr<char, decltype(&duckport_source_error_free)> value(raw, duckport_source_error_free);
 	if (error) {
 		throw IOException("%s fixture: %s", label, error.get());
 	}
-	return string(value.get());
+	return StringVector::AddString(result, value.get());
 }
 
-string BlobLayout(const string &path, const string &field) {
-	return ReadDiagnostic("Blob layout", [&](char **output) {
-		return duckport_fixture_blob_layout(path.c_str(), field.c_str(), output);
-	});
-}
-
-string FieldMetadata(const string &path, const string &field, const string &key) {
-	return ReadDiagnostic("Field metadata", [&](char **output) {
-		return duckport_fixture_field_metadata(path.c_str(), field.c_str(), key.c_str(), output);
-	});
+void BlobLayout(DataChunk &args, ExpressionState &, Vector &result) {
+	BinaryExecutor::Execute<string_t, string_t, string_t>(
+	    args.data[0], args.data[1], result, args.size(), [&result](string_t path, string_t field) {
+		    return ReadDiagnostic(result, "Blob layout", duckport_fixture_blob_layout, path.GetString().c_str(),
+		                          field.GetString().c_str());
+	    });
 }
 
 string WriteFixtureFile(const string &path, string_t bytes) {
@@ -56,8 +53,8 @@ void RegisterMetadataFixture(ExtensionLoader &loader) {
 		    TernaryExecutor::Execute<string_t, string_t, string_t, string_t>(
 		        args.data[0], args.data[1], args.data[2], result,
 		        [&result](string_t path, string_t field, string_t key) {
-			        return StringVector::AddString(result,
-			                                       FieldMetadata(path.GetString(), field.GetString(), key.GetString()));
+			        return ReadDiagnostic(result, "Field metadata", duckport_fixture_field_metadata,
+			                              path.GetString().c_str(), field.GetString().c_str(), key.GetString().c_str());
 		        });
 	    });
 	metadata.SetVolatile();
@@ -94,7 +91,10 @@ void RegisterRemoveFixture(ExtensionLoader &loader) {
 } // namespace
 
 void RegisterFileAndBlobFixtures(ExtensionLoader &loader) {
-	RegisterBinaryFixtureCommand(loader, "duckport_fixture_blob_layout", BlobLayout);
+	ScalarFunction layout("duckport_fixture_blob_layout", {LogicalType::VARCHAR, LogicalType::VARCHAR},
+	                      LogicalType::VARCHAR, BlobLayout);
+	layout.SetVolatile();
+	loader.RegisterFunction(layout);
 	RegisterMetadataFixture(loader);
 	RegisterWriteFixture(loader);
 	RegisterRemoveFixture(loader);

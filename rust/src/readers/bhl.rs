@@ -1,8 +1,4 @@
-use crate::{
-    ffi::source::{DuckportSource, open_reader},
-    options::{DuckportScanOptions, DuckportStorageOptions, StorageConfig},
-    utils::optional_string,
-};
+use crate::utils::optional_string;
 use open_arrow_access::service::bhl::BhlService;
 use open_arrow_access::service::common::Connection;
 use std::ffi::c_char;
@@ -15,17 +11,8 @@ pub struct BhlOptions {
     pub endpoint: *const c_char,
 }
 
-/// # Safety
-/// Inputs are borrowed for this call; output points to writable source-pointer storage.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn duckport_bhl_open(
-    locator: *const c_char,
-    storage_options: &DuckportStorageOptions,
-    scan_options: &DuckportScanOptions,
-    reader_options: &BhlOptions,
-    output: *mut *mut DuckportSource,
-) -> *mut c_char {
-    let open = |locator: String, storage_options: StorageConfig, scan_options| async move {
+crate::ffi::reader::export_reader!(duckport_bhl_open, reader_options: BhlOptions;
+    |locator, storage_options, scan_options| async move {
         let attachment = unsafe {
             crate::service_files::SelectedAttachment::read(
                 reader_options.file_name,
@@ -52,6 +39,5 @@ pub unsafe extern "C" fn duckport_bhl_open(
         attachment
             .open(files, scan_options, storage_options.metrics.clone())
             .await
-    };
-    unsafe { open_reader(locator, storage_options, scan_options, output, open) }
-}
+    }
+);

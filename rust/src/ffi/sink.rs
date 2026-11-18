@@ -125,19 +125,6 @@ impl DuckportColumnEncoding {
     }
 }
 
-impl DuckportIndexOptions {
-    /// # Safety
-    /// Column and option point to live NUL-terminated UTF-8 strings.
-    unsafe fn convert(
-        &self,
-        schema: &arrow_schema::Schema,
-    ) -> Result<open_arrow_sink_core::IndexSpec> {
-        let column = unsafe { string(self.column) }?;
-        let option = unsafe { string(self.option) }?;
-        utils::index_spec(schema, &column, &option)
-    }
-}
-
 impl DuckportWriteOptions {
     // Selecting URL columns requests blob support even without explicit layout overrides.
     /// # Safety
@@ -179,7 +166,11 @@ impl DuckportWriteOptions {
         for entry in
             unsafe { utils::ffi_slice(self.indexes, self.index_count, "null index options") }?
         {
-            options.indexes.push(unsafe { entry.convert(schema) }?);
+            let column = unsafe { string(entry.column) }?;
+            let option = unsafe { string(entry.option) }?;
+            options
+                .indexes
+                .push(utils::index_spec(schema, &column, &option)?);
         }
         open_arrow_sink_core::validation::validate_indexes(schema, &options.indexes)?;
         Ok(options)
