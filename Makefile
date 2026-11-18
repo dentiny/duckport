@@ -11,10 +11,12 @@ include extension-ci-tools/makefiles/duckdb_extension.Makefile
 
 CMAKE_FILES := CMakeLists.txt extension_config.cmake
 
-.PHONY: format-all toml-format toml-format-check
+.PHONY: format format-all toml-format toml-format-check
+
+format:
+	cmake-format -i $(CMAKE_FILES)
 
 format-all: format
-	cmake-format -i $(CMAKE_FILES)
 	cargo fmt --manifest-path rust/Cargo.toml
 
 toml-format:
