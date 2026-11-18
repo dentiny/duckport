@@ -24,6 +24,12 @@ SELECT "oai:header"."oai:identifier" FROM duckport_scan_arxiv_metadata('records'
 id1
 id2
 
+# Preserve the arXivRaw namespace and nested provider metadata.
+query T
+SELECT bool_or(contains(CAST(t AS VARCHAR), 'Example arXiv title')) FROM duckport_scan_arxiv_metadata('records', endpoint := getvariable('fixture_endpoint')) t;
+----
+true
+
 query T rowsort
 SELECT "oai:header"."oai:identifier" FROM duckport_scan_arxiv_metadata('next+token&x', endpoint := getvariable('fixture_endpoint'));
 ----

@@ -4,7 +4,6 @@
 
 require duckport
 require duckport_test_fixture
-require httpfs
 
 statement ok
 SET VARIABLE arxiv_metadata_endpoint = duckport_fixture('arxiv_metadata', 'start_authenticated');
