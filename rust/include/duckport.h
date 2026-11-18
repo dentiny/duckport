@@ -82,7 +82,7 @@ char *duckport_validate_sample_rows(int64_t value, uint64_t max_rows);
 char *duckport_source_get_schema(const DuckportSource *, ArrowSchema *);
 // Projection names are borrowed for this call; zero columns preserves row counts.
 char *duckport_source_get_stream(const DuckportSource *, const char *const *columns, size_t column_count,
-                                 ArrowArrayStream *);
+                                ArrowArrayStream *);
 char *duckport_source_get_metrics(const DuckportSource *, DuckportReadMetrics *);
 void duckport_source_destroy(DuckportSource *);
 

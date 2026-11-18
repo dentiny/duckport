@@ -10,7 +10,6 @@ use open_arrow_access::{
 pub struct DuckportSource {
     source: PreparedSource,
     options: ReadOptions,
-    claimed: std::sync::atomic::AtomicBool,
 }
 
 impl DuckportSource {
@@ -23,7 +22,6 @@ impl DuckportSource {
         Ok(Self {
             source: PreparedSource::prepare(accessor, request).await?,
             options,
-            claimed: std::sync::atomic::AtomicBool::new(false),
         })
     }
 
@@ -46,16 +44,6 @@ impl DuckportSource {
         } else {
             Some(projection)
         };
-        if !self
-            .claimed
-            .swap(true, std::sync::atomic::Ordering::Relaxed)
-            && options.projection.is_some()
-        {
-            // A projected scan cannot reuse the initial unprojected reader.
-            // Release it now so its storage buffers and final IO observations
-            // do not remain held until the prepared statement is destroyed.
-            drop(self.source.scan(self.options.clone()).await?);
-        }
         Ok(self.source.scan(options).await?)
     }
 }

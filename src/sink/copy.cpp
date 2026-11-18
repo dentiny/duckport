@@ -71,10 +71,8 @@ struct CopyBindData : FunctionData {
 		       path == bind.path && options.mode == bind.options.mode &&
 		       options.blob_columns == bind.options.blob_columns &&
 		       options.preserve_order == bind.options.preserve_order && options.file_count == bind.options.file_count &&
-		       options.write_options.blob_inline_size_threshold ==
-		           bind.options.write_options.blob_inline_size_threshold &&
-		       options.write_options.blob_dedicated_size_threshold ==
-		           bind.options.write_options.blob_dedicated_size_threshold &&
+		       options.write_options.blob_inline_size_threshold == bind.options.write_options.blob_inline_size_threshold &&
+		       options.write_options.blob_dedicated_size_threshold == bind.options.write_options.blob_dedicated_size_threshold &&
 		       options.write_options.target_file_size == bind.options.write_options.target_file_size &&
 		       options.catalog_uri == bind.options.catalog_uri && options.warehouse == bind.options.warehouse &&
 		       options.storage_root == bind.options.storage_root &&
@@ -87,14 +85,6 @@ struct CopyGlobalState : GlobalFunctionData {
 	unique_ptr<SinkWriter> writer;
 	ClientProperties properties;
 	bool terminal = false;
-	DuckportWriteMetrics reported {};
-	void ReportBytes(ClientContext &context) {
-		auto current = writer->Metrics();
-		auto &profiler = QueryProfiler::Get(context);
-		profiler.TrackBytesRead(current.bytes_read - reported.bytes_read);
-		profiler.TrackBytesWritten(current.bytes_written - reported.bytes_written);
-		reported = current;
-	}
 
 	~CopyGlobalState() override {
 		if (writer && !terminal) {
@@ -356,11 +346,9 @@ unique_ptr<GlobalFunctionData> InitCopy(ClientContext &context, FunctionData &da
 	if (!state->writer) {
 		throw InternalException("DuckPort sink opener returned no writer");
 	}
-	state->ReportBytes(context);
 	return std::move(state);
 }
-void SinkCopy(ExecutionContext &context, FunctionData &, GlobalFunctionData &global, LocalFunctionData &,
-              DataChunk &input) {
+void SinkCopy(ExecutionContext &, FunctionData &, GlobalFunctionData &global, LocalFunctionData &, DataChunk &input) {
 	if (input.size() == 0) {
 		return;
 	}
@@ -368,7 +356,6 @@ void SinkCopy(ExecutionContext &context, FunctionData &, GlobalFunctionData &glo
 	ArrowArrayWrapper array;
 	ArrowConverter::ToArrowArray(input, &array.arrow_array, state.properties, {});
 	state.writer->Write(array.arrow_array);
-	state.ReportBytes(context.client);
 }
 void CombineCopy(ExecutionContext &, FunctionData &, GlobalFunctionData &, LocalFunctionData &) {
 }
@@ -377,7 +364,10 @@ void FinalizeCopy(ClientContext &context, FunctionData &, GlobalFunctionData &gl
 	// Once publication starts, cleanup belongs to Commit, even if it throws.
 	state.terminal = true;
 	state.writer->Commit();
-	state.ReportBytes(context);
+	const auto metrics = state.writer->Metrics();
+	auto &profiler = QueryProfiler::Get(context);
+	profiler.TrackBytesRead(metrics.bytes_read);
+	profiler.TrackBytesWritten(metrics.bytes_written);
 }
 unique_ptr<SampleOptions> TakeSampleOptions(ClientContext &context, CopyInfo &info) {
 	auto percent = info.options.find(Identifier("sample_percent"));

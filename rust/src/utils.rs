@@ -256,11 +256,7 @@ pub(crate) fn optional_byte_size(name: &str, value: i64) -> Result<Option<usize>
     byte_size(name, value).map(Some)
 }
 
-pub(crate) fn resolve_column_path(
-    schema: &Schema,
-    name: &str,
-    option: &str,
-) -> Result<Vec<String>> {
+pub(crate) fn resolve_column_path(schema: &Schema, name: &str, option: &str) -> Result<Vec<String>> {
     if let Some(field) = schema
         .fields()
         .iter()

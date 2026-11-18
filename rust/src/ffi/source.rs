@@ -90,17 +90,11 @@ pub unsafe extern "C" fn duckport_source_get_stream(
             .map(|column| string(*column))
             .collect::<Result<Vec<_>>>()?;
         handle.metrics.begin_scan();
-        let reader = BlockingRecordBatchReader::new(
-            RUNTIME.block_on(source.reader(projection))?,
-            Arc::clone(&RUNTIME),
-        );
-        ptr::write(
-            output,
-            FFI_ArrowArrayStream::new(Box::new(crate::metrics::ObservedReader::new(
-                reader,
-                handle.metrics.clone(),
-            ))),
-        );
+        let reader = handle
+            .metrics
+            .observe_reader(RUNTIME.block_on(source.reader(projection))?);
+        let reader = BlockingRecordBatchReader::new(reader, Arc::clone(&RUNTIME));
+        ptr::write(output, FFI_ArrowArrayStream::new(Box::new(reader)));
         Ok(())
     })
 }

@@ -93,38 +93,20 @@ Native `FORMAT PARQUET` writes individual files. All three sinks support
 
 ## Progress and profiling
 
-Enable DuckDB's progress bar with `SET enable_progress_bar = true` and optionally
-`SET progress_bar_time = 100` (milliseconds). Single-file Parquet, CSV/TSV,
-JSON/JSONL, XML, WARC and ATIF scans, and individual provider attachments, report
-estimated byte progress when the encoded input size is available. Local,
-HTTP(S) and S3 inputs use the same interface. Compressed files measure bytes
-before decompression. Projection, range reads, buffering and schema inference
-can make the estimate advance unevenly; it stays below 100% until scan EOF.
-Unknown-size and multi-file/provider scans without a total remain indeterminate.
-This is source scan progress, including when used by COPY; it does not estimate
-remaining writer finalization or index-building time.
+Enable the progress bar with `SET enable_progress_bar = true`. Single-file scans
+and provider attachments report estimated encoded-byte progress when their size
+is known; other scans remain indeterminate. Progress reaches 100% at reader EOF.
 
-All readers report scanned rows through DuckDB's profiler. Operator-backed
-readers report OpenDAL-observed read bytes, including binding/inference and
-repeated reads. Provider attachments report encoded bytes delivered by their
-byte accessor, excluding metadata discovery. Provider-owned transports not
-exposed to the adapter (such as Hugging Face discovery/shards) do not contribute
-byte counters. These counts are storage payload bytes, not Arrow memory or
-socket/TLS traffic.
-
-All three COPY sinks report their native measured read/write payload bytes,
-including metadata read during APPEND and writes performed during commit.
-Enable JSON profiling and request these metrics, for example:
+Readers report scanned rows and observed input bytes to DuckDB's profiler.
+COPY reports sink read/write bytes after a successful commit, including APPEND
+metadata reads and finalization writes. Byte counts exclude provider discovery
+and hidden transports such as Hugging Face discovery/shards.
 
 ```sql
 SET profiling_coverage = 'ALL';
 SET tracked_metrics = ['operator.type', 'operator.rows_scanned',
                        'io.total_bytes_read', 'io.total_bytes_written'];
 PRAGMA enable_profiling = 'json';
-PRAGMA profiling_output = '/tmp/duckport_profile.json';
-COPY (SELECT * FROM duckport_scan_warc('archive.warc.gz'))
-TO 'archive.lance' (FORMAT duckport_lance);
-PRAGMA disable_profiling;
 ```
 
 [Tests](test/README.md) · [Development](docs/UPDATING.md)

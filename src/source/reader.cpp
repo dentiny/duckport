@@ -46,13 +46,8 @@ unique_ptr<GlobalTableFunctionState> InitReader(ClientContext &context, TableFun
 	CheckAccess(context);
 	return ArrowTableFunction::ArrowScanInitGlobal(context, input);
 }
-} // namespace
 SourceFactory &GetFactory(const FunctionData *data) {
 	return data->Cast<ArrowScanFunctionData>().factory->Cast<SourceFactory>();
-}
-void ScanReader(ClientContext &context, TableFunctionInput &input, DataChunk &output) {
-	ArrowTableFunction::ArrowScanFunction(context, input, output);
-	GetFactory(input.bind_data.get()).ReportBytes(context);
 }
 void GetReaderMetrics(TableFunctionGetMetricsInput &input) {
 	auto &factory = GetFactory(input.bind_data.get());
@@ -72,10 +67,11 @@ double ReaderProgress(ClientContext &, const FunctionData *data, const GlobalTab
 	// Only the Arrow reader reaching EOF signals complete consumption.
 	return MinValue(99.0, 100.0 * double(metrics.progress_bytes) / double(metrics.total_bytes));
 }
+} // namespace
 void RegisterReader(ExtensionLoader &loader, const string &name, ReaderBind open,
                     const std::function<void(TypedKwargs &)> &add_reader_options) {
-	TableFunction function(Identifier(name), {LogicalType::VARCHAR}, ScanReader, BindReader, InitReader,
-	                       ArrowTableFunction::ArrowScanInitLocal);
+	TableFunction function(Identifier(name), {LogicalType::VARCHAR}, ArrowTableFunction::ArrowScanFunction, BindReader,
+	                       InitReader, ArrowTableFunction::ArrowScanInitLocal);
 	function.function_info = make_shared_ptr<ReaderInfo>(std::move(open));
 	function.GetSignature().WithTypedKwargs("options", [&](TypedKwargs &options) {
 		options.Add("batch_size", LogicalType::BIGINT);

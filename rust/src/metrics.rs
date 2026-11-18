@@ -1,7 +1,8 @@
 //! Per-source observations shared with OpenDAL and the Arrow stream.
-use arrow_array::{RecordBatch, RecordBatchReader};
-use arrow_schema::{ArrowError, SchemaRef};
-use open_arrow_access::metrics::{MetricEvent, MetricValue, MetricsExporter};
+use open_arrow_access::{
+    RecordReader,
+    metrics::{InstrumentReader, MetricEvent, MetricValue, MetricsExporter},
+};
 use std::sync::{
     Arc,
     atomic::{AtomicBool, AtomicU64, Ordering::Relaxed},
@@ -54,6 +55,10 @@ impl ReadMetrics {
         self.0.finished.store(false, Relaxed);
     }
 
+    pub(crate) fn observe_reader(&self, reader: Box<dyn RecordReader>) -> Box<dyn RecordReader> {
+        reader.instrument(RecordMetrics(self.0.clone()))
+    }
+
     pub(crate) fn snapshot(&self) -> DuckportReadMetrics {
         let bytes_read = if self.0.storage_observed.load(Relaxed) {
             self.0.bytes.load(Relaxed)
@@ -90,50 +95,22 @@ impl MetricsExporter for ReadMetrics {
     }
 }
 
-/// Observe the final Arrow boundary, including zero-column scans and EOF.
-/// Errors and early drops never mark the scan complete.
-pub(crate) struct ObservedReader<R> {
-    inner: R,
-    metrics: ReadMetrics,
-    terminal: bool,
-}
-impl<R> ObservedReader<R> {
-    pub(crate) fn new(inner: R, metrics: ReadMetrics) -> Self {
-        Self {
-            inner,
-            metrics,
-            terminal: false,
-        }
-    }
-}
-impl<R: RecordBatchReader> Iterator for ObservedReader<R> {
-    type Item = Result<RecordBatch, ArrowError>;
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.terminal {
-            return None;
-        }
-        let result = self.inner.next();
-        match &result {
-            Some(Ok(batch)) => {
-                self.metrics
-                    .0
-                    .rows
-                    .fetch_add(batch.num_rows() as u64, Relaxed);
+// Use the upstream reader events for rows and EOF instead of another reader wrapper.
+#[derive(Clone)]
+struct RecordMetrics(Arc<State>);
+
+impl MetricsExporter for RecordMetrics {
+    fn record(&self, event: MetricEvent) {
+        let state = &self.0;
+        match (event.name, event.value) {
+            ("oaa_rows_total", MetricValue::Counter(rows)) => {
+                state.rows.fetch_add(rows, Relaxed);
             }
-            None => {
-                self.terminal = true;
-                self.metrics.0.finished.store(true, Relaxed);
+            ("oaa_readers_completed_total", MetricValue::Counter(_)) => {
+                state.finished.store(true, Relaxed);
             }
-            Some(Err(_)) => {
-                self.terminal = true;
-            }
+            _ => {}
         }
-        result
-    }
-}
-impl<R: RecordBatchReader> RecordBatchReader for ObservedReader<R> {
-    fn schema(&self) -> SchemaRef {
-        self.inner.schema()
     }
 }
 
@@ -168,7 +145,6 @@ impl<A: open_arrow_access::ByteAccessor> open_arrow_access::Accessor for Observe
         self.inner.inspect_metadata(request).await
     }
     async fn open(&self, request: Self::Request) -> open_arrow_access::Result<Box<Self::Reader>> {
-        use open_arrow_access::metrics::InstrumentReader;
         let reader = self.inner.open(request).await?;
         if let Some(total) = reader.metadata().content_length {
             self.metrics.set_total_bytes(total);
