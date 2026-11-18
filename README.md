@@ -1,6 +1,6 @@
 # DuckPort
 
-Read file formats and dataset service providers into DuckDB through [open-arrow-access 0.7.0](https://crates.io/crates/open-arrow-access/0.7.0).
+Read file formats and dataset service providers into DuckDB through [open-arrow-access 0.8.0](https://crates.io/crates/open-arrow-access/0.8.0).
 
 ## Build
 
