@@ -5,8 +5,9 @@
 require duckport
 require parquet
 
+# Use more than four threads to catch any additional automatic read cap.
 statement ok
-SET threads = 4;
+SET threads = 8;
 
 # Omission uses one writer; explicit auto is opt-in. Both retain every row.
 statement ok
@@ -116,13 +117,13 @@ query TT
 EXPLAIN (FORMAT JSON) COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true))
 TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet, TARGET_FILE_SIZE 1048576);
 ----
-logical_opt	<REGEX>:.*Read concurrency.*4.*auto limit.*
+logical_opt	<REGEX>:.*Read concurrency.*8.*auto limit.*
 
 query TT
 EXPLAIN (FORMAT JSON) COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true, read_concurrency := 1))
 TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet, READ_CONCURRENCY 'auto', WRITE_CONCURRENCY 2, TARGET_FILE_SIZE 1048576);
 ----
-logical_opt	<REGEX>:.*Read concurrency.*4.*auto limit.*
+logical_opt	<REGEX>:.*Read concurrency.*8.*auto limit.*
 
 query TT
 EXPLAIN (FORMAT JSON) COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true, read_concurrency := 1))

@@ -57,8 +57,7 @@ optional<int64_t> ReadConcurrency(const Identifier &name, const Value &value) {
 }
 
 idx_t AutoReadConcurrency(ClientContext &context) {
-	// Streaming queues are not byte bounded. Keep automatic read-ahead conservative.
-	return MinValue<idx_t>(4, TaskScheduler::GetScheduler(context).NumberOfThreads());
+	return TaskScheduler::GetScheduler(context).NumberOfThreads();
 }
 
 DuckportScanOptions ReadScanOptions(ClientContext &context, const TableFunctionBindInput &input) {

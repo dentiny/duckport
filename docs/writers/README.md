@@ -80,7 +80,7 @@ TO 'controlled.lance' (FORMAT duckport_lance,
     READ_CONCURRENCY 8, WRITE_CONCURRENCY 4);
 ```
 
-Automatic reads use at most `min(threads, 4)` concurrent partitions. An explicit
+Automatic reads use DuckDB's `threads` as the concurrent partition limit. An explicit
 integer sets the maximum number of concurrent read partitions. Actual concurrency
 also depends on available independent file/format partitions or arXiv TAR shards;
 providers without a partition planner remain serial. Scan functions accept the
@@ -88,8 +88,8 @@ same values, for example `read_concurrency := 'auto'` or `read_concurrency := 1`
 An explicit COPY `READ_CONCURRENCY`, including `'auto'`, overrides all DuckPort scans
 in the query. Native DuckDB readers use DuckDB's settings.
 The upstream reader preserves logical partition order and limits resident
-partitions, but streaming-file queues are not byte bounded. The automatic cap is
-conservative, not a memory limit.
+partitions, but streaming-file queues are not byte bounded. The concurrency limit
+is not a memory limit.
 
 Only explicit `WRITE_CONCURRENCY 'auto'` uses DuckDB's `threads` as the writer
 budget. For a direct DuckPort file scan (optionally projected), source byte
