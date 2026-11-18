@@ -1,19 +1,17 @@
 #include "iceberg.hpp"
+#include "fixture_support.hpp"
+#include "fixture_server.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/helper.hpp"
 #include "duckdb/common/unique_ptr.hpp"
 #include "duckdb/common/unordered_map.hpp"
 #include "duckdb/common/mutex.hpp"
-#include "duckdb/common/vector_operations/binary_executor.hpp"
-#include "duckdb/function/scalar_function.hpp"
 #include "httplib.hpp"
 #include "yyjson.hpp"
 
 #include <cstdlib>
 #include <filesystem>
-#include <fstream>
-#include <iterator>
-#include <thread>
+#include "duckdb/common/fstream.hpp"
 
 namespace duckdb {
 namespace {
@@ -49,11 +47,7 @@ void Put(yyjson_mut_doc *doc, yyjson_mut_val *object, const char *key, yyjson_mu
 class IcebergTableFixture {
 public:
 	explicit IcebergTableFixture(const string &root, bool empty) : metadata(nullptr, yyjson_mut_doc_free) {
-		std::ifstream seed(string(DUCKPORT_TESTDATA_DIR) + "/iceberg/table.metadata.json");
-		if (!seed) {
-			throw IOException("Cannot open Iceberg metadata fixture");
-		}
-		metadata = Parse(string(std::istreambuf_iterator<char>(seed), {}));
+		metadata = Parse(ReadFixtureFile("iceberg", "table.metadata.json"));
 		auto table_path = std::filesystem::absolute(std::filesystem::path(root) / "people");
 		std::filesystem::create_directories(table_path / "metadata");
 		metadata_file = (table_path / "metadata/current.metadata.json").generic_string();
@@ -102,7 +96,7 @@ public:
 
 private:
 	void Publish(yyjson_mut_doc *doc) {
-		std::ofstream output(metadata_file);
+		ofstream output(metadata_file);
 		output << Encode(yyjson_mut_obj_get(yyjson_mut_doc_get_root(doc), "metadata"));
 		output.close();
 		if (!output) {
@@ -155,28 +149,22 @@ private:
 
 class IcebergCatalogFixture {
 public:
-	explicit IcebergCatalogFixture(const string &root, bool authenticated = false, bool empty = false) : table(root, empty) {
+	explicit IcebergCatalogFixture(const string &root, bool authenticated = false, bool empty = false)
+	    : table(root, empty) {
 		ConfigureAuthentication(authenticated);
 		RegisterRoutes();
-		Start();
-	}
-
-	~IcebergCatalogFixture() {
-		server.stop();
-		if (worker.joinable()) {
-			worker.join();
-		}
+		server.Start();
 	}
 
 	const string &Endpoint() const {
-		return endpoint;
+		return server.Endpoint();
 	}
 
 private:
 	static constexpr const char *TABLE_ROUTE = "/v1/namespaces/tests/tables/people";
 
 	void ConfigureAuthentication(bool authenticated) {
-		server.set_pre_routing_handler(
+		server.Http().set_pre_routing_handler(
 		    [authenticated](const duckdb_httplib::Request &req, duckdb_httplib::Response &res) {
 			    if (authenticated && req.get_header_value("Authorization") != "Bearer fixture-catalog-key") {
 				    res.status = 401;
@@ -188,15 +176,15 @@ private:
 	}
 
 	void RegisterRoutes() {
-		server.Get("/v1/config", [](const duckdb_httplib::Request &, duckdb_httplib::Response &res) {
+		server.Http().Get("/v1/config", [](const duckdb_httplib::Request &, duckdb_httplib::Response &res) {
 			res.set_content(R"({"defaults":{},"overrides":{}})", "application/json");
 		});
-		server.Get(TABLE_ROUTE,
-		           [this](const duckdb_httplib::Request &, duckdb_httplib::Response &res) { LoadTable(res); });
-		server.Post(
+		server.Http().Get(TABLE_ROUTE,
+		                  [this](const duckdb_httplib::Request &, duckdb_httplib::Response &res) { LoadTable(res); });
+		server.Http().Post(
 		    "/v1/namespaces/tests/tables",
 		    [this](const duckdb_httplib::Request &req, duckdb_httplib::Response &res) { CreateTable(req.body, res); });
-		server.Post(TABLE_ROUTE, [this](const duckdb_httplib::Request &req, duckdb_httplib::Response &res) {
+		server.Http().Post(TABLE_ROUTE, [this](const duckdb_httplib::Request &req, duckdb_httplib::Response &res) {
 			CommitTable(req.body, res);
 		});
 	}
@@ -234,21 +222,10 @@ private:
 		res.set_content(table.Response(), "application/json");
 	}
 
-	void Start() {
-		auto port = server.bind_to_any_port("127.0.0.1");
-		if (port < 0) {
-			throw IOException("Cannot bind Iceberg catalog fixture");
-		}
-		endpoint = "http://127.0.0.1:" + std::to_string(port);
-		worker = std::thread([this] { server.listen_after_bind(); });
-		server.wait_until_ready();
-	}
-
-	duckdb_httplib::Server server;
-	std::thread worker;
 	annotated_mutex mutex;
 	IcebergTableFixture table DUCKDB_GUARDED_BY(mutex);
-	string endpoint;
+	// Stop request handlers before destroying the table and its mutex.
+	FixtureServer server {"Iceberg catalog fixture"};
 };
 
 string FixtureCommand(const string &root, const string &command) {
@@ -271,15 +248,6 @@ string FixtureCommand(const string &root, const string &command) {
 } // namespace
 
 void RegisterIcebergFixture(ExtensionLoader &loader) {
-	ScalarFunction command(
-	    "duckport_iceberg_fixture", {LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::VARCHAR,
-	    [](DataChunk &args, ExpressionState &, Vector &result) {
-		    BinaryExecutor::Execute<string_t, string_t, string_t>(
-		        args.data[0], args.data[1], result, args.size(), [&result](string_t root, string_t command) {
-			        return StringVector::AddString(result, FixtureCommand(root.GetString(), command.GetString()));
-		        });
-	    });
-	command.SetVolatile();
-	loader.RegisterFunction(command);
+	RegisterBinaryFixtureCommand(loader, "duckport_iceberg_fixture", FixtureCommand);
 }
 } // namespace duckdb

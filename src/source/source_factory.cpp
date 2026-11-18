@@ -23,7 +23,7 @@ unique_ptr<ArrowArrayStreamWrapper> SourceFactory::ProduceStream(ArrowStreamPara
 }
 
 namespace {
-uint64_t TakeDelta(std::atomic<uint64_t> &reported, uint64_t current) {
+uint64_t TakeDelta(atomic<uint64_t> &reported, uint64_t current) {
 	auto previous = reported.load(std::memory_order_relaxed);
 	while (current > previous && !reported.compare_exchange_weak(previous, current, std::memory_order_relaxed)) {
 	}

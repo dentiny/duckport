@@ -1,0 +1,13 @@
+{
+  "reject_route": "/metadata/sample-item",
+  "routes": [
+    {
+      "path": "/metadata/sample-item",
+      "file": "metadata.json"
+    },
+    {
+      "path": "/download/sample-item/papers/paper #1%.pdf",
+      "file": "attachment.bin"
+    }
+  ]
+}

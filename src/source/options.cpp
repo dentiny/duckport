@@ -1,10 +1,10 @@
 #include "source/options.hpp"
 
 namespace duckdb {
-std::optional<string> ReadStringOption(const TableFunctionBindInput &input, const char *name) {
+optional<string> ReadStringOption(const TableFunctionBindInput &input, const char *name) {
 	auto entry = input.named_parameters.find(name);
 	if (entry == input.named_parameters.end()) {
-		return std::nullopt;
+		return nullopt;
 	}
 	return ReadSourceString(entry->second);
 }
