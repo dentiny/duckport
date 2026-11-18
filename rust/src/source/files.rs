@@ -12,6 +12,7 @@ struct Input {
     path: String,
 }
 struct Files<F> {
+    // Maps each selected file locator to its storage operator and operator-relative path.
     inputs: HashMap<String, Input>,
     format: F,
     compression: OuterCompression,
