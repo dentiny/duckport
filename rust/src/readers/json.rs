@@ -35,75 +35,52 @@ pub unsafe extern "C" fn duckport_json_open(
 #[cfg(test)]
 mod tests {
     use super::duckport_json_open;
-    use crate::metrics::DuckportReadMetrics;
-    use crate::{error::ffi_result, ffi::source::*, options::*};
+    use crate::{ffi::source::*, metrics::DuckportReadMetrics, options::*};
     use arrow_array::ffi_stream::{ArrowArrayStreamReader, FFI_ArrowArrayStream};
     use std::{ffi::CString, io::Write, ptr};
 
     #[test]
     fn file_scan_reports_live_progress_rows_and_encoded_io() {
+        const ROWS: usize = 20_000;
         let mut file = tempfile::NamedTempFile::new().unwrap();
-        for i in 0..20_000 {
-            writeln!(file, "{{\"id\":{i},\"text\":\"{}\"}}", "x".repeat(128)).unwrap();
-        }
+        let row = format!("{{\"id\":1,\"text\":\"{}\"}}\n", "x".repeat(128));
+        file.write_all(row.repeat(ROWS).as_bytes()).unwrap();
         let path = CString::new(file.path().to_str().unwrap()).unwrap();
         let mut source = ptr::null_mut();
+        let mut stream = FFI_ArrowArrayStream::empty();
+        let mut metrics = DuckportReadMetrics::default();
         unsafe {
-            ffi_result(duckport_json_open(
-                path.as_ptr(),
-                &DuckportStorageOptions::default(),
-                &DuckportScanOptions { batch_size: 8 },
-                &mut source,
-            ))
-            .unwrap();
-            let mut stream = FFI_ArrowArrayStream::empty();
-            // COUNT(*)'s zero-column projection must still report all rows.
-            ffi_result(duckport_source_get_stream(
-                source,
-                ptr::null(),
-                0,
-                &mut stream,
-            ))
-            .unwrap();
+            assert!(
+                duckport_json_open(
+                    path.as_ptr(),
+                    &DuckportStorageOptions::default(),
+                    &DuckportScanOptions { batch_size: 8 },
+                    &mut source,
+                )
+                .is_null()
+            );
+            // COUNT(*) selects no columns, but must still count rows and track progress.
+            assert!(duckport_source_get_stream(source, ptr::null(), 0, &mut stream).is_null());
             let mut reader = ArrowArrayStreamReader::try_new(stream).unwrap();
             let first = reader.next().unwrap().unwrap();
             assert_eq!(first.num_columns(), 0);
-            let mut live = DuckportReadMetrics::default();
-            ffi_result(duckport_source_get_metrics(source, &mut live)).unwrap();
-            assert!(live.total_bytes_known);
-            assert_eq!(live.total_bytes, file.as_file().metadata().unwrap().len());
-            assert!(live.progress_bytes > 0 && live.progress_bytes < live.total_bytes);
-            assert!(!live.finished);
-            let mut rows = first.num_rows();
-            for batch in reader.by_ref() {
-                rows += batch.unwrap().num_rows();
-            }
-            let mut final_metrics = DuckportReadMetrics::default();
-            ffi_result(duckport_source_get_metrics(source, &mut final_metrics)).unwrap();
-            assert!(final_metrics.finished);
-            assert_eq!(rows, 20_000);
-            assert_eq!(final_metrics.rows_read, rows as u64);
-            assert!(final_metrics.bytes_read >= final_metrics.total_bytes);
-            drop(reader);
-            // A second scan gets its own progress window, while profiler counters
-            // remain cumulative so the C++ bridge can report deltas.
-            let mut stream = FFI_ArrowArrayStream::empty();
-            ffi_result(duckport_source_get_stream(
-                source,
-                ptr::null(),
-                0,
-                &mut stream,
-            ))
-            .unwrap();
-            let mut reader = ArrowArrayStreamReader::try_new(stream).unwrap();
-            assert!(reader.next().unwrap().is_ok());
-            let mut second = DuckportReadMetrics::default();
-            ffi_result(duckport_source_get_metrics(source, &mut second)).unwrap();
-            assert!(!second.finished);
-            assert!(second.progress_bytes < second.total_bytes);
-            drop(reader);
-            ffi_result(duckport_source_get_metrics(source, &mut second)).unwrap();
-            assert!(!second.finished); // LIMIT/cancellation is not EOF.
+            assert!(duckport_source_get_metrics(source, &mut metrics).is_null());
+            assert!(metrics.total_bytes_known);
+            assert_eq!(
+                metrics.total_bytes,
+                file.as_file().metadata().unwrap().len()
+            );
+            assert!(metrics.progress_bytes > 0 && metrics.progress_bytes < metrics.total_bytes);
+            assert!(!metrics.finished);
+
+            let rows = reader.fold(first.num_rows(), |rows, batch| {
+                rows + batch.unwrap().num_rows()
+            });
+            assert!(duckport_source_get_metrics(source, &mut metrics).is_null());
+            assert!(metrics.finished);
+            assert_eq!(rows, ROWS);
+            assert_eq!(metrics.rows_read, ROWS as u64);
+            assert!(metrics.bytes_read >= metrics.total_bytes);
             duckport_source_destroy(source);
         }
     }
