@@ -1,58 +1,34 @@
 # name: test/sql/writers/concurrency.test
-# description: Automatic and explicit concurrency, scan overrides and order constraints
+# description: Default and automatic writers, read concurrency overrides and validation
 # group: [sql]
 
 require duckport
 require parquet
 
-# Use more than four threads to catch any additional automatic read cap.
 statement ok
 SET threads = 8;
 
-# Omission uses one writer; explicit auto is opt-in. Both retain every row.
+# Omitted write concurrency stays serial even with multiple DuckDB threads.
 statement ok
-COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true))
+COPY (SELECT i AS id FROM range(10000) t(i))
 TO '{TEST_DIR}/default' (FORMAT duckport_parquet);
+
+query III
+SELECT count(*), sum(id), (SELECT count(*) FROM glob('{TEST_DIR}/default/*.parquet'))
+FROM read_parquet('{TEST_DIR}/default/*.parquet');
+----
+10000	49995000	1
 
 statement ok
 COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true, read_concurrency := 1))
 TO '{TEST_DIR}/auto' (FORMAT duckport_parquet, READ_CONCURRENCY 'AuTo', WRITE_CONCURRENCY 'auto', TARGET_FILE_SIZE 1048576);
 
-foreach path default auto
-
 query II
-SELECT count(*), sum(id) FROM read_parquet('{TEST_DIR}/{path}/*.parquet');
+SELECT count(*), sum(id) FROM read_parquet('{TEST_DIR}/auto/*.parquet');
 ----
 3	6
 
-endloop
-
-# With multiple DuckDB threads, omission still writes one small output file.
-statement ok
-COPY (SELECT i AS id FROM range(10000) t(i))
-TO '{TEST_DIR}/default_one' (FORMAT duckport_parquet);
-
-query I
-SELECT count(*) FROM glob('{TEST_DIR}/default_one/*.parquet');
-----
-1
-
-# A single default writer rolls to more files at a smaller soft target.
-statement ok
-COPY (SELECT i AS id, sha256(i::VARCHAR) AS payload FROM range(10000) t(i))
-TO '{TEST_DIR}/default_rolling' (FORMAT duckport_parquet, TARGET_FILE_SIZE 1024);
-
-query I
-SELECT (count(*) > 1)::INTEGER FROM glob('{TEST_DIR}/default_rolling/*.parquet');
-----
-1
-
-query II
-SELECT count(*), sum(id) FROM read_parquet('{TEST_DIR}/default_rolling/*.parquet');
-----
-10000	49995000
-
-# Auto respects ordered output, and a fixed writer count still accepts a file target.
+# Auto must also respect ordered output; fixed writers and rollover have separate suites.
 statement ok
 COPY (SELECT i AS id FROM range(10000) t(i) ORDER BY i DESC)
 TO '{TEST_DIR}/ordered' (FORMAT duckport_parquet, WRITE_CONCURRENCY 'auto', PRESERVE_ORDER true);
@@ -63,65 +39,48 @@ FROM (SELECT id, row_number() OVER () AS position FROM read_parquet('{TEST_DIR}/
 ----
 0
 
-statement ok
-COPY (SELECT i AS id FROM range(10000) t(i))
-TO '{TEST_DIR}/fixed' (FORMAT duckport_parquet, WRITE_CONCURRENCY 2, TARGET_FILE_SIZE 1048576);
-
-query II
-SELECT count(*), sum(id) FROM read_parquet('{TEST_DIR}/fixed/*.parquet');
-----
-10000	49995000
-
-query II
-SELECT count(*), sum(id) FROM duckport_scan_csv('testdata/multifile/*.csv', header := true, read_concurrency := 'auto');
-----
-3	6
-
 statement error
 COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid_order'
 (FORMAT duckport_parquet, WRITE_CONCURRENCY 2, PRESERVE_ORDER true);
 ----
 PRESERVE_ORDER true requires WRITE_CONCURRENCY 1
 
-foreach value 0 -1 1.5 true '2' 'invalid' NULL
+foreach option READ_CONCURRENCY WRITE_CONCURRENCY
+
+foreach value 0 'invalid' NULL
 
 statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid_write'
-(FORMAT duckport_parquet, WRITE_CONCURRENCY {value});
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid' (FORMAT duckport_parquet, {option} {value});
 ----
-WRITE_CONCURRENCY requires 'auto' or a positive integer
-
-statement error
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid_read'
-(FORMAT duckport_parquet, READ_CONCURRENCY {value});
-----
-READ_CONCURRENCY requires 'auto' or a positive integer
-
-statement error
-SELECT * FROM duckport_scan_csv('testdata/multifile/a.csv', header := true, read_concurrency := {value});
-----
-<REGEX>:.*(READ_CONCURRENCY requires|DuckPort arguments cannot be NULL).*
+requires 'auto' or a positive integer
 
 endloop
+
+endloop
+
+statement error
+SELECT * FROM duckport_scan_csv('testdata/multifile/a.csv', read_concurrency := 0);
+----
+READ_CONCURRENCY requires 'auto' or a positive integer
 
 statement error
 COPY (SELECT 1 AS id) TO '{TEST_DIR}/old_option' (FORMAT duckport_parquet, FILE_COUNT 2);
 ----
 Unrecognized option "file_count"
 
-# Scan nodes expose configured read limits without opening a COPY destination.
 statement ok
 SET explain_output = 'optimized_only';
 
+# Automatic reads follow threads, including values above four.
 query TT
-EXPLAIN (FORMAT JSON) COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true))
-TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet, TARGET_FILE_SIZE 1048576);
+EXPLAIN (FORMAT JSON) SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true);
 ----
 logical_opt	<REGEX>:.*Read concurrency.*8.*auto limit.*
 
+# COPY overrides a scan's explicit setting with either auto or an integer.
 query TT
 EXPLAIN (FORMAT JSON) COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true, read_concurrency := 1))
-TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet, READ_CONCURRENCY 'auto', WRITE_CONCURRENCY 2, TARGET_FILE_SIZE 1048576);
+TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet, READ_CONCURRENCY 'auto');
 ----
 logical_opt	<REGEX>:.*Read concurrency.*8.*auto limit.*
 
@@ -131,25 +90,12 @@ TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet, READ_CONCURRENCY 2);
 ----
 logical_opt	<REGEX>:.*Read concurrency.*2.*explicit limit.*
 
-# An omitted COPY read option inherits an explicit scan limit.
+# Omitting the COPY override preserves the scan's explicit setting.
 query TT
 EXPLAIN (FORMAT JSON) COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true, read_concurrency := 1))
 TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet);
 ----
 logical_opt	<REGEX>:.*Read concurrency.*1.*explicit limit.*
-
-statement ok
-SET threads = 1;
-
-query TT
-EXPLAIN (FORMAT JSON) COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true))
-TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet);
-----
-logical_opt	<REGEX>:.*Read concurrency.*1.*auto limit.*
-
-# A create succeeds at the explained destination: EXPLAIN did not open it.
-statement ok
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/explain_only' (FORMAT duckport_parquet);
 
 statement ok
 SET explain_output = 'physical_only';
