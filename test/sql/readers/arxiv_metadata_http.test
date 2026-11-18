@@ -1,0 +1,130 @@
+# name: test/sql/readers/arxiv_metadata_http.test
+# description: Native loopback HTTP coverage for arxiv_metadata
+# group: [sql]
+
+require duckport
+
+require duckport_test_fixture
+
+set ignore_error_messages
+
+# Anonymous provider requests and attachment reads.
+
+statement ok
+SET VARIABLE fixture_endpoint = duckport_fixture('arxiv_metadata', 'start_anonymous');
+
+statement ok
+SET VARIABLE fixture_download_endpoint = duckport_fixture('arxiv_metadata', 'download_endpoint');
+
+# Adapted from open-arrow-access OAI provider tests: deleted records and opaque cursors.
+
+query T rowsort
+SELECT "oai:header"."oai:identifier" FROM duckport_scan_arxiv_metadata('records', endpoint := getvariable('fixture_endpoint'), batch_size := 1);
+----
+id1
+id2
+
+query T rowsort
+SELECT "oai:header"."oai:identifier" FROM duckport_scan_arxiv_metadata('next+token&x', endpoint := getvariable('fixture_endpoint'));
+----
+id1
+id2
+
+query T
+SELECT "oai:resumptionToken" FROM duckport_scan_arxiv_metadata('records', endpoint := getvariable('fixture_endpoint'), record_path := '/oai:OAI-PMH/oai:ListRecords');
+----
+next+token&x
+
+statement ok
+PREPARE oai_scan AS SELECT count(*) FROM duckport_scan_arxiv_metadata('records', endpoint := getvariable('fixture_endpoint'));
+
+query I
+EXECUTE oai_scan;
+----
+2
+
+query I
+EXECUTE oai_scan;
+----
+2
+
+statement ok
+DEALLOCATE oai_scan;
+
+# Selector values are encoded once, and cursor requests reject initial selectors.
+query I
+SELECT count(*) FROM duckport_scan_arxiv_metadata('records', endpoint := getvariable('fixture_endpoint'), from_date := '2026-01-01', until_date := '2026-01-31', set_spec := 'cs:AI');
+----
+2
+
+query T
+SELECT count(*) > 0 FROM duckport_fixture_requests('arxiv_metadata') WHERE origin = 'api' AND target = '/oai?verb=ListRecords&metadataPrefix=arXivRaw&from=2026-01-01&until=2026-01-31&set=cs%3AAI';
+----
+true
+
+statement error
+SELECT * FROM duckport_scan_arxiv_metadata('next+token&x', endpoint := getvariable('fixture_endpoint'), from_date := '2026-01-01');
+----
+DuckPort
+
+# Malformed metadata must fail without reading any attachment bytes.
+
+statement ok
+SET VARIABLE fixture_downloads_before = (SELECT count(*) FROM duckport_fixture_requests('arxiv_metadata') WHERE is_download);
+
+statement ok
+SET VARIABLE fixture_requests_before = (SELECT count(*) FROM duckport_fixture_requests('arxiv_metadata') WHERE origin = 'api');
+
+query T
+SELECT duckport_fixture('arxiv_metadata', 'reject_metadata');
+----
+ok
+
+# Invalid provider metadata must fail before downloading content.
+
+statement error
+SELECT "oai:header"."oai:identifier" FROM duckport_scan_arxiv_metadata('records', endpoint := getvariable('fixture_endpoint'), batch_size := 1);
+----
+DuckPort
+
+query T
+SELECT count(*) = getvariable('fixture_downloads_before') FROM duckport_fixture_requests('arxiv_metadata') WHERE is_download;
+----
+true
+
+query T
+SELECT count(*) > getvariable('fixture_requests_before') FROM duckport_fixture_requests('arxiv_metadata') WHERE origin = 'api';
+----
+true
+
+# Inspect the actual captured HTTP requests through native SQL.
+
+query T
+SELECT count(*) > 0 FROM duckport_fixture_requests('arxiv_metadata') WHERE origin = 'api';
+----
+true
+
+query T
+SELECT count(*) = 0 FROM duckport_fixture_requests('arxiv_metadata') WHERE origin = 'api' AND has_authorization;
+----
+true
+
+query T
+SELECT count(*) = 0 FROM duckport_fixture_requests('arxiv_metadata') WHERE origin = 'download' AND (has_authorization OR contains(headers, 'fixture-key') OR contains(target, 'fixture-key'));
+----
+true
+
+query T
+SELECT count(*) > 0 FROM duckport_fixture_requests('arxiv_metadata') WHERE origin = 'api' AND target = '/oai?verb=ListRecords&metadataPrefix=arXivRaw';
+----
+true
+
+query T
+SELECT count(*) > 0 FROM duckport_fixture_requests('arxiv_metadata') WHERE origin = 'api' AND target = '/oai?verb=ListRecords&resumptionToken=next%2Btoken%26x';
+----
+true
+
+query T
+SELECT duckport_fixture('arxiv_metadata', 'stop');
+----
+stopped

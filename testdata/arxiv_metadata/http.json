@@ -1,0 +1,5 @@
+{
+  "auth": "authorization",
+  "routes": [{"path": "/oai", "file": "page.xml"}],
+  "reject_route": "/oai"
+}
