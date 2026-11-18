@@ -1,5 +1,7 @@
 #include "provider_fixture.hpp"
 #include "fixture_support.hpp"
+#include "fixture_server.hpp"
+#include "scoped_fixture_environment.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/helper.hpp"
 #include "duckdb/common/map.hpp"

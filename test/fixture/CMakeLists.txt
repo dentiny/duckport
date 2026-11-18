@@ -7,6 +7,8 @@ find_package(Threads REQUIRED)
 set(FIXTURE_SOURCE
   src/duckport_test_fixture_extension.cpp
   src/fixture_support.cpp
+  src/fixture_server.cpp
+  src/scoped_fixture_environment.cpp
   src/provider_fixture.cpp
   src/provider_functions.cpp
   src/iceberg.cpp

@@ -59,6 +59,7 @@ Production builds with `DUCKPORT_BUILD_TEST_FIXTURES=OFF` exclude these diagnost
 
 Provider response routes are declared in `testdata/<provider>/http.json`, including
 Internet Archive and arXiv. Add response data there instead of provider-specific
-branches in the server. `fixture_support` owns the common HTTP server, environment
-restoration and command registration; `provider_fixture` handles HTTP behavior
-and request snapshots, while `provider_functions` exposes them to SQL.
+branches in the server. `FixtureServer` and `ScopedFixtureEnvironment` have their
+own headers and implementation files. `fixture_support` provides shared file
+reading and command registration; `provider_fixture` handles HTTP behavior and
+request snapshots, while `provider_functions` exposes them to SQL.

@@ -1,5 +1,6 @@
 #include "iceberg.hpp"
 #include "fixture_support.hpp"
+#include "fixture_server.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/helper.hpp"
 #include "duckdb/common/unique_ptr.hpp"
