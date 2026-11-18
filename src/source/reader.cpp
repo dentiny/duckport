@@ -75,9 +75,16 @@ SourcePtr OpenReaderSource(ClientContext &context, const TableFunctionBindInput 
 	CheckError(info.open(context, files[0], scan, input, &raw));
 	return SourcePtr(raw, duckport_source_destroy);
 }
-unique_ptr<FunctionData> BindArrowSource(ClientContext &context, SourcePtr source, vector<LogicalType> &types,
-                                         vector<Identifier> &names, idx_t concurrency, bool automatic) {
-	auto factory = make_shared_ptr<SourceFactory>(std::move(source), concurrency, automatic);
+unique_ptr<FunctionData> BindReader(ClientContext &context, TableFunctionBindInput &input, vector<LogicalType> &types,
+                                    vector<Identifier> &names) {
+	CheckAccess(context);
+	const auto &info = input.info->Cast<ReaderInfo>();
+	auto scan = ReadScanOptions(context, input);
+	auto concurrency = input.named_parameters.find("read_concurrency");
+	const auto automatic = concurrency == input.named_parameters.end() ||
+	                       !ReadConcurrency(Identifier("READ_CONCURRENCY"), concurrency->second);
+	auto source = OpenReaderSource(context, input, info, scan);
+	auto factory = make_shared_ptr<SourceFactory>(std::move(source), scan.read_concurrency, automatic);
 	auto result = make_uniq<ArrowScanFunctionData>(std::move(factory));
 	result->factory->GetSchema(result->schema_root.arrow_schema);
 	ArrowTableFunction::PopulateArrowTableSchema(context, result->arrow_table, result->schema_root.arrow_schema);
@@ -90,17 +97,6 @@ unique_ptr<FunctionData> BindArrowSource(ClientContext &context, SourcePtr sourc
 	result->all_types = types;
 	result->projection_pushdown_enabled = true;
 	return std::move(result);
-}
-unique_ptr<FunctionData> BindReader(ClientContext &context, TableFunctionBindInput &input, vector<LogicalType> &types,
-                                    vector<Identifier> &names) {
-	CheckAccess(context);
-	const auto &info = input.info->Cast<ReaderInfo>();
-	auto scan = ReadScanOptions(context, input);
-	auto concurrency = input.named_parameters.find("read_concurrency");
-	const auto automatic = concurrency == input.named_parameters.end() ||
-	                       !ReadConcurrency(Identifier("READ_CONCURRENCY"), concurrency->second);
-	auto source = OpenReaderSource(context, input, info, scan);
-	return BindArrowSource(context, std::move(source), types, names, scan.read_concurrency, automatic);
 }
 unique_ptr<GlobalTableFunctionState> InitReader(ClientContext &context, TableFunctionInitInput &input) {
 	CheckAccess(context);
