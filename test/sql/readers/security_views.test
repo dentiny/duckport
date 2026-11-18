@@ -1,0 +1,10 @@
+# name: test/sql/readers/security_views.test
+# description: Owned C++ FFI views retain headers after input destruction and snapshot growth
+# group: [sql]
+
+require duckport_test_fixture
+
+query T
+SELECT duckport_fixture_security_views();
+----
+true

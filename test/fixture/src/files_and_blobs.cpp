@@ -1,5 +1,8 @@
 #include "duckdb.hpp"
 #include "duckport.h"
+#include "security_options.hpp"
+#include "blob_secrets.hpp"
+#include <type_traits>
 #include "duckdb/function/scalar_function.hpp"
 #include "duckdb/common/vector_operations/binary_executor.hpp"
 #include "duckdb/common/vector_operations/unary_executor.hpp"
@@ -16,7 +19,86 @@ void duckport_source_error_free(char *);
 }
 
 namespace duckdb {
+namespace {
+static_assert(!std::is_copy_constructible<SecurityFfiView>::value, "security views must not be copied");
+static_assert(!std::is_move_constructible<SecurityFfiView>::value, "security views must not be moved");
+static_assert(!std::is_copy_constructible<SourceSecretsFfiView>::value, "snapshot views must not be copied");
+static_assert(!std::is_move_constructible<SourceSecretsFfiView>::value, "snapshot views must not be moved");
+
+bool HttpSecurityKind(const DuckportSecurityOptions &options) {
+	char *raw = nullptr;
+	unique_ptr<char, decltype(&duckport_source_error_free)> error(duckport_fixture_security(&options, &raw),
+	                                                              duckport_source_error_free);
+	if (error) {
+		throw IOException("Owned security view fixture: %s", error.get());
+	}
+	unique_ptr<char, decltype(&duckport_source_error_free)> value(raw, duckport_source_error_free);
+	return string(value.get()) == "http";
+}
+
+bool CheckOwnedSecurityViews() {
+	const string long_value(256, 'v');
+	auto owned = [&]() {
+		SecurityParameters parameters;
+		parameters.token = "fixture-token";
+		parameters.has_token = true;
+		parameters.headers = {{"X-First", long_value}, {"X-Second", "second-value"}};
+		auto view = make_uniq<SecurityFfiView>(parameters);
+		// The caller can mutate and destroy its input immediately after construction.
+		parameters.token = "changed";
+		parameters.headers.clear();
+		return view;
+	}();
+	const auto &raw = owned->Get();
+	if (!raw.token || string(raw.token) != "fixture-token" || raw.http_header_count != 2 ||
+	    string(raw.http_headers[0].name) != "X-First" || string(raw.http_headers[0].value) != long_value ||
+	    string(raw.http_headers[1].name) != "X-Second" || string(raw.http_headers[1].value) != "second-value" ||
+	    !HttpSecurityKind(raw)) {
+		return false;
+	}
+	vector<BlobSecret> sources;
+	for (idx_t i = 0; i < 256; i++) {
+		BlobSecret source;
+		source.scope = "https://example.invalid/" + std::to_string(i);
+		source.type = "http";
+		source.policy = duckport_default_storage_policy();
+		source.security.headers.push_back({"X-Key", long_value + std::to_string(i)});
+		sources.push_back(std::move(source));
+	}
+	SourceSecretsFfiView view(sources);
+	sources.clear();
+	sources.shrink_to_fit();
+	DuckportStorageOptions http {};
+	view.BindHttp(http);
+	const auto &blobs = view.Blobs();
+	if (http.http_secret_count != 256 || blobs.size() != 256) {
+		return false;
+	}
+	// Nested view ownership must survive all growth of the snapshot's vectors.
+	for (idx_t i = 0; i < blobs.size(); i++) {
+		const auto scope = "https://example.invalid/" + std::to_string(i);
+		const auto value = long_value + std::to_string(i);
+		const auto &blob = blobs[i];
+		const auto &entry = http.http_secrets[i];
+		if (string(blob.scope) != scope || string(blob.type) != "http" || string(entry.scope) != scope ||
+		    blob.config.security.http_header_count != 1 || entry.security.http_header_count != 1 ||
+		    string(blob.config.security.http_headers[0].value) != value ||
+		    string(entry.security.http_headers[0].value) != value || !HttpSecurityKind(blob.config.security) ||
+		    !HttpSecurityKind(entry.security)) {
+			return false;
+		}
+	}
+	return true;
+}
+} // namespace
 void RegisterFileAndBlobFixtures(ExtensionLoader &loader) {
+	ScalarFunction views("duckport_fixture_security_views", {}, LogicalType::BOOLEAN,
+	                     [](DataChunk &input, ExpressionState &, Vector &result) {
+		                     result.Reference(Value::BOOLEAN(CheckOwnedSecurityViews()), count_t(input.size()));
+	                     });
+	views.SetVolatile();
+	loader.RegisterFunction(views);
+
 	ScalarFunction security(
 	    "duckport_fixture_security", {LogicalType::VARCHAR}, LogicalType::VARCHAR,
 	    [](DataChunk &args, ExpressionState &, Vector &result) {

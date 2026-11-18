@@ -14,20 +14,16 @@ void RegisterStorageSettings(ExtensionLoader &loader);
 DuckportStoragePolicy ReadStoragePolicy(ClientContext &context);
 
 class StorageParameters {
-  public:
+public:
 	StorageParameters(ClientContext &context, const string &locator, const string &secret_type);
 	StorageParameters(const StorageParameters &) = delete;
 	StorageParameters &operator=(const StorageParameters &) = delete;
-	DuckportStorageOptions config{};
+	DuckportStorageOptions config {};
 
-  private:
+private:
 	string endpoint;
 	string region;
-    SecurityParameters security;
-    vector<DuckportHttpHeader> headers;
-	// Keep the snapshot and its borrowed C ABI views alive for the open call.
-	vector<BlobSecret> http_secrets;
-	vector<vector<DuckportHttpHeader>> http_secret_headers;
-	vector<DuckportHttpSecret> http_secret_views;
+	unique_ptr<SecurityFfiView> security_view;
+	unique_ptr<SourceSecretsFfiView> http_sources_view;
 };
 } // namespace duckdb

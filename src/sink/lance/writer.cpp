@@ -16,19 +16,9 @@ unique_ptr<SinkWriter> OpenLanceWriter(const string &path, WriterOpenContext &co
 	vector<DuckportColumnEncoding> encodings;
 	vector<DuckportIndexOptions> indexes;
 	auto write_options = options.ToFfi(encodings, indexes);
-	vector<DuckportBlobSecret> secrets;
-	vector<vector<DuckportHttpHeader>> headers;
-	if (!options.blob_columns.empty()) {
-		const auto &sources = context.BlobSecrets();
-		headers.resize(sources.size());
-		for (idx_t i = 0; i < sources.size(); i++) {
-			const auto &source = sources[i];
-			DuckportStorageOptions config {};
-			config.policy = source.policy;
-			config.security = source.security.ToFfi(headers[i]);
-			secrets.push_back({source.scope.c_str(), source.type.c_str(), config});
-		}
-	}
+	auto sources = options.blob_columns.empty() ? vector<BlobSecret>() : context.BlobSecrets();
+	SourceSecretsFfiView source_view(std::move(sources));
+	const auto &secrets = source_view.Blobs();
 	DuckportSink *raw = nullptr;
 	CheckError(duckport_lance_open(path.c_str(), &schema, mode, columns.data(), columns.size(), &write_options,
 	                               secrets.data(), secrets.size(), &context.storage, &raw));

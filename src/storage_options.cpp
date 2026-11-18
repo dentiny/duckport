@@ -15,7 +15,9 @@
 
 namespace duckdb {
 namespace {
-const char *OptionalString(const string &value) { return value.empty() ? nullptr : value.c_str(); }
+const char *OptionalString(const string &value) {
+	return value.empty() ? nullptr : value.c_str();
+}
 
 constexpr std::string_view STORAGE_SETTING_PREFIX = "conversion_storage_";
 
@@ -82,11 +84,13 @@ DuckportStoragePolicy ReadStoragePolicy(ClientContext &context) {
 }
 
 StorageParameters::StorageParameters(ClientContext &context, const string &locator, const string &secret_type) {
+	SecurityParameters security;
 	config.policy = ReadStoragePolicy(context);
 	auto &opener = *ClientData::Get(context).file_opener;
 	FileOpenerInfo info {locator};
 	if (secret_type == "huggingface") {
-		const auto scope = StringUtil::StartsWith(locator, "hf://") ? locator : StringUtil::Format("hf://datasets/%s", locator);
+		const auto scope =
+		    StringUtil::StartsWith(locator, "hf://") ? locator : StringUtil::Format("hf://datasets/%s", locator);
 		info.file_path = scope;
 		KeyValueSecretReader reader(opener, &info, "huggingface");
 		security.has_token = reader.TryGetSecretKey("token", security.token);
@@ -112,31 +116,19 @@ StorageParameters::StorageParameters(ClientContext &context, const string &locat
 			throw InvalidConfigurationException("S3 secret url_style must be either 'path' or 'vhost'");
 		}
 		config.virtual_host_style = url_style == "vhost" ? 1 : 0;
-		security.allow_anonymous = security.access_key_id.empty() && security.secret_access_key.empty() && security.session_token.empty() ? 1 : 0;
+		security.allow_anonymous =
+		    security.access_key_id.empty() && security.secret_access_key.empty() && security.session_token.empty() ? 1
+		                                                                                                           : 0;
 	} else if (StringUtil::StartsWith(locator, "http://") || StringUtil::StartsWith(locator, "https://")) {
 		// Preserve every HTTP scope for credential selection on each redirect hop.
-		http_secrets = CaptureBlobSecrets(context);
-		http_secret_headers.resize(http_secrets.size());
-		for (idx_t i = 0; i < http_secrets.size(); i++) {
-			const auto &secret = http_secrets[i];
-			http_secret_views.push_back({secret.scope.c_str(), secret.security.ToFfi(http_secret_headers[i])});
-		}
-		config.http_secrets = http_secret_views.data();
-		config.http_secret_count = http_secret_views.size();
+		http_sources_view = make_uniq<SourceSecretsFfiView>(CaptureBlobSecrets(context));
+		http_sources_view->BindHttp(config);
 		KeyValueSecretReader reader(opener, &info, "http");
-		security.has_token = reader.TryGetSecretKey("bearer_token", security.token);
-        Value extra;
-        if (reader.TryGetSecretKey("extra_http_headers", extra) && !extra.IsNull()) {
-            for (const auto &entry : MapValue::GetChildren(extra)) {
-                const auto &pair = StructValue::GetChildren(entry);
-                if (pair[0].IsNull() || pair[1].IsNull()) { throw InvalidInputException("HTTP header names and values must not be NULL"); }
-                security.header_names.push_back(pair[0].GetValue<string>());
-                security.header_values.push_back(pair[1].GetValue<string>());
-            }
-        }
+		security = ReadHttpSecurity(reader);
 	}
 	config.endpoint = OptionalString(endpoint);
 	config.region = OptionalString(region);
-    config.security = security.ToFfi(headers);
+	security_view = make_uniq<SecurityFfiView>(std::move(security));
+	config.security = security_view->Get();
 }
 } // namespace duckdb
