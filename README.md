@@ -18,29 +18,16 @@ operators, sampling or backend work.
 
 ## Start here
 
-[Build and load](docs/UPDATING.md#build-and-load) ·
+Install and load DuckPort in DuckDB:
+
+```sql
+FORCE INSTALL duckport FROM community;
+LOAD duckport;
+```
+
 [Reader catalog](docs/readers/README.md) · [COPY reference](docs/writers/README.md) ·
 [Secrets](docs/secrets.md) · [Settings and profiling](docs/storage.md) ·
 [Documentation index](docs/README.md)
-
-Build from source with the pinned DuckDB checkout:
-
-```sh
-git clone --recurse-submodules https://github.com/dentiny/duckport.git
-cd duckport
-make
-./build/release/duckdb
-```
-
-The built shell includes DuckPort. For another shell built against the same
-DuckDB revision, start with `-unsigned` and load the local extension:
-
-```sql
-LOAD 'build/release/extension/duckport/duckport.duckdb_extension';
-```
-
-Do not substitute the community `lance_conversion` package: it is a different
-extension with different function and setting names.
 
 ## Read with SQL
 
@@ -136,4 +123,4 @@ with Arrow 58. These projects own format/service and storage mechanics; DuckPort
 owns SQL binding, secret lookup and Arrow C ABI adaptation. Read the
 [architecture guide](docs/architecture.md) before extending the bridge.
 
-[Development](docs/UPDATING.md) · [Tests](test/README.md) · [MIT license](LICENSE)
+[MIT license](LICENSE)
