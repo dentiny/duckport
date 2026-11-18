@@ -27,7 +27,7 @@ These are shared capabilities, not additions unique to DuckPort.
 | arXiv PDF metadata | No arXiv-specific joined reader | One cached Parquet snapshot joins by article ID; every snapshot field is retained in a `metadata` struct |
 | ATIF | Reader embeds referenced media | SELECT resolves media URIs without fetching; Lance COPY downloads tagged fields automatically |
 | Index publication | Index creation follows data publication and may leave a committed data-only version | The sink backend's combined data/index publication is used |
-| Write concurrency | DuckDB thread-local Lance writers when order permits | Serial DuckDB COPY delivery with a Rust writer pool; `FILE_COUNT` configures writer streams |
+| Write concurrency | DuckDB thread-local Lance writers when order permits | Serial DuckDB COPY delivery with a Rust writer pool; `WRITE_CONCURRENCY` configures writer streams |
 | Reader tuning | Explicit Hugging Face/WARC parallelism/read-ahead controls | These SQL controls are not exposed; upstream reader behavior applies |
 | Memory accounting | Explicit reader/writer reservations against DuckDB's memory limit | No equivalent DuckDB-integrated Rust memory-budget controls are exposed |
 

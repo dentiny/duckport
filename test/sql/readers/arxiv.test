@@ -5,7 +5,7 @@
 require duckport
 
 query II
-SELECT count(*), sum(octet_length(data)) FROM duckport_scan_arxiv('testdata/arxiv', kind := 'source', month := '2410', batch_size := 1);
+SELECT count(*), sum(octet_length(data)) FROM duckport_scan_arxiv('testdata/arxiv', kind := 'source', month := '2410', batch_size := 1, read_concurrency := 2);
 ----
 2	25
 

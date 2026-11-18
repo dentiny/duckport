@@ -65,6 +65,7 @@ struct DuckportFileList;
 struct DuckportScanOptions {
 	// Target rows per Arrow record batch; SQL default: 8192.
 	size_t batch_size;
+	size_t read_concurrency;
 	const DuckportSelectedFile *files;
 	size_t file_count;
 };
@@ -90,6 +91,8 @@ struct DuckportWriteOptions {
 	const DuckportIndexOptions *indexes;
 	size_t index_count;
 	size_t writer_count;
+	uint64_t source_bytes;
+	bool source_bytes_known;
 };
 struct DuckportBlobSource {
 	const char *document;
@@ -113,7 +116,7 @@ extern "C" {
 DuckportStoragePolicy duckport_default_storage_policy();
 void duckport_source_error_free(char *);
 char *duckport_validate_byte_size(const char *name, int64_t value);
-char *duckport_validate_file_count(int64_t value, bool preserve_order);
+char *duckport_validate_write_concurrency(int64_t value, bool preserve_order);
 char *duckport_validate_sample_percent(double value);
 char *duckport_validate_sample_rows(int64_t value, uint64_t max_rows);
 
@@ -132,6 +135,8 @@ char *duckport_source_get_stream(const DuckportSource *, const char *const *colu
                                  ArrowArrayStream *);
 char *duckport_source_get_metrics(const DuckportSource *, DuckportReadMetrics *);
 void duckport_source_destroy(DuckportSource *);
+char *duckport_source_configure_copy(const DuckportSource *, size_t read_concurrency, bool inspect_size,
+                                     uint64_t *bytes, bool *known);
 
 // Format-related functions
 char *duckport_parquet_source_open(const char *locator, const DuckportStorageOptions &storage_options,

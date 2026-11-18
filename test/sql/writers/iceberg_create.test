@@ -29,7 +29,7 @@ blob handle configuration
 statement ok
 COPY (SELECT 1 AS id, 'Alice' AS name)
 TO 'tests.people' (FORMAT duckport_iceberg,
-    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_create', PRESERVE_ORDER false, FILE_COUNT 2);
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_create', PRESERVE_ORDER false, WRITE_CONCURRENCY 2);
 
 statement error
 COPY (SELECT 99 AS id, 'duplicate' AS name)

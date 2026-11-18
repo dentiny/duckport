@@ -46,9 +46,9 @@ crate::ffi::reader::export_reader!(duckport_arxiv_open, reader_options: ArxivOpt
             let mut config = unsafe { config.read() }?;
             config.metrics = storage_options.metrics.clone();
             let index = metadata::load(&uri, id_column.as_deref().unwrap_or("identifier"), &config).await?;
-            AsyncSource::new(records.with_metadata(index), request).await
+            AsyncSource::plannable(records.with_metadata(index), request).await
         } else {
-            AsyncSource::new(records, request).await
+            AsyncSource::plannable(records, request).await
         }
     }
 );

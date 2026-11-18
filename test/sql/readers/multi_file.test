@@ -12,7 +12,7 @@ SET threads = 1;
 # One small-batch scan checks list order, duplicate inputs and row contents.
 query IIT
 SELECT count(*), sum(id), string_agg(name, ',')
-FROM duckport_scan_csv(['testdata/multifile/b.csv', 'testdata/multifile/a.csv', 'testdata/multifile/a.csv'], header := true, batch_size := 1);
+FROM duckport_scan_csv(['testdata/multifile/b.csv', 'testdata/multifile/a.csv', 'testdata/multifile/a.csv'], header := true, batch_size := 1, read_concurrency := 2);
 ----
 5	9	gamma,alpha,beta,alpha,beta
 
@@ -61,7 +61,7 @@ SELECT count(*), sum(id) FROM duckport_scan_xml('testdata/multifile/*.xml', reco
 2	3
 
 query I
-SELECT count(*) FROM duckport_scan_warc(['testdata/warc/good_resources.warc', 'testdata/warc/good_resources.warc']);
+SELECT count(*) FROM duckport_scan_warc(['testdata/warc/good_resources.warc', 'testdata/warc/good_resources.warc'], read_concurrency := 2);
 ----
 4
 

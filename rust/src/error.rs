@@ -38,3 +38,11 @@ pub unsafe extern "C" fn duckport_source_error_free(error: *mut c_char) {
 pub(crate) fn http_source_error(message: &'static str) -> opendal::Error {
     opendal::Error::new(opendal::ErrorKind::Unexpected, message)
 }
+
+pub(crate) fn unknown_selected_file() -> open_arrow_access::Error {
+    open_arrow_access::Error::new(
+        open_arrow_access::ErrorKind::InvalidInput,
+        "select_file",
+        "unknown selected file",
+    )
+}

@@ -68,8 +68,11 @@ SELECT * FROM read_parquet('events_dataset/*.parquet');
 | [Parquet directory](docs/writers/parquet.md) | `duckport_parquet` | Create, APPEND | Multiple data files and top-level column compression |
 | [Iceberg REST catalog](docs/writers/iceberg.md) | `duckport_iceberg` | Create, APPEND | Schema-derived table creation and snapshot publication |
 
-All three accept sampling, generated columns, `TARGET_FILE_SIZE`, `FILE_COUNT`
-and `PRESERVE_ORDER`. Backend-specific options are validated against the sink's
+All three accept sampling, generated columns, `TARGET_FILE_SIZE`, `READ_CONCURRENCY`,
+`WRITE_CONCURRENCY` and `PRESERVE_ORDER`. Writes default to one writer and a
+512 MiB soft file-size target, rolling to a new file as needed. Use
+`WRITE_CONCURRENCY 'auto'` to opt into automatic writer planning. Read concurrency
+defaults to `'auto'`. Backend-specific options are validated against the sink's
 capabilities. Use native `FORMAT PARQUET` to write a single file.
 
 ## Configure secrets once

@@ -15,11 +15,11 @@ foreach sink lance parquet
 
 statement ok
 COPY (SELECT i AS id FROM range(131072) t(i) ORDER BY i DESC)
-TO '{TEST_DIR}/ordered_${sink}' (FORMAT duckport_${sink}, PRESERVE_ORDER true, FILE_COUNT 1);
+TO '{TEST_DIR}/ordered_${sink}' (FORMAT duckport_${sink}, PRESERVE_ORDER true, WRITE_CONCURRENCY 1);
 
 statement ok
 COPY (SELECT i AS id FROM range(131072) t(i))
-TO '{TEST_DIR}/unordered_${sink}' (FORMAT duckport_${sink}, PRESERVE_ORDER false, FILE_COUNT 2);
+TO '{TEST_DIR}/unordered_${sink}' (FORMAT duckport_${sink}, PRESERVE_ORDER false, WRITE_CONCURRENCY 2);
 
 endloop
 
@@ -27,14 +27,14 @@ statement ok
 COPY (SELECT -1::BIGINT AS id) TO '{TEST_DIR}/ordered_lance'
 (FORMAT duckport_lance, APPEND, PRESERVE_ORDER true);
 
-foreach mode,preserve_order,file_count ordered,true,1 unordered,false,2
+foreach mode,preserve_order,write_concurrency ordered,true,1 unordered,false,2
 
 statement ok
 SET VARIABLE iceberg_catalog = duckport_iceberg_fixture('{TEST_DIR}/${mode}_iceberg', 'start');
 
 statement ok
 COPY (SELECT i::INTEGER AS id, i::VARCHAR AS name FROM range(131072) t(i) ORDER BY i DESC)
-TO 'tests.people' (FORMAT duckport_iceberg, APPEND, PRESERVE_ORDER ${preserve_order}, FILE_COUNT ${file_count},
+TO 'tests.people' (FORMAT duckport_iceberg, APPEND, PRESERVE_ORDER ${preserve_order}, WRITE_CONCURRENCY ${write_concurrency},
     CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/${mode}_iceberg');
 
 statement ok
@@ -64,6 +64,21 @@ SELECT count(*), count(DISTINCT id), sum(id) FROM read_parquet('{TEST_DIR}/${pat
 131072	131072	8589869056
 
 endloop
+
+# COPY overrides scan read concurrency and plans writers before consuming rows.
+statement ok
+COPY (SELECT * FROM duckport_scan_csv('testdata/multifile/*.csv', header := true))
+TO '{TEST_DIR}/planned_parallel' (FORMAT duckport_parquet, READ_CONCURRENCY 2, TARGET_FILE_SIZE 1048576);
+
+query II
+SELECT count(*), sum(id) FROM read_parquet('{TEST_DIR}/planned_parallel/*.parquet');
+----
+3	6
+
+statement error
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid_read_concurrency' (FORMAT duckport_parquet, READ_CONCURRENCY 0);
+----
+READ_CONCURRENCY requires 'auto' or a positive integer
 
 restart no_extension_load
 

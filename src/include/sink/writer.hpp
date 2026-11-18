@@ -36,20 +36,28 @@ struct IndexOptions {
 
 // Plan-owned configuration. Runtime credentials belong to WriterOpenContext.
 struct SinkWriteOptions {
+	static constexpr int64_t DEFAULT_TARGET_FILE_SIZE = 512LL * 1024 * 1024;
+
 	SinkWriteMode mode = SinkWriteMode::CREATE;
 	bool preserve_order = false;
-	optional<int64_t> file_count;
+	// Omission uses one writer; an unset count explicitly requests auto.
+	// read_concurrency_set distinguishes inheritance from an explicit auto override.
+	optional<int64_t> write_concurrency = 1;
+	optional<int64_t> read_concurrency;
+	bool read_concurrency_set = false;
 	vector<string> blob_columns;
 	DuckportWriteOptions write_options {
 	    .blob_inline_size_threshold = -1,
 	    .blob_dedicated_size_threshold = -1,
-	    .target_file_size = -1,
+	    .target_file_size = DEFAULT_TARGET_FILE_SIZE,
 	    .storage_version = nullptr,
 	    .column_encodings = nullptr,
 	    .column_encoding_count = 0,
 	    .indexes = nullptr,
 	    .index_count = 0,
 	    .writer_count = 1,
+	    .source_bytes = 0,
+	    .source_bytes_known = false,
 	};
 	string catalog_uri;
 	string warehouse;

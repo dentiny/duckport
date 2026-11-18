@@ -1,4 +1,6 @@
 #include "source/options.hpp"
+#include "duckdb/common/string_util.hpp"
+#include "duckdb/parallel/task_scheduler.hpp"
 
 namespace duckdb {
 optional<string> ReadStringOption(const TableFunctionBindInput &input, const char *name) {
@@ -38,17 +40,42 @@ string ReadSourceString(const Value &value) {
 	return text;
 }
 
-DuckportScanOptions ReadScanOptions(const TableFunctionBindInput &input) {
+optional<int64_t> ReadConcurrency(const Identifier &name, const Value &value) {
+	if (!value.IsNull()) {
+		if (value.type().id() == LogicalTypeId::VARCHAR && StringUtil::CIEquals(StringValue::Get(value), "auto")) {
+			return nullopt;
+		}
+		if (value.type().IsIntegral()) {
+			auto number = value.DefaultTryCastAs(LogicalType::BIGINT);
+			if (number && number->GetValue<int64_t>() > 0) {
+				return number->GetValue<int64_t>();
+			}
+		}
+	}
+	throw BinderException("%s requires 'auto' or a positive integer that fits in BIGINT",
+	                      StringUtil::Upper(name.GetIdentifierName()));
+}
+
+idx_t AutoReadConcurrency(ClientContext &context) {
+	return TaskScheduler::GetScheduler(context).NumberOfThreads();
+}
+
+DuckportScanOptions ReadScanOptions(ClientContext &context, const TableFunctionBindInput &input) {
 	for (const auto &entry : input.named_parameters) {
 		if (entry.second.IsNull()) {
 			throw BinderException("DuckPort arguments cannot be NULL");
 		}
 	}
 	constexpr idx_t DEFAULT_BATCH_SIZE = 8192;
-	DuckportScanOptions scan {DEFAULT_BATCH_SIZE, nullptr, 0};
+	DuckportScanOptions scan {DEFAULT_BATCH_SIZE, AutoReadConcurrency(context), nullptr, 0};
 	auto batch = input.named_parameters.find("batch_size");
 	if (batch != input.named_parameters.end()) {
 		scan.batch_size = idx_t(BigIntValue::Get(batch->second));
+	}
+	auto concurrency = input.named_parameters.find("read_concurrency");
+	if (concurrency != input.named_parameters.end()) {
+		scan.read_concurrency =
+		    ReadConcurrency(Identifier("READ_CONCURRENCY"), concurrency->second).value_or(AutoReadConcurrency(context));
 	}
 	return scan;
 }

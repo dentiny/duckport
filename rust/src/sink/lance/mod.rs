@@ -24,7 +24,7 @@ pub(crate) async fn open(
     columns: HashSet<String>,
     config: &StorageConfig,
     options: WriteOptions,
-    writer_count: usize,
+    ingestion: open_arrow_sink_layer::ParallelIngestionLayer,
     secrets: crate::blob_auth::SourceSecrets,
     sources: Vec<BlobSource>,
 ) -> Result<DuckportSink> {
@@ -70,7 +70,7 @@ pub(crate) async fn open(
         .with_blob_downloader(std::sync::Arc::new(downloader))
         .layer(DownloadBlobLayer::new(columns))
         .layer(SchemaEvolutionLayer::new(remaps));
-    let writer = open_writer(sink, destination.url, schema.clone(), options, writer_count).await?;
+    let writer = open_writer(sink, destination.url, schema.clone(), options, ingestion).await?;
     Ok(DuckportSink {
         metrics,
         writer: Some(writer),

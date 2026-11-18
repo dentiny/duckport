@@ -28,8 +28,11 @@ pub unsafe extern "C" fn duckport_validate_byte_size(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn duckport_validate_file_count(value: i64, preserve_order: bool) -> *mut c_char {
-    call(|| validation::validate_file_count(value, preserve_order))
+pub extern "C" fn duckport_validate_write_concurrency(
+    value: i64,
+    preserve_order: bool,
+) -> *mut c_char {
+    call(|| validation::validate_write_concurrency(value, preserve_order))
 }
 
 #[unsafe(no_mangle)]
@@ -70,6 +73,8 @@ pub struct DuckportWriteOptions {
     pub indexes: *const DuckportIndexOptions,
     pub index_count: usize,
     pub writer_count: usize,
+    pub source_bytes: u64,
+    pub source_bytes_known: bool,
 }
 
 impl Default for DuckportWriteOptions {
@@ -77,13 +82,37 @@ impl Default for DuckportWriteOptions {
         Self {
             blob_inline_size_threshold: -1,
             blob_dedicated_size_threshold: -1,
-            target_file_size: -1,
+            target_file_size: 512 * 1024 * 1024,
             storage_version: std::ptr::null(),
             column_encodings: std::ptr::null(),
             column_encoding_count: 0,
             indexes: std::ptr::null(),
             index_count: 0,
             writer_count: 1,
+            source_bytes: 0,
+            source_bytes_known: false,
+        }
+    }
+}
+
+impl DuckportWriteOptions {
+    pub(crate) fn ingestion(&self) -> Result<open_arrow_sink_layer::ParallelIngestionLayer> {
+        use open_arrow_sink_layer::{InputSizeHint, ParallelIngestionLayer};
+        use std::num::NonZeroUsize;
+        let writers = validation::required(
+            NonZeroUsize::new(self.writer_count),
+            "writer count must be positive",
+        )?;
+        if self.source_bytes_known && self.target_file_size > 0 {
+            let target = utils::byte_size("target_file_size", self.target_file_size)?;
+            Ok(
+                ParallelIngestionLayer::new(NonZeroUsize::new(target).unwrap())
+                    .with_input_size(InputSizeHint::SourceBytes(self.source_bytes))
+                    .with_max_writers(writers)
+                    .with_fallback_writers(writers),
+            )
+        } else {
+            Ok(ParallelIngestionLayer::fixed(writers))
         }
     }
 }

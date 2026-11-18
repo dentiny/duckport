@@ -13,7 +13,7 @@ pub(crate) async fn open(
     mode: &str,
     config: &StorageConfig,
     mut options: WriteOptions,
-    writer_count: usize,
+    ingestion: open_arrow_sink_layer::ParallelIngestionLayer,
 ) -> Result<DuckportSink> {
     let mode = utils::sink_mode(mode)?;
     let metrics = open_arrow_sink_core::IoMetrics::default();
@@ -24,7 +24,7 @@ pub(crate) async fn open(
         destination.url,
         schema.clone(),
         options.with_mode(mode),
-        writer_count,
+        ingestion,
     )
     .await?;
     Ok(DuckportSink {
