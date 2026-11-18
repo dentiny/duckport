@@ -1,5 +1,6 @@
 #include "error.hpp"
 #include "source/source_factory.hpp"
+#include "duckdb/common/string_util.hpp"
 #include "duckdb/main/query_profiler.hpp"
 
 namespace duckdb {
@@ -9,7 +10,7 @@ SourceFactory::SourceFactory(SourcePtr source_p, idx_t read_concurrency_p, bool 
 }
 
 string SourceFactory::ReadConcurrencyDescription() const {
-	return to_string(read_concurrency) + (automatic_reads ? " (auto limit)" : " (explicit limit)");
+	return StringUtil::Format("%llu (%s limit)", read_concurrency, automatic_reads ? "auto" : "explicit");
 }
 
 optional<uint64_t> SourceFactory::ConfigureCopy(idx_t read_concurrency, bool inspect_size, bool automatic) {
