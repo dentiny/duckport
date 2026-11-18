@@ -4,5 +4,5 @@
 
 namespace duckdb {
 char *OpenXml(ClientContext &context, const string &locator, const DuckportScanOptions &scan,
-			  const TableFunctionBindInput &input, DuckportSource **output);
+              const TableFunctionBindInput &input, DuckportSource **output);
 } // namespace duckdb

@@ -11,7 +11,7 @@ vector<BlobSecret> CaptureBlobSecrets(ClientContext &context, const string &secr
 	for (const auto &entry : entries) {
 		const auto type = entry.secret->GetType().GetIdentifierName();
 		if ((!secret_type.empty() && type != secret_type) ||
-			(type != "http" && type != "s3" && type != "huggingface")) {
+		    (type != "http" && type != "s3" && type != "huggingface")) {
 			continue;
 		}
 		auto secret = dynamic_cast<const KeyValueSecret *>(entry.secret.get());
@@ -53,8 +53,8 @@ vector<BlobSecret> CaptureBlobSecrets(ClientContext &context, const string &secr
 			read("url_style", style);
 			value.virtual_host_style = style == "vhost";
 			value.security.allow_anonymous = value.security.access_key_id.empty() &&
-											 value.security.secret_access_key.empty() &&
-											 value.security.session_token.empty();
+			                                 value.security.secret_access_key.empty() &&
+			                                 value.security.session_token.empty();
 		}
 		const auto &scopes = secret->GetScope();
 		if (scopes.empty()) {

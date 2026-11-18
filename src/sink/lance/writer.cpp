@@ -6,10 +6,10 @@
 
 namespace duckdb {
 unique_ptr<SinkWriter> OpenLanceWriter(const string &path, WriterOpenContext &context, const SinkWriteOptions &options,
-									   ArrowSchema &schema) {
-	const char *mode = options.mode == SinkWriteMode::APPEND	  ? "append"
-					   : options.mode == SinkWriteMode::OVERWRITE ? "overwrite"
-																  : "create";
+                                       ArrowSchema &schema) {
+	const char *mode = options.mode == SinkWriteMode::APPEND      ? "append"
+	                   : options.mode == SinkWriteMode::OVERWRITE ? "overwrite"
+	                                                              : "create";
 	vector<const char *> columns;
 	columns.reserve(options.blob_columns.size());
 	for (const auto &column : options.blob_columns) {
@@ -30,8 +30,8 @@ unique_ptr<SinkWriter> OpenLanceWriter(const string &path, WriterOpenContext &co
 	const auto &secrets = source_view.Blobs();
 	DuckportSink *raw = nullptr;
 	CheckError(duckport_lance_open(path.c_str(), &schema, mode, columns.data(), columns.size(), &write_options,
-								   secrets.data(), secrets.size(), &context.storage, media_sources.data(),
-								   media_sources.size(), &raw));
+	                               secrets.data(), secrets.size(), &context.storage, media_sources.data(),
+	                               media_sources.size(), &raw));
 	return MakeSinkWriter(SinkPtr(raw, duckport_sink_destroy));
 }
 } // namespace duckdb
