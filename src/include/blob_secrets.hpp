@@ -16,7 +16,7 @@ struct BlobSecret {
 	SecurityParameters security;
 	DuckportStoragePolicy policy;
 };
-vector<BlobSecret> CaptureBlobSecrets(ClientContext &context);
+vector<BlobSecret> CaptureBlobSecrets(ClientContext &context, const string &secret_type = string());
 
 // Owns a complete source snapshot and all nested C ABI views. File readers and
 // Blob writers use the same owner; callers never manage scratch header arrays.
@@ -26,9 +26,6 @@ class SourceSecretsFfiView {
 		for (auto &source : this->sources) {
 			security.push_back(make_uniq<SecurityFfiView>(std::move(source.security)));
 			const auto &view = security.back()->Get();
-			if (source.type == "http") {
-				http.push_back({source.scope.c_str(), view});
-			}
 			DuckportStorageOptions config{};
 			config.endpoint = source.endpoint.empty() ? nullptr : source.endpoint.c_str();
 			config.region = source.region.empty() ? nullptr : source.region.c_str();
@@ -43,11 +40,16 @@ class SourceSecretsFfiView {
 	SourceSecretsFfiView(SourceSecretsFfiView &&) = delete;
 	SourceSecretsFfiView &operator=(SourceSecretsFfiView &&) = delete;
 
-	void BindHttp(DuckportStorageOptions &config) const & {
+	// The caller captures an HTTP-only snapshot; this view only marshals the ABI.
+	void BindHttp(DuckportStorageOptions &config) & {
+		http.clear();
+		for (const auto &source : blobs) {
+			http.push_back({source.scope, source.config.security});
+		}
 		config.http_secrets = http.data();
 		config.http_secret_count = http.size();
 	}
-	void BindHttp(DuckportStorageOptions &config) const && = delete;
+	void BindHttp(DuckportStorageOptions &config) && = delete;
 	const vector<DuckportBlobSecret> &Blobs() const & { return blobs; }
 	const vector<DuckportBlobSecret> &Blobs() const && = delete;
 

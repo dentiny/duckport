@@ -506,6 +506,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d2050892d4691cf110586070786712b504985a4d37ed64a9cd8a402718e1706"
 
 [[package]]
+name = "asyncband"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e53c31fb18f42e765610b2146531390e56966f601d8ffca530d292a34fe4218"
+
+[[package]]
 name = "atif-arrow"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1298,6 +1304,12 @@ dependencies = [
  "once_cell",
  "parking_lot_core",
 ]
+
+[[package]]
+name = "data-url"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be1e0bca6c3637f992fc1cc7cbc52a78c1ef6db076dbf1059c4323d6a2048376"
 
 [[package]]
 name = "datafusion"
@@ -4392,7 +4404,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0bd9da6291f93eb19b7987dac17617de0131760a6ba97a4cd8d6b1a07fa89783"
 dependencies = [
  "async-trait",
- "asyncband",
+ "asyncband 0.7.4",
  "bytes",
  "chrono",
  "futures",
@@ -4574,9 +4586,8 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-sink-core"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ea6bb326dd78bb0ef7daa8b9743b52ec5974b46ecb0f315f5fb487f56b04b00"
+version = "0.4.0"
+source = "git+https://github.com/dentiny/open-arrow-sink?rev=321e58b36b5fdb8fc63499f509e0c49f93a89fdd#321e58b36b5fdb8fc63499f509e0c49f93a89fdd"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -4588,9 +4599,8 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-sink-iceberg"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c3aabc6affb0b342d3bc810dff41c829875393b0e8a89fecdec777879810578"
+version = "0.4.0"
+source = "git+https://github.com/dentiny/open-arrow-sink?rev=321e58b36b5fdb8fc63499f509e0c49f93a89fdd#321e58b36b5fdb8fc63499f509e0c49f93a89fdd"
 dependencies = [
  "bytes",
  "futures",
@@ -4604,9 +4614,8 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-sink-lance"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33b1cb55931da3b510cb6cdaa52930e6bd5e4ac4f369acb229706935d9435ecd"
+version = "0.4.0"
+source = "git+https://github.com/dentiny/open-arrow-sink?rev=321e58b36b5fdb8fc63499f509e0c49f93a89fdd#321e58b36b5fdb8fc63499f509e0c49f93a89fdd"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -4632,9 +4641,8 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-sink-layer"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fec4e94fa33622abae80119419dd83a8a8ce20ecefa89f0d3f53d25a81500b3a"
+version = "0.4.0"
+source = "git+https://github.com/dentiny/open-arrow-sink?rev=321e58b36b5fdb8fc63499f509e0c49f93a89fdd#321e58b36b5fdb8fc63499f509e0c49f93a89fdd"
 dependencies = [
  "arrow-array",
  "arrow-cast",
@@ -4646,9 +4654,8 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-sink-parquet"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9cc7d16662e726e972e05819b7785b76ad03e84a74e8c6e412f9628b6b15167"
+version = "0.4.0"
+source = "git+https://github.com/dentiny/open-arrow-sink?rev=321e58b36b5fdb8fc63499f509e0c49f93a89fdd#321e58b36b5fdb8fc63499f509e0c49f93a89fdd"
 dependencies = [
  "bytes",
  "futures",
@@ -4660,14 +4667,15 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-sink-storage"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "096b188cef27d27accda9782b1e63c29955b340f29ee2befe76fddb98c636925"
+version = "0.4.0"
+source = "git+https://github.com/dentiny/open-arrow-sink?rev=321e58b36b5fdb8fc63499f509e0c49f93a89fdd#321e58b36b5fdb8fc63499f509e0c49f93a89fdd"
 dependencies = [
  "async-stream",
  "bytes",
+ "data-url",
  "futures",
  "http",
+ "httpdate",
  "object_store 0.14.2",
  "object_store_opendal",
  "open-arrow-sink-core",
@@ -4697,11 +4705,10 @@ dependencies = [
 [[package]]
 name = "opendal-core"
 version = "0.59.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33d5a635dfea36a7a0c3bbb2ca34c97af17f98dd69b0cdf31a1d436a346e0a12"
+source = "git+https://github.com/dentiny/opendal.git?rev=2bf4c9cd289f8881289910afcdc239a4192c4421#2bf4c9cd289f8881289910afcdc239a4192c4421"
 dependencies = [
  "anyhow",
- "asyncband",
+ "asyncband 0.8.0",
  "base64 0.23.1",
  "bytes",
  "futures",
@@ -4748,8 +4755,7 @@ dependencies = [
 [[package]]
 name = "opendal-layer-retry"
 version = "0.59.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a02c59479b047878f4a0f269f23c847f24d67d1ff19f2b20fdd5a3bceefd451"
+source = "git+https://github.com/dentiny/opendal.git?rev=2bf4c9cd289f8881289910afcdc239a4192c4421#2bf4c9cd289f8881289910afcdc239a4192c4421"
 dependencies = [
  "backon",
  "log",
@@ -4786,7 +4792,7 @@ version = "0.59.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32c1a4076d933180b66b57a0f305e48f2de1a72b50648114cb9943a8bc9e28b8"
 dependencies = [
- "asyncband",
+ "asyncband 0.7.4",
  "bytes",
  "hf-xet",
  "http",
@@ -5528,7 +5534,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85fed85c436b6b920e4b36310f699a77771a91e38ae483df48447bd7d162671c"
 dependencies = [
  "anyhow",
- "asyncband",
+ "asyncband 0.7.4",
  "base64 0.23.1",
  "bytes",
  "hex",

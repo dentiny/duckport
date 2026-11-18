@@ -6,7 +6,6 @@ use crate::{
     security::ScopedHttpCredentials,
     utils, validation,
 };
-use futures::TryStreamExt;
 use http::{Request, Response};
 use open_arrow_sink_core::{Error, async_trait};
 use open_arrow_sink_storage::{
@@ -222,48 +221,14 @@ impl Downloader for SourceDownloader {
         crate::validation::validate_uri(&url).map_err(Error::Backend)?;
         // Explicit source secrets always win, even when the source shares a
         // namespace with the destination. Never consult context.primary here.
-        let (operator, path) = if let Some(config) = select_source(&self.sources, source) {
-            crate::storage::operator(source, config).map_err(Error::Backend)?
+        let storage = if let Some(config) = select_source(&self.sources, source) {
+            let (operator, _) = crate::storage::operator(source, config).map_err(Error::Backend)?;
+            open_arrow_sink_storage::Storage::for_url(operator, &url)?
         } else {
-            // Preserve independent native/environment source resolution, without
-            // accidentally reusing the destination's scoped operator.
-            let storage = open_arrow_sink_storage::Storage::from_url(&url)?
-                .with_config(self.policy.clone())?;
-            (storage.operator(), storage.path(&url)?.as_str().to_owned())
+            open_arrow_sink_storage::Storage::from_url(&url)?.with_config(self.policy.clone())?
         };
-        stream_operator(operator, path, context).await
+        self.fallback
+            .open(source, context.with_source_storage(storage))
+            .await
     }
-}
-async fn stream_operator(
-    operator: opendal::Operator,
-    path: String,
-    context: DownloadContext,
-) -> open_arrow_sink_core::Result<DownloadStream> {
-    let transport = context
-        .http_requests()
-        .wrap(operator.base_context().http_transport().clone());
-    let operator_context = operator.base_context().with_http_transport(transport);
-    let operator = operator.with_context(operator_context);
-    let reader = operator
-        .reader(&path)
-        .await
-        .map_err(Error::backend)?
-        .into_stream(..)
-        .await
-        .map_err(Error::backend)?;
-    let chunk_bytes = context.chunk_bytes();
-    let chunks = reader
-        .map_err(Error::backend)
-        .map_ok(move |buffer| {
-            futures::stream::try_unfold(buffer, move |mut buffer| async move {
-                if buffer.is_empty() {
-                    return Ok::<_, Error>(None);
-                }
-                let size = chunk_bytes.min(buffer.len());
-                let chunk = open_arrow_access::Bytes::from(buffer.split_to(size).to_vec());
-                Ok(Some((chunk, buffer)))
-            })
-        })
-        .try_flatten();
-    Ok(Box::pin(chunks))
 }
