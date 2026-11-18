@@ -66,10 +66,14 @@ async fn load_or_create_table(
     catalog: &dyn Catalog,
     identifier: &TableIdent,
     schema: &Schema,
-    create: bool,
+    mode: WriteMode,
 ) -> Result<iceberg::table::Table> {
-    if !create {
-        return Ok(catalog.load_table(identifier).await?);
+    match mode {
+        WriteMode::Create => {}
+        WriteMode::Append => return Ok(catalog.load_table(identifier).await?),
+        WriteMode::Overwrite => {
+            return Err("Iceberg COPY supports create or APPEND; overwrite is unsupported".into());
+        }
     }
     let iceberg_schema = iceberg::arrow::arrow_schema_to_schema_auto_assign_ids(schema)?;
     // Check the round trip before mutating the catalog (e.g. generated columns).
@@ -96,11 +100,11 @@ pub(crate) async fn open_catalog(
 ) -> Result<DuckportSink> {
     // DuckPort owns table creation; the sink backend writes the resulting table
     // through its append-only transaction API.
-    let create = options.mode == WriteMode::Create;
+    let mode = options.mode;
     let options = options.with_mode(WriteMode::Append);
     let sink = IcebergTableSink::new(catalog.clone());
     open_arrow_sink_core::validation::validate_options(&schema, &options, sink.capability())?;
-    let table = load_or_create_table(catalog.as_ref(), &identifier, &schema, create).await?;
+    let table = load_or_create_table(catalog.as_ref(), &identifier, &schema, mode).await?;
     validation::validate_iceberg_table(&table)?;
     let output_schema = Arc::new(iceberg::arrow::schema_to_arrow_schema(
         table.metadata().current_schema(),
