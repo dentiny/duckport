@@ -22,58 +22,60 @@ void CheckAccess(ClientContext &context) {
 		throw PermissionException("DuckPort requires enable_external_access");
 	}
 }
-unique_ptr<FunctionData> BindReader(ClientContext &context, TableFunctionBindInput &input, vector<LogicalType> &types,
-                                    vector<Identifier> &names) {
-	CheckAccess(context);
-	auto scan = ReadScanOptions(input);
-	const auto &info = input.info->Cast<ReaderInfo>();
-	string path;
+vector<string> ReadFileSelections(const Value &value) {
+	if (value.IsNull()) {
+		throw BinderException("DuckPort arguments cannot be NULL");
+	}
+	if (value.type().id() != LogicalTypeId::LIST) {
+		return {ReadSourceString(value)};
+	}
+	vector<string> selections;
+	for (const auto &entry : ListValue::GetChildren(value)) {
+		selections.push_back(ReadSourceString(entry));
+	}
+	if (selections.empty()) {
+		throw BinderException("file list cannot be empty");
+	}
+	return selections;
+}
+vector<string> ResolveFiles(ClientContext &context, const vector<string> &selections, const string &format) {
 	vector<string> files;
+	for (const auto &selection : selections) {
+		DuckportFileList *root_raw = nullptr;
+		CheckError(duckport_file_discovery_root(selection.c_str(), &root_raw));
+		FileListPtr root(root_raw, duckport_file_list_destroy);
+		StorageParameters discovery(context, duckport_file_list_get(root.get(), 0), {});
+		DuckportFileList *raw = nullptr;
+		CheckError(duckport_resolve_files(selection.c_str(), format.c_str(), discovery.config, &raw));
+		FileListPtr matches(raw, duckport_file_list_destroy);
+		for (idx_t i = 0; i < duckport_file_list_count(matches.get()); i++) {
+			files.emplace_back(duckport_file_list_get(matches.get(), i));
+		}
+	}
+	return files;
+}
+SourcePtr OpenReaderSource(ClientContext &context, const TableFunctionBindInput &input, const ReaderInfo &info,
+                           DuckportScanOptions scan) {
+	auto files = info.format.empty() ? vector<string> {ReadSourceString(input.inputs[0])}
+	                                 : ResolveFiles(context, ReadFileSelections(input.inputs[0]), info.format);
+	// Keep file strings and credential snapshots alive until the FFI open copies them.
 	vector<unique_ptr<StorageParameters>> storage;
 	vector<DuckportSelectedFile> selected;
-	if (info.format.empty()) {
-		path = ReadSourceString(input.inputs[0]);
-	} else {
-		vector<string> selections;
-		if (input.inputs[0].IsNull()) {
-			throw BinderException("DuckPort arguments cannot be NULL");
-		}
-		if (input.inputs[0].type().id() == LogicalTypeId::LIST) {
-			for (const auto &entry : ListValue::GetChildren(input.inputs[0])) {
-				selections.push_back(ReadSourceString(entry));
-			}
-		} else {
-			selections.push_back(ReadSourceString(input.inputs[0]));
-		}
-		if (selections.empty()) {
-			throw BinderException("file list cannot be empty");
-		}
-		for (const auto &selection : selections) {
-			DuckportFileList *root_raw = nullptr;
-			CheckError(duckport_file_discovery_root(selection.c_str(), &root_raw));
-			FileListPtr root(root_raw, duckport_file_list_destroy);
-			StorageParameters discovery(context, duckport_file_list_get(root.get(), 0), {});
-			DuckportFileList *raw = nullptr;
-			CheckError(duckport_resolve_files(selection.c_str(), info.format.c_str(), discovery.config, &raw));
-			unique_ptr<DuckportFileList, decltype(&duckport_file_list_destroy)> matches(raw,
-			                                                                            duckport_file_list_destroy);
-			for (idx_t i = 0; i < duckport_file_list_count(matches.get()); i++) {
-				files.emplace_back(duckport_file_list_get(matches.get(), i));
-			}
-		}
-		path = files[0];
+	if (files.size() > 1) {
 		for (const auto &file : files) {
 			storage.push_back(make_uniq<StorageParameters>(context, file, string()));
 			selected.push_back({file.c_str(), storage.back()->config});
 		}
-		if (files.size() > 1) {
-			scan.files = selected.data();
-			scan.file_count = selected.size();
-		}
+		scan.files = selected.data();
+		scan.file_count = selected.size();
 	}
 	DuckportSource *raw = nullptr;
-	CheckError(info.open(context, path, scan, input, &raw));
-	auto factory = make_shared_ptr<SourceFactory>(SourcePtr(raw, duckport_source_destroy));
+	CheckError(info.open(context, files[0], scan, input, &raw));
+	return SourcePtr(raw, duckport_source_destroy);
+}
+unique_ptr<FunctionData> BindArrowSource(ClientContext &context, SourcePtr source, vector<LogicalType> &types,
+                                         vector<Identifier> &names) {
+	auto factory = make_shared_ptr<SourceFactory>(std::move(source));
 	auto result = make_uniq<ArrowScanFunctionData>(std::move(factory));
 	result->factory->GetSchema(result->schema_root.arrow_schema);
 	ArrowTableFunction::PopulateArrowTableSchema(context, result->arrow_table, result->schema_root.arrow_schema);
@@ -86,6 +88,13 @@ unique_ptr<FunctionData> BindReader(ClientContext &context, TableFunctionBindInp
 	result->all_types = types;
 	result->projection_pushdown_enabled = true;
 	return std::move(result);
+}
+unique_ptr<FunctionData> BindReader(ClientContext &context, TableFunctionBindInput &input, vector<LogicalType> &types,
+                                    vector<Identifier> &names) {
+	CheckAccess(context);
+	const auto &info = input.info->Cast<ReaderInfo>();
+	auto source = OpenReaderSource(context, input, info, ReadScanOptions(input));
+	return BindArrowSource(context, std::move(source), types, names);
 }
 unique_ptr<GlobalTableFunctionState> InitReader(ClientContext &context, TableFunctionInitInput &input) {
 	CheckAccess(context);
