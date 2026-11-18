@@ -40,7 +40,8 @@ pub unsafe extern "C" fn duckport_dataverse_open(
             "version is required",
         )?;
         let attachment_options = crate::utils::attachment_options(&format, record_path.as_deref())?;
-        let service = DataverseService::new(&endpoint)?;
+        let service =
+            DataverseService::new(&endpoint)?.with_http_config(storage_options.policy.config()?)?;
         let service = if let Some(token) = storage_options.token {
             service.with_bearer_token(&token)?
         } else {

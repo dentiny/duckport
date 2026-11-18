@@ -75,7 +75,10 @@ fn remote_operator(
         }
         opendal::Operator::new(builder)?
     };
-    Ok((observe(operator, config), path))
+    Ok((
+        observe(config.policy.config()?.apply(operator)?, config),
+        path,
+    ))
 }
 
 pub(crate) fn is_local(locator: &str) -> bool {

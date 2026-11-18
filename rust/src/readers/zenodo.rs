@@ -35,7 +35,8 @@ pub unsafe extern "C" fn duckport_zenodo_open(
         let endpoint = unsafe { optional_string(reader_options.endpoint) }?
             .unwrap_or_else(|| "https://zenodo.org".into());
         let attachment_options = crate::utils::attachment_options(&format, record_path.as_deref())?;
-        let mut service = ZenodoService::with_endpoint(&endpoint)?;
+        let mut service = ZenodoService::with_endpoint(&endpoint)?
+            .with_http_config(storage_options.policy.config()?)?;
         if let Some(token) = storage_options.token.as_deref() {
             service = service.with_token(token)?;
         }

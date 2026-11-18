@@ -36,7 +36,8 @@ pub unsafe extern "C" fn duckport_library_of_congress_open(
         let endpoint = unsafe { optional_string(reader_options.endpoint) }?
             .unwrap_or_else(|| "https://www.loc.gov".into());
         let attachment_options = crate::utils::attachment_options(&format, record_path.as_deref())?;
-        let connection = Connection::new(&endpoint)?;
+        let connection =
+            Connection::new(&endpoint)?.with_http_config(storage_options.policy.config()?)?;
         let connection = if let Some(token) = storage_options.token {
             connection.with_header("authorization", &format!("Bearer {token}"))?
         } else {
@@ -44,7 +45,8 @@ pub unsafe extern "C" fn duckport_library_of_congress_open(
         };
         let files = LibraryOfCongressService::with_connections(
             connection,
-            Connection::new("https://tile.loc.gov")?,
+            Connection::new("https://tile.loc.gov")?
+                .with_http_config(storage_options.policy.config()?)?,
         )
         .resource(&locator)
         .await?;

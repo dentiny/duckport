@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">
+  <ListRecords>
+    <record><header status="deleted"><identifier>id1</identifier><datestamp>2026-01-01</datestamp></header></record>
+    <record>
+      <header><identifier>id2</identifier><datestamp>2026-01-02</datestamp><setSpec>cs</setSpec></header>
+      <metadata><arXivRaw xmlns="http://arxiv.org/OAI/arXivRaw/"><id>2601.00002</id><title>Example arXiv title</title><license>http://arxiv.org/licenses/nonexclusive-distrib/1.0/</license></arXivRaw></metadata>
+    </record>
+    <resumptionToken>next+token&amp;x</resumptionToken>
+  </ListRecords>
+</OAI-PMH>

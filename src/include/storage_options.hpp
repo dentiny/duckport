@@ -5,6 +5,9 @@
 
 namespace duckdb {
 class ClientContext;
+class ExtensionLoader;
+
+void RegisterStorageSettings(ExtensionLoader &loader);
 
 class StorageParameters {
   public:

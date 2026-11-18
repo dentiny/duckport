@@ -1,6 +1,6 @@
 # DuckPort
 
-Read file formats and dataset service providers into DuckDB through [open-arrow-access 0.3.1](https://crates.io/crates/open-arrow-access/0.3.1).
+Read file formats and dataset service providers into DuckDB through [open-arrow-access 0.7.0](https://crates.io/crates/open-arrow-access/0.7.0).
 
 ## Build
 
@@ -40,6 +40,42 @@ and predicate pushdown are not enabled. Projection savings depend on the format:
 Parquet can skip unselected column data, while WARC must still parse and consume
 record bodies even when they are omitted from Arrow output. Schema binding may
 still inspect unselected fields.
+
+## Storage timeouts and retries
+
+The current connection's settings are copied when a reader or COPY writer opens.
+Remote HTTP(S)/S3 file readers and all three sinks' S3 destination operations
+share this policy, including provider-owned directory reads (arXiv, Common Crawl,
+PMC inventory). Provider HTTP metadata and attachment requests, including Hugging
+Face discovery and Parquet reads, use the same policy through the upstream HTTP
+transport. Auxiliary provider connections also inherit it.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `conversion_storage_timeout_ms` | `30000` | Control operation timeout per attempt, such as `stat`; provider HTTP request timeout |
+| `conversion_storage_io_timeout_ms` | `30000` | Timeout per I/O operation and reader/writer body method |
+| `conversion_storage_retry_max_times` | `5` | Retries after the initial attempt; `0` disables retries |
+| `conversion_storage_retry_min_delay_ms` | `500` | Initial exponential backoff |
+| `conversion_storage_retry_max_delay_ms` | `10000` | Maximum exponential backoff before jitter |
+| `conversion_storage_retry_factor` | `2.0` | Backoff multiplier, finite and between `1` and `f32::MAX` |
+
+```sql
+SET conversion_storage_timeout_ms = 30000;
+SET conversion_storage_io_timeout_ms = 30000;
+SET conversion_storage_retry_max_times = 5;
+SET conversion_storage_retry_min_delay_ms = 500;
+SET conversion_storage_retry_max_delay_ms = 10000;
+SET conversion_storage_retry_factor = 2.0;
+```
+
+Timeouts and delays must be positive; the maximum delay must be at least the
+minimum delay when opening a reader or writer. `RESET` restores each default.
+Timeouts apply to each attempt, rather than to the entire query. OpenDAL retries
+temporary errors with exponential backoff and jitter, with timeout inside retry.
+Provider HTTP transports apply retry safety rules and do not replay a response
+body after bytes have been delivered. Local filesystem operations, Iceberg REST
+catalog requests, and backend-owned `BLOB_COLUMNS` URL downloads retain their
+library defaults. Other DuckDB extensions use their own settings.
 
 ## Write
 
@@ -165,7 +201,9 @@ CSV/TSV expect headers. Text formats support outer compression. Binary mode buff
 the selected attachment into one BLOB; use a record format for large tabular files.
 `endpoint` defaults to `https://api.figshare.com`. No discovery pagination or whole-dataset download
 is implied. Unknown file names fail through the provider accessor.
-Scoped HTTP bearer tokens are used where the upstream service supports connection headers.
+A scoped HTTP secret stores the Figshare token in `BEARER_TOKEN`; DuckPort sends
+`Authorization: token <value>` as required by the Figshare API. Tokens stay on
+the API origin and are not forwarded to cross-origin attachment hosts.
 All reader options above are VARCHAR; `batch_size` remains BIGINT.
 
 ### InternetArchive
@@ -413,3 +451,24 @@ retain that prefix. `endpoint` defaults to `https://library.oapen.org`.
 To obtain the next resumption token, scan the envelope with
 `record_path := '/oai:OAI-PMH/oai:ListRecords'` and select `"oai:resumptionToken"`.
 Automatic pagination is not enabled. Scoped HTTP bearer tokens are supported.
+
+### arXiv metadata
+
+```sql
+SELECT * FROM duckport_scan_arxiv_metadata('records', from_date := '2026-01-01',
+    until_date := '2026-01-31', set_spec := 'cs');
+-- Pass the upstream resumption token as the locator to read the next page.
+```
+
+Reads one arXiv OAI-PMH metadata page using the upstream `arXivRaw` prefix.
+The `from_date`, `until_date`, `set_spec`, `endpoint`, and `record_path` options
+match the DOAB/OAPEN metadata readers; the default endpoint is
+`https://oaipmh.arxiv.org`. The inferred XML records preserve deleted headers
+and nested metadata. Set `record_path := '/oai:OAI-PMH/oai:ListRecords'` to
+read the envelope and its `"oai:resumptionToken"` for explicit continuation.
+A continuation token cannot be combined with date/set selectors.
+Public metadata needs no key; scoped HTTP bearer secrets are supported for
+custom endpoints. `duckport_scan_arxiv` continues to read bulk TAR members.
+Empty pages, including `noRecordsMatch`, bind with the standard OAI header columns
+`identifier`, `datestamp`, `status`, and `set_specs` and return zero rows. An explicit
+`record_path` continues to select the requested XML envelope.

@@ -1,6 +1,7 @@
 #define DUCKDB_EXTENSION_MAIN
 #include "duckport_extension.hpp"
 #include "sink/copy.hpp"
+#include "storage_options.hpp"
 #include "readers/commoncrawl.h"
 #include "readers/json.h"
 #include "readers/warc.h"
@@ -8,6 +9,7 @@
 #include "source/readers/oapen.hpp"
 #include "source/readers/doab.hpp"
 #include "source/readers/arxiv.hpp"
+#include "source/readers/arxiv_metadata.hpp"
 #include "readers/meca.h"
 #include "source/readers/courtlistener.hpp"
 #include "source/readers/biorxiv.hpp"
@@ -34,6 +36,7 @@
 namespace duckdb {
 namespace {
 void LoadInternal(ExtensionLoader &loader) {
+	RegisterStorageSettings(loader);
 	RegisterCopyFunctions(loader);
 	RegisterReader(loader, "duckport_scan_oapen", OpenOapen, [](TypedKwargs &options) {
 		options.Add("endpoint", LogicalType::VARCHAR);
@@ -43,6 +46,13 @@ void LoadInternal(ExtensionLoader &loader) {
 		options.Add("record_path", LogicalType::VARCHAR);
 	});
 	RegisterReader(loader, "duckport_scan_doab", OpenDoab, [](TypedKwargs &options) {
+		options.Add("endpoint", LogicalType::VARCHAR);
+		options.Add("from_date", LogicalType::VARCHAR);
+		options.Add("until_date", LogicalType::VARCHAR);
+		options.Add("set_spec", LogicalType::VARCHAR);
+		options.Add("record_path", LogicalType::VARCHAR);
+	});
+	RegisterReader(loader, "duckport_scan_arxiv_metadata", OpenArxivMetadata, [](TypedKwargs &options) {
 		options.Add("endpoint", LogicalType::VARCHAR);
 		options.Add("from_date", LogicalType::VARCHAR);
 		options.Add("until_date", LogicalType::VARCHAR);

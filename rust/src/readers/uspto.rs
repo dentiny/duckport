@@ -42,7 +42,8 @@ pub unsafe extern "C" fn duckport_uspto_open(
         let page_size =
             unsafe { optional_string(reader_options.page_size) }?.unwrap_or_else(|| "100".into());
         let attachment_options = crate::utils::attachment_options(&format, record_path.as_deref())?;
-        let connection = Connection::new(&endpoint)?;
+        let connection =
+            Connection::new(&endpoint)?.with_http_config(storage_options.policy.config()?)?;
         let token = crate::validation::nonempty(
             storage_options.token,
             "a scoped HTTP bearer_token secret is required for this service",

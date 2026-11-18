@@ -2036,7 +2036,6 @@ dependencies = [
  "csv-async",
  "futures",
  "iceberg-catalog-rest",
- "lance",
  "open-arrow-access",
  "open-arrow-sink-core",
  "open-arrow-sink-iceberg",
@@ -2046,7 +2045,6 @@ dependencies = [
  "open-arrow-sink-storage",
  "opendal",
  "percent-encoding",
- "tempfile",
  "tokio",
  "url",
 ]
@@ -4421,8 +4419,9 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 
 [[package]]
 name = "open-arrow-access"
-version = "0.5.0"
-source = "git+https://github.com/dentiny/open-arrow-access?rev=b93d93b9a12ae97da1c9b12fffeef1ec865108af#b93d93b9a12ae97da1c9b12fffeef1ec865108af"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c36452bb75e7a8270bca16243aeb330ccaaee48016b2640226174c78d5ee84b9"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -4438,8 +4437,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-core"
-version = "0.5.0"
-source = "git+https://github.com/dentiny/open-arrow-access?rev=b93d93b9a12ae97da1c9b12fffeef1ec865108af#b93d93b9a12ae97da1c9b12fffeef1ec865108af"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ef603b41cf5d2e16e059d8b62b360b62ec481423a341bcbf2f2c4bf11e00ddd"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -4452,20 +4452,26 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-dataset"
-version = "0.5.0"
-source = "git+https://github.com/dentiny/open-arrow-access?rev=b93d93b9a12ae97da1c9b12fffeef1ec865108af#b93d93b9a12ae97da1c9b12fffeef1ec865108af"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd75d1b29d4df8e308681f569207f7f9672fd109ce86867cb8154dfad1c324ee"
 dependencies = [
  "arrow-array",
  "arrow-schema",
  "futures",
  "glob",
  "open-arrow-access-core",
+ "open-arrow-access-decompression",
+ "open-arrow-access-file-format",
+ "percent-encoding",
+ "url",
 ]
 
 [[package]]
 name = "open-arrow-access-decompression"
-version = "0.5.0"
-source = "git+https://github.com/dentiny/open-arrow-access?rev=b93d93b9a12ae97da1c9b12fffeef1ec865108af#b93d93b9a12ae97da1c9b12fffeef1ec865108af"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "55df986f12d01818fdeb37188959eae813361e347a8f8f1ac4bf50dd96ea3085"
 dependencies = [
  "async-compression",
  "async_zip",
@@ -4476,8 +4482,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-file-format"
-version = "0.5.0"
-source = "git+https://github.com/dentiny/open-arrow-access?rev=b93d93b9a12ae97da1c9b12fffeef1ec865108af#b93d93b9a12ae97da1c9b12fffeef1ec865108af"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4bf780fb7b089798fb2190ccd80c8ecd9bda02236fd1f9c5fb93e359bc8ef16e"
 dependencies = [
  "arrow-array",
  "arrow-csv",
@@ -4500,8 +4507,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-layers"
-version = "0.5.0"
-source = "git+https://github.com/dentiny/open-arrow-access?rev=b93d93b9a12ae97da1c9b12fffeef1ec865108af#b93d93b9a12ae97da1c9b12fffeef1ec865108af"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e54e56c94b6a3caf3a89d49f7e02eb35f51d2d6d52bc2f4d4889cb2fe7a9d97"
 dependencies = [
  "arrow-array",
  "arrow-cast",
@@ -4516,8 +4524,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-service"
-version = "0.5.0"
-source = "git+https://github.com/dentiny/open-arrow-access?rev=b93d93b9a12ae97da1c9b12fffeef1ec865108af#b93d93b9a12ae97da1c9b12fffeef1ec865108af"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09ee8933a1051dddc453da7968e7d918f0f8f000535263fa6b46c9fed6638b6e"
 dependencies = [
  "arrow-array",
  "arrow-json",
@@ -4546,11 +4555,13 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-storage"
-version = "0.5.0"
-source = "git+https://github.com/dentiny/open-arrow-access?rev=b93d93b9a12ae97da1c9b12fffeef1ec865108af#b93d93b9a12ae97da1c9b12fffeef1ec865108af"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "609fe4dba4cb0f34c69bd95fe4d4887e67f721cf02094577453fec40d7b20d7c"
 dependencies = [
  "futures",
  "http",
+ "httpdate",
  "indexmap 2.14.2",
  "open-arrow-access-core",
  "opendal",

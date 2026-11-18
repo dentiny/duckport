@@ -1,3 +1,4 @@
+#include "source_metadata.hpp"
 #include "sink/copy.hpp"
 #include "duckdb/catalog/catalog.hpp"
 #include "duckdb/catalog/catalog_entry/copy_function_catalog_entry.hpp"
@@ -335,6 +336,7 @@ unique_ptr<GlobalFunctionData> InitCopy(ClientContext &context, FunctionData &da
 	state->properties = context.GetClientProperties();
 	ArrowSchemaWrapper schema;
 	ArrowConverter::ToArrowSchema(&schema.arrow_schema, bind.types, bind.names, state->properties);
+	ExportSourceMetadata(bind.types, schema.arrow_schema);
 	for (idx_t column = 0; column < bind.generated_expressions.size(); column++) {
 		if (bind.generated_expressions[column].empty()) {
 			continue;
