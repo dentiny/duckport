@@ -4587,7 +4587,7 @@ dependencies = [
 [[package]]
 name = "open-arrow-sink-core"
 version = "0.4.0"
-source = "git+https://github.com/dentiny/open-arrow-sink?rev=d5e7391d4a64957c58715e86f72f6215473dad21#d5e7391d4a64957c58715e86f72f6215473dad21"
+source = "git+https://github.com/dentiny/open-arrow-sink?rev=321e58b36b5fdb8fc63499f509e0c49f93a89fdd#321e58b36b5fdb8fc63499f509e0c49f93a89fdd"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -4600,7 +4600,7 @@ dependencies = [
 [[package]]
 name = "open-arrow-sink-iceberg"
 version = "0.4.0"
-source = "git+https://github.com/dentiny/open-arrow-sink?rev=d5e7391d4a64957c58715e86f72f6215473dad21#d5e7391d4a64957c58715e86f72f6215473dad21"
+source = "git+https://github.com/dentiny/open-arrow-sink?rev=321e58b36b5fdb8fc63499f509e0c49f93a89fdd#321e58b36b5fdb8fc63499f509e0c49f93a89fdd"
 dependencies = [
  "bytes",
  "futures",
@@ -4615,7 +4615,7 @@ dependencies = [
 [[package]]
 name = "open-arrow-sink-lance"
 version = "0.4.0"
-source = "git+https://github.com/dentiny/open-arrow-sink?rev=d5e7391d4a64957c58715e86f72f6215473dad21#d5e7391d4a64957c58715e86f72f6215473dad21"
+source = "git+https://github.com/dentiny/open-arrow-sink?rev=321e58b36b5fdb8fc63499f509e0c49f93a89fdd#321e58b36b5fdb8fc63499f509e0c49f93a89fdd"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -4642,7 +4642,7 @@ dependencies = [
 [[package]]
 name = "open-arrow-sink-layer"
 version = "0.4.0"
-source = "git+https://github.com/dentiny/open-arrow-sink?rev=d5e7391d4a64957c58715e86f72f6215473dad21#d5e7391d4a64957c58715e86f72f6215473dad21"
+source = "git+https://github.com/dentiny/open-arrow-sink?rev=321e58b36b5fdb8fc63499f509e0c49f93a89fdd#321e58b36b5fdb8fc63499f509e0c49f93a89fdd"
 dependencies = [
  "arrow-array",
  "arrow-cast",
@@ -4655,7 +4655,7 @@ dependencies = [
 [[package]]
 name = "open-arrow-sink-parquet"
 version = "0.4.0"
-source = "git+https://github.com/dentiny/open-arrow-sink?rev=d5e7391d4a64957c58715e86f72f6215473dad21#d5e7391d4a64957c58715e86f72f6215473dad21"
+source = "git+https://github.com/dentiny/open-arrow-sink?rev=321e58b36b5fdb8fc63499f509e0c49f93a89fdd#321e58b36b5fdb8fc63499f509e0c49f93a89fdd"
 dependencies = [
  "bytes",
  "futures",
@@ -4668,7 +4668,7 @@ dependencies = [
 [[package]]
 name = "open-arrow-sink-storage"
 version = "0.4.0"
-source = "git+https://github.com/dentiny/open-arrow-sink?rev=d5e7391d4a64957c58715e86f72f6215473dad21#d5e7391d4a64957c58715e86f72f6215473dad21"
+source = "git+https://github.com/dentiny/open-arrow-sink?rev=321e58b36b5fdb8fc63499f509e0c49f93a89fdd#321e58b36b5fdb8fc63499f509e0c49f93a89fdd"
 dependencies = [
  "async-stream",
  "bytes",

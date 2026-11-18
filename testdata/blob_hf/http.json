@@ -1,0 +1,41 @@
+{
+  "routes": [
+    {
+      "path": "/api/datasets/owner/private-a/paths-info/main",
+      "file": "info.json",
+      "auth_header": "Authorization",
+      "auth_value": "Bearer hf-a"
+    },
+    {
+      "path": "/datasets/owner/private-a/resolve/main/blob.bin",
+      "file": "payload.bin",
+      "auth_header": "Authorization",
+      "auth_value": "Bearer hf-a"
+    },
+    {
+      "path": "/api/datasets/owner/private-b/paths-info/main",
+      "file": "info.json",
+      "auth_header": "Authorization",
+      "auth_value": "Bearer hf-b"
+    },
+    {
+      "path": "/datasets/owner/private-b/resolve/main/blob.bin",
+      "file": "payload.bin",
+      "auth_header": "Authorization",
+      "auth_value": "Bearer hf-b"
+    },
+    {
+      "path": "/datasets/owner/private-a/resolve/main/redirect.bin",
+      "file": "payload.bin",
+      "auth_header": "Authorization",
+      "auth_value": "Bearer hf-a",
+      "redirect": "ORIGIN/cdn.bin"
+    }
+  ],
+  "downloads": [
+    {
+      "path": "/cdn.bin",
+      "file": "payload.bin"
+    }
+  ]
+}

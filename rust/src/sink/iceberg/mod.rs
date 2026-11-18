@@ -20,6 +20,7 @@ pub(crate) async fn open(
     identifier: &str,
     schema: SchemaRef,
     catalog_uri: &str,
+    catalog_security: &crate::security::SecurityConfig,
     warehouse: &str,
     storage_root: &str,
     config: &StorageConfig,
@@ -36,12 +37,15 @@ pub(crate) async fn open(
     let metrics = open_arrow_sink_core::IoMetrics::default();
     let storage = storage::sink_storage_from_root(root, config)?.with_io_metrics(metrics.clone());
     let factory = OpenDalStorageFactory::new(storage);
-    let mut props = HashMap::from([(REST_CATALOG_PROP_URI.into(), uri.to_string())]);
+    let mut props = HashMap::from([(
+        REST_CATALOG_PROP_URI.into(),
+        uri.as_str().trim_end_matches('/').to_owned(),
+    )]);
     if !warehouse.is_empty() {
         props.insert(REST_CATALOG_PROP_WAREHOUSE.into(), warehouse.into());
     }
-    if let Ok(token) = std::env::var("DUCKPORT_ICEBERG_TOKEN") {
-        props.insert("token".into(), token);
+    if let Some(token) = validation::iceberg_catalog_token(catalog_security)? {
+        props.insert("token".into(), token.to_owned());
     }
     let catalog = RestCatalogBuilder::default()
         .with_storage_factory(Arc::new(factory))

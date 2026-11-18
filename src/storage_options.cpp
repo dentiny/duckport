@@ -121,7 +121,7 @@ StorageParameters::StorageParameters(ClientContext &context, const string &locat
 		                                                                                                           : 0;
 	} else if (StringUtil::StartsWith(locator, "http://") || StringUtil::StartsWith(locator, "https://")) {
 		// Preserve every HTTP scope for credential selection on each redirect hop.
-		http_sources_view = make_uniq<SourceSecretsFfiView>(CaptureBlobSecrets(context));
+		http_sources_view = make_uniq<SourceSecretsFfiView>(CaptureBlobSecrets(context, "http"));
 		http_sources_view->BindHttp(config);
 		KeyValueSecretReader reader(opener, &info, "http");
 		security = ReadHttpSecurity(reader);

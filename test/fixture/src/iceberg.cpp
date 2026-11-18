@@ -47,7 +47,7 @@ void Put(yyjson_mut_doc *doc, yyjson_mut_val *object, const char *key, yyjson_mu
 
 class IcebergFixture {
 public:
-	explicit IcebergFixture(const string &root) : metadata(nullptr, yyjson_mut_doc_free) {
+	explicit IcebergFixture(const string &root, bool authenticated = false) : metadata(nullptr, yyjson_mut_doc_free) {
 		std::ifstream seed(string(DUCKPORT_TESTDATA_DIR) + "/iceberg/table.metadata.json");
 		if (!seed) {
 			throw IOException("Cannot open Iceberg metadata fixture");
@@ -63,6 +63,14 @@ public:
 		Put(metadata.get(), response, "metadata-location", yyjson_mut_strcpy(metadata.get(), metadata_file.c_str()));
 		yyjson_mut_doc_set_root(metadata.get(), response);
 		Publish(metadata.get());
+        server.set_pre_routing_handler([authenticated](const duckdb_httplib::Request &req, duckdb_httplib::Response &res) {
+            if (authenticated && req.get_header_value("Authorization") != "Bearer fixture-catalog-key") {
+                res.status = 401;
+                res.set_content("catalog token required", "text/plain");
+                return duckdb_httplib::Server::HandlerResponse::Handled;
+            }
+            return duckdb_httplib::Server::HandlerResponse::Unhandled;
+        });
 		server.Get("/v1/config", [](const duckdb_httplib::Request &, duckdb_httplib::Response &res) {
 			res.set_content(R"({"defaults":{},"overrides":{}})", "application/json");
 		});
@@ -163,12 +171,12 @@ string FixtureCommand(const string &root, const string &command) {
 		fixtures.erase(root);
 		return "stopped";
 	}
-	if (command != "start") {
+	if (command != "start" && command != "start_authenticated") {
 		throw InvalidInputException("Unknown Iceberg fixture command: %s", command);
 	}
 	auto &fixture = fixtures[root];
 	if (!fixture) {
-		fixture = make_uniq<IcebergFixture>(root);
+		fixture = make_uniq<IcebergFixture>(root, command == "start_authenticated");
 	}
 	return fixture->Endpoint();
 }

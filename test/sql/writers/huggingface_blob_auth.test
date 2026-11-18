@@ -1,0 +1,74 @@
+# name: test/sql/writers/huggingface_blob_auth.test
+# description: hf:// Blob sources resolve scoped Hugging Face tokens
+# group: [sql]
+
+require duckport
+
+require duckport_test_fixture
+
+require httpfs
+
+statement ok
+SELECT duckport_fixture('blob_hf', 'start_anonymous');
+
+statement ok
+CREATE SECRET hf_blob_wrong (TYPE huggingface, TOKEN 'wrong-token', SCOPE 'hf://datasets/');
+
+statement error
+COPY (SELECT 'hf://datasets/owner/private-a/blob.bin' AS payload)
+TO '{TEST_DIR}/wrong_hf_token.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('payload'));
+----
+DuckPort
+
+statement ok
+CREATE SECRET hf_blob_a (TYPE huggingface, TOKEN 'hf-a', SCOPE 'hf://datasets/owner/private-a');
+
+statement ok
+CREATE SECRET hf_blob_b (TYPE huggingface, TOKEN 'hf-b', SCOPE 'hf://datasets/owner/private-b');
+
+query I
+COPY (SELECT payload FROM (VALUES ('hf://datasets/owner/private-a/blob.bin'),
+    ('hf://datasets/owner/private-b@main/blob.bin'), ('hf://datasets/owner/private-a/redirect.bin')) t(payload))
+TO '{TEST_DIR}/private_hf.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('payload'));
+----
+3
+
+query T
+SELECT bool_and(NOT has_authorization AND NOT contains(headers, 'hf-a') AND NOT contains(target, 'hf-a'))
+FROM duckport_fixture_requests('blob_hf') WHERE origin = 'download';
+----
+true
+
+statement ok
+CREATE OR REPLACE SECRET hf_blob_a (TYPE huggingface, TOKEN '', SCOPE 'hf://datasets/owner/private-a');
+
+statement error
+COPY (SELECT 'hf://datasets/owner/private-a/blob.bin' AS payload)
+TO '{TEST_DIR}/empty_hf_token.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('payload'));
+----
+TOKEN must not be empty
+
+statement ok
+DROP SECRET hf_blob_a;
+
+statement ok
+DROP SECRET hf_blob_b;
+
+statement ok
+DROP SECRET hf_blob_wrong;
+
+query T
+SELECT duckport_fixture('blob_hf', 'stop');
+----
+stopped
+
+restart no_extension_load
+
+statement ok
+LOAD '{BUILD_DIRECTORY}/extension/lance/lance.duckdb_extension';
+
+query II
+SELECT count(*), count(*) FILTER (WHERE payload = (SELECT content FROM read_blob('testdata/blob_hf/payload.bin')))
+FROM '{TEST_DIR}/private_hf.lance';
+----
+3	3

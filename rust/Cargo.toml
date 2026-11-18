@@ -60,12 +60,12 @@ open-arrow-access = { version = "0.7.0", default-features = false, features = [
     "service-zenodo",
 ] }
 iceberg-catalog-rest = "0.11"
-open-arrow-sink-core = { git = "https://github.com/dentiny/open-arrow-sink", rev = "d5e7391d4a64957c58715e86f72f6215473dad21" }
-open-arrow-sink-iceberg = { git = "https://github.com/dentiny/open-arrow-sink", rev = "d5e7391d4a64957c58715e86f72f6215473dad21" }
-open-arrow-sink-lance = { git = "https://github.com/dentiny/open-arrow-sink", rev = "d5e7391d4a64957c58715e86f72f6215473dad21" }
-open-arrow-sink-layer = { git = "https://github.com/dentiny/open-arrow-sink", rev = "d5e7391d4a64957c58715e86f72f6215473dad21" }
-open-arrow-sink-parquet = { git = "https://github.com/dentiny/open-arrow-sink", rev = "d5e7391d4a64957c58715e86f72f6215473dad21" }
-open-arrow-sink-storage = { git = "https://github.com/dentiny/open-arrow-sink", rev = "d5e7391d4a64957c58715e86f72f6215473dad21" }
+open-arrow-sink-core = { git = "https://github.com/dentiny/open-arrow-sink", rev = "321e58b36b5fdb8fc63499f509e0c49f93a89fdd" }
+open-arrow-sink-iceberg = { git = "https://github.com/dentiny/open-arrow-sink", rev = "321e58b36b5fdb8fc63499f509e0c49f93a89fdd" }
+open-arrow-sink-lance = { git = "https://github.com/dentiny/open-arrow-sink", rev = "321e58b36b5fdb8fc63499f509e0c49f93a89fdd" }
+open-arrow-sink-layer = { git = "https://github.com/dentiny/open-arrow-sink", rev = "321e58b36b5fdb8fc63499f509e0c49f93a89fdd" }
+open-arrow-sink-parquet = { git = "https://github.com/dentiny/open-arrow-sink", rev = "321e58b36b5fdb8fc63499f509e0c49f93a89fdd" }
+open-arrow-sink-storage = { git = "https://github.com/dentiny/open-arrow-sink", rev = "321e58b36b5fdb8fc63499f509e0c49f93a89fdd" }
 opendal = { version = "0.59", default-features = false, features = [
     "auto-register-services",
     "http-transport-reqwest",
