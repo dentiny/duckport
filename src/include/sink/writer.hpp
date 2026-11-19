@@ -65,11 +65,19 @@ struct SinkWriteOptions {
 	string storage_version;
 	vector<ColumnEncodingOptions> column_encodings;
 	vector<IndexOptions> indexes;
+};
 
-	DuckportWriteOptions ToFfi(vector<DuckportColumnEncoding> &encodings,
-	                           vector<DuckportIndexOptions> &index_options) const {
-		encodings.reserve(column_encodings.size());
-		for (const auto &entry : column_encodings) {
+// Owns the ABI arrays and borrows strings from the plan-owned options, which
+// must outlive this view. The backend copies all inputs during synchronous open.
+class SinkWriteOptionsFfiView {
+public:
+	explicit SinkWriteOptionsFfiView(const SinkWriteOptions &options)
+	    : mode(options.mode == SinkWriteMode::APPEND      ? "append"
+	           : options.mode == SinkWriteMode::OVERWRITE ? "overwrite"
+	                                                      : "create"),
+	      config(options.write_options) {
+		encodings.reserve(options.column_encodings.size());
+		for (const auto &entry : options.column_encodings) {
 			encodings.push_back(DuckportColumnEncoding {
 			    .column = entry.column.c_str(),
 			    .compression = entry.compression.empty() ? nullptr : entry.compression.c_str(),
@@ -78,21 +86,35 @@ struct SinkWriteOptions {
 			    .structural_encoding = entry.structural_encoding.empty() ? nullptr : entry.structural_encoding.c_str(),
 			});
 		}
-		index_options.reserve(indexes.size());
-		for (const auto &entry : indexes) {
+		index_options.reserve(options.indexes.size());
+		for (const auto &entry : options.indexes) {
 			index_options.push_back(DuckportIndexOptions {
 			    .column = entry.column.c_str(),
 			    .option = entry.option.c_str(),
 			});
 		}
-		auto result = write_options;
-		result.indexes = index_options.data();
-		result.index_count = index_options.size();
-		result.column_encodings = encodings.data();
-		result.column_encoding_count = encodings.size();
-		result.storage_version = storage_version.empty() ? nullptr : storage_version.c_str();
-		return result;
+		config.indexes = index_options.data();
+		config.index_count = index_options.size();
+		config.column_encodings = encodings.data();
+		config.column_encoding_count = encodings.size();
+		config.storage_version = options.storage_version.empty() ? nullptr : options.storage_version.c_str();
 	}
+	SinkWriteOptionsFfiView(const SinkWriteOptionsFfiView &) = delete;
+	SinkWriteOptionsFfiView &operator=(const SinkWriteOptionsFfiView &) = delete;
+
+	const char *Mode() const {
+		return mode;
+	}
+	const DuckportWriteOptions &Get() const & {
+		return config;
+	}
+	const DuckportWriteOptions &Get() const && = delete;
+
+private:
+	const char *mode;
+	vector<DuckportColumnEncoding> encodings;
+	vector<DuckportIndexOptions> index_options;
+	DuckportWriteOptions config;
 };
 
 // Backend boundary for a single fixed-schema session. Implementations must not
