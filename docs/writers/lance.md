@@ -82,3 +82,33 @@ thresholds and storage version are Lance-specific.
 [generated columns](README.md#generated-columns),
 [column encoding](README.md#column-compression-and-encoding) and
 [indexes](README.md#copy-indexes) use the shared COPY interface.
+
+### Missing source Blobs
+
+```sql
+SET logging_storage = 'memory';
+SET logging_level = 'info';
+SET enable_logging = true;
+COPY (SELECT id, image_url FROM images)
+TO 'images.lance' (
+    FORMAT duckport_lance,
+    BLOB_COLUMNS ('image_url'),
+    BLOB_DOWNLOAD_FAILURE_POLICY 'skip_not_found'
+);
+SELECT message FROM duckdb_logs()
+WHERE message LIKE 'DuckPort COPY: rows_committed=%';
+```
+
+`BLOB_DOWNLOAD_FAILURE_POLICY` accepts `fail` (the default) and
+`skip_not_found`. The latter drops the entire row only for a selected source
+Blob's HTTP 404 or typed NotFound, including missing filesystem/S3 objects.
+403, timeout, malformed URL, reporter, and destination errors still fail COPY.
+The policy also applies to automatic ATIF media and nested selected Blob fields.
+Null Blob values are retained. This option does not skip missing scan inputs.
+
+Each failed source URL/error is recorded to process stderr. With DuckDB logging
+enabled, a successful COPY logs session-local `rows_committed`, `rows_skipped`,
+and `rows_failed_blobs`; multiple failed Blob fields in one row count once.
+DuckDB's COPY `Count` still reports input rows consumed, which can exceed committed
+rows. Use the logged summary or query the destination for the committed count.
+The option is rejected for Parquet and Iceberg COPY.

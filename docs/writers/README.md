@@ -33,6 +33,7 @@ Option names are case-insensitive. Sizes are integer bytes, not strings such as
 | `GENERATED_COLUMNS` | STRUCT of new column names to SQL expression strings; unset | Lance, Parquet; Iceberg requires compatible catalog metadata |
 | `EXTRA_OPTIONS` | STRUCT or MAP of reader argument names to values; unset | All; requires explicit DuckPort source calls for nonempty options |
 | `BLOB_COLUMNS` | Nonempty list of URL column paths; unset | Lance |
+| `BLOB_DOWNLOAD_FAILURE_POLICY` | `fail` (default) or `skip_not_found`; skip an entire row only on source 404/NotFound | Lance |
 | `BLOB_INLINE_SIZE_THRESHOLD` | Non-negative integer bytes; backend default | Lance |
 | `BLOB_DEDICATED_SIZE_THRESHOLD` | Positive integer bytes; backend default | Lance |
 | `STORAGE_VERSION` | `'2.2'` or `'2.3'`; backend default | Lance |

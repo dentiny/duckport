@@ -105,9 +105,22 @@ pub struct DuckportWriteOptions {
     pub writer_count: usize,
     pub source_bytes: u64,
     pub source_bytes_known: bool,
+    /// Null preserves fail; otherwise fail or skip_not_found.
+    pub blob_download_failure_policy: *const c_char,
 }
 
 impl DuckportWriteOptions {
+    /// # Safety
+    /// The policy is null or a borrowed NUL-terminated UTF-8 string.
+    pub(crate) unsafe fn blob_policy(&self) -> Result<open_arrow_sink_core::DownloadFailurePolicy> {
+        use open_arrow_sink_core::DownloadFailurePolicy;
+        match unsafe { optional_string(self.blob_download_failure_policy) }?.as_deref() {
+            None | Some("fail") => Ok(DownloadFailurePolicy::Fail),
+            Some("skip_not_found") => Ok(DownloadFailurePolicy::SkipNotFound),
+            _ => Err("BLOB_DOWNLOAD_FAILURE_POLICY must be fail or skip_not_found".into()),
+        }
+    }
+
     pub(crate) fn ingestion(&self) -> Result<open_arrow_sink_layer::ParallelIngestionLayer> {
         use open_arrow_sink_layer::{InputSizeHint, ParallelIngestionLayer};
         use std::num::NonZeroUsize;
@@ -260,6 +273,9 @@ pub unsafe extern "C" fn duckport_sink_destroy(sink: *mut DuckportSink) {
 pub struct DuckportWriteMetrics {
     pub bytes_read: u64,
     pub bytes_written: u64,
+    pub rows_committed: u64,
+    pub rows_skipped: u64,
+    pub rows_failed_blobs: u64,
 }
 
 /// # Safety
@@ -278,6 +294,9 @@ pub unsafe extern "C" fn duckport_sink_get_metrics(
             DuckportWriteMetrics {
                 bytes_read: snapshot.bytes_read,
                 bytes_written: snapshot.bytes_written,
+                rows_committed: sink.summary.rows_committed,
+                rows_skipped: sink.summary.rows_skipped,
+                rows_failed_blobs: sink.summary.rows_failed_blobs,
             },
         );
         Ok(())

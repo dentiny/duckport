@@ -94,6 +94,7 @@ struct DuckportWriteOptions {
 	size_t writer_count;
 	uint64_t source_bytes;
 	bool source_bytes_known;
+	const char *blob_download_failure_policy; // null preserves fail
 };
 struct DuckportBlobSource {
 	const char *document;
@@ -111,6 +112,9 @@ struct DuckportReadMetrics {
 struct DuckportWriteMetrics {
 	uint64_t bytes_read;
 	uint64_t bytes_written;
+	uint64_t rows_committed;
+	uint64_t rows_skipped;
+	uint64_t rows_failed_blobs;
 };
 extern "C" {
 // Common FFI support

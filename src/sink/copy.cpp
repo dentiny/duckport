@@ -20,6 +20,7 @@
 #include "duckdb/planner/bound_statement.hpp"
 #include "duckdb/planner/operator/logical_copy_to_file.hpp"
 #include "storage_options.hpp"
+#include "duckdb/logging/logger.hpp"
 
 namespace duckdb {
 namespace {
@@ -70,6 +71,7 @@ struct CopyBindData : FunctionData {
 		       options.catalog_uri == bind.options.catalog_uri && options.warehouse == bind.options.warehouse &&
 		       options.storage_root == bind.options.storage_root &&
 		       options.storage_version == bind.options.storage_version &&
+		       options.blob_download_failure_policy == bind.options.blob_download_failure_policy &&
 		       options.column_encodings == bind.options.column_encodings && options.indexes == bind.options.indexes &&
 		       info == bind.info;
 	}
@@ -161,6 +163,8 @@ void FinalizeCopy(ClientContext &context, FunctionData &, GlobalFunctionData &gl
 	auto &profiler = QueryProfiler::Get(context);
 	profiler.TrackBytesRead(metrics.bytes_read);
 	profiler.TrackBytesWritten(metrics.bytes_written);
+	DUCKDB_LOG_INFO(context, "DuckPort COPY: rows_committed=%llu rows_skipped=%llu rows_failed_blobs=%llu",
+	                metrics.rows_committed, metrics.rows_skipped, metrics.rows_failed_blobs);
 }
 BoundStatement CreateCopyPlan(Binder &binder, const CopyFunction &function, unique_ptr<CopyInfo> info,
                               unique_ptr<FunctionData> data, BoundStatement source, const string &path) {

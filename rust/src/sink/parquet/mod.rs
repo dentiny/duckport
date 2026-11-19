@@ -29,6 +29,7 @@ pub(crate) async fn open(
     .await?;
     Ok(DuckportSink {
         metrics,
+        summary: Default::default(),
         writer: Some(writer),
         schema,
         output_schema: None,

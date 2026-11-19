@@ -58,6 +58,8 @@ bool ParseTextOption(const Identifier &name, const vector<Value> &values, SinkWr
 		target = &options.storage_root;
 	} else if (name == "storage_version") {
 		target = &options.storage_version;
+	} else if (name == "blob_download_failure_policy") {
+		target = &options.blob_download_failure_policy;
 	} else {
 		return false;
 	}
@@ -65,6 +67,12 @@ bool ParseTextOption(const Identifier &name, const vector<Value> &values, SinkWr
 		throw BinderException("%s requires nonempty text without NUL bytes", name);
 	}
 	*target = StringValue::Get(values[0]);
+	if (name == "blob_download_failure_policy") {
+		*target = StringUtil::Lower(*target);
+		if (*target != "fail" && *target != "skip_not_found") {
+			throw BinderException("BLOB_DOWNLOAD_FAILURE_POLICY must be fail or skip_not_found");
+		}
+	}
 	return true;
 }
 
@@ -218,6 +226,9 @@ SinkWriteOptions ParseCopyOptions(ClientContext &context, const CopyInfo &info) 
 	SinkWriteOptions options;
 	bool has_mode = false;
 	for (const auto &entry : info.options) {
+		if (entry.first == "blob_download_failure_policy" && !StringUtil::CIEquals(info.format, "duckport_lance")) {
+			throw BinderException("BLOB_DOWNLOAD_FAILURE_POLICY is supported only for Lance COPY");
+		}
 		ParseCopyOption(context, entry.first, entry.second, options, has_mode);
 	}
 	if (options.write_concurrency) {
@@ -227,7 +238,8 @@ SinkWriteOptions ParseCopyOptions(ClientContext &context, const CopyInfo &info) 
 }
 
 void RegisterCopyOptions(ClientContext &, CopyOptionsInput &input) {
-	for (const auto &name : {"catalog_uri", "warehouse", "storage_root", "storage_version"}) {
+	for (const auto &name :
+	     {"catalog_uri", "warehouse", "storage_root", "storage_version", "blob_download_failure_policy"}) {
 		input.options[name] = CopyOption(LogicalType::VARCHAR, CopyOptionMode::WRITE_ONLY);
 	}
 	input.options["blob_columns"] = CopyOption(LogicalType::LIST(LogicalType::VARCHAR), CopyOptionMode::WRITE_ONLY);

@@ -25,6 +25,11 @@ pub unsafe extern "C" fn duckport_iceberg_open(
 ) -> *mut c_char {
     unsafe {
         let open = |schema, write_options: WriteOptions, ingestion| async move {
+            if validation::required(options.as_ref(), "null write options")?.blob_policy()?
+                != open_arrow_sink_core::DownloadFailurePolicy::Fail
+            {
+                return Err("BLOB_DOWNLOAD_FAILURE_POLICY is supported only for Lance COPY".into());
+            }
             let storage = validation::required(storage.as_ref(), "null Iceberg storage options")?;
             let mode = string(mode)?;
             let catalog_uri = string(catalog_uri)?;

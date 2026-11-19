@@ -1,0 +1,104 @@
+# name: test/sql/writers/blob_failure_policy.test
+# description: Lance COPY exposes 404-only row skipping, reports counts, and preserves other failures
+# group: [sql]
+
+require duckport
+
+require duckport_test_fixture
+
+set ignore_error_messages
+
+statement ok
+SET logging_storage = 'memory';
+
+statement ok
+SET logging_level = 'info';
+
+statement ok
+SET enable_logging = true;
+
+statement ok
+SET VARIABLE blob_endpoint = duckport_fixture('blob_http', 'start_anonymous');
+
+# Two missing Blob fields in the first row drop and count that row only once.
+# Null Blob fields survive. COPY Count is the input count, not the committed count.
+query I
+COPY (SELECT id,
+    CASE id WHEN 1 THEN getvariable('blob_endpoint') || '/missing.bin'
+            WHEN 2 THEN getvariable('blob_endpoint') || '/public/records.json' END AS payload,
+    CASE WHEN id = 1 THEN getvariable('blob_endpoint') || '/also-missing.bin' END AS thumbnail
+    FROM range(1, 4) t(id))
+TO '{TEST_DIR}/http_skip.lance' (
+    FORMAT duckport_lance, BLOB_COLUMNS ('payload', 'thumbnail'),
+    BLOB_DOWNLOAD_FAILURE_POLICY 'skip_not_found');
+----
+3
+
+query I
+SELECT count(*) FROM duckdb_logs()
+WHERE message = 'DuckPort COPY: rows_committed=2 rows_skipped=1 rows_failed_blobs=1';
+----
+1
+
+# A 403 is fatal even with skipping enabled. Overwrite must leave the prior dataset intact.
+statement error
+COPY (SELECT getvariable('blob_endpoint') || '/public/forbidden.bin' AS payload)
+TO '{TEST_DIR}/http_skip.lance' (
+    FORMAT duckport_lance, OVERWRITE, BLOB_COLUMNS ('payload'),
+    BLOB_DOWNLOAD_FAILURE_POLICY 'skip_not_found');
+----
+DuckPort
+
+# Omitting the option retains fail-on-404 behavior.
+statement error
+COPY (SELECT getvariable('blob_endpoint') || '/missing.bin' AS payload)
+TO '{TEST_DIR}/default_fail.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('payload'));
+----
+DuckPort
+
+statement error
+COPY (SELECT getvariable('blob_endpoint') || '/missing.bin' AS payload)
+TO '{TEST_DIR}/explicit_fail.lance' (
+    FORMAT duckport_lance, BLOB_COLUMNS ('payload'), BLOB_DOWNLOAD_FAILURE_POLICY 'fail');
+----
+DuckPort
+
+statement error
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/invalid_policy.lance'
+(FORMAT duckport_lance, BLOB_DOWNLOAD_FAILURE_POLICY 'skip_all');
+----
+BLOB_DOWNLOAD_FAILURE_POLICY must be fail or skip_not_found
+
+statement error
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/null_policy.lance'
+(FORMAT duckport_lance, BLOB_DOWNLOAD_FAILURE_POLICY NULL);
+----
+blob_download_failure_policy
+
+statement error
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/policy.parquet'
+(FORMAT duckport_parquet, BLOB_DOWNLOAD_FAILURE_POLICY 'skip_not_found');
+----
+BLOB_DOWNLOAD_FAILURE_POLICY is supported only for Lance COPY
+
+statement error
+COPY (SELECT 1 AS id) TO 'db.policy'
+(FORMAT duckport_iceberg, BLOB_DOWNLOAD_FAILURE_POLICY 'skip_not_found');
+----
+BLOB_DOWNLOAD_FAILURE_POLICY is supported only for Lance COPY
+
+query T
+SELECT duckport_fixture('blob_http', 'stop');
+----
+stopped
+
+restart no_extension_load
+
+statement ok
+LOAD '{BUILD_DIRECTORY}/extension/lance/lance.duckdb_extension';
+
+query II
+SELECT id, payload IS NULL FROM '{TEST_DIR}/http_skip.lance' ORDER BY id;
+----
+2	false
+3	true
