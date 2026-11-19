@@ -3,7 +3,9 @@
 # group: [sql]
 
 require duckport
+
 require duckport_test_fixture
+
 require iceberg
 
 statement ok

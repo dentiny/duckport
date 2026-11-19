@@ -11,34 +11,34 @@ require duckport_test_fixture
 statement ok
 SET threads = 4;
 
-foreach sink lance parquet
+foreach sink,ordered_path,unordered_path lance,ordered.lance,unordered.lance parquet,ordered_parquet,unordered_parquet
 
 statement ok
 COPY (SELECT i AS id FROM range(131072) t(i) ORDER BY i DESC)
-TO '{TEST_DIR}/ordered_${sink}' (FORMAT duckport_${sink}, PRESERVE_ORDER true, WRITE_CONCURRENCY 1);
+TO '{TEST_DIR}/{ordered_path}' (FORMAT duckport_{sink}, PRESERVE_ORDER true, WRITE_CONCURRENCY 1);
 
 statement ok
 COPY (SELECT i AS id FROM range(131072) t(i))
-TO '{TEST_DIR}/unordered_${sink}' (FORMAT duckport_${sink}, PRESERVE_ORDER false, WRITE_CONCURRENCY 2);
+TO '{TEST_DIR}/{unordered_path}' (FORMAT duckport_{sink}, PRESERVE_ORDER false, WRITE_CONCURRENCY 2);
 
 endloop
 
 statement ok
-COPY (SELECT -1::BIGINT AS id) TO '{TEST_DIR}/ordered_lance'
+COPY (SELECT -1::BIGINT AS id) TO '{TEST_DIR}/ordered.lance'
 (FORMAT duckport_lance, APPEND, PRESERVE_ORDER true);
 
 foreach mode,preserve_order,write_concurrency ordered,true,1 unordered,false,2
 
 statement ok
-SET VARIABLE iceberg_catalog = duckport_iceberg_fixture('{TEST_DIR}/${mode}_iceberg', 'start');
+SET VARIABLE iceberg_catalog = duckport_iceberg_fixture('{TEST_DIR}/{mode}_iceberg', 'start');
 
 statement ok
 COPY (SELECT i::INTEGER AS id, i::VARCHAR AS name FROM range(131072) t(i) ORDER BY i DESC)
-TO 'tests.people' (FORMAT duckport_iceberg, APPEND, PRESERVE_ORDER ${preserve_order}, WRITE_CONCURRENCY ${write_concurrency},
-    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/${mode}_iceberg');
+TO 'tests.people' (FORMAT duckport_iceberg, APPEND, PRESERVE_ORDER {preserve_order}, WRITE_CONCURRENCY {write_concurrency},
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/{mode}_iceberg');
 
 statement ok
-SELECT duckport_iceberg_fixture('{TEST_DIR}/${mode}_iceberg', 'stop');
+SELECT duckport_iceberg_fixture('{TEST_DIR}/{mode}_iceberg', 'stop');
 
 endloop
 
@@ -50,7 +50,7 @@ foreach path ordered_parquet ordered_iceberg/people/data
 
 query II
 SELECT count(*), count(*) FILTER (WHERE id != 131072 - position)
-FROM (SELECT id, row_number() OVER () AS position FROM read_parquet('{TEST_DIR}/${path}/*.parquet'));
+FROM (SELECT id, row_number() OVER () AS position FROM read_parquet('{TEST_DIR}/{path}/*.parquet'));
 ----
 131072	0
 
@@ -59,7 +59,7 @@ endloop
 foreach path unordered_parquet unordered_iceberg/people/data
 
 query III
-SELECT count(*), count(DISTINCT id), sum(id) FROM read_parquet('{TEST_DIR}/${path}/*.parquet');
+SELECT count(*), count(DISTINCT id), sum(id) FROM read_parquet('{TEST_DIR}/{path}/*.parquet');
 ----
 131072	131072	8589869056
 
@@ -76,11 +76,11 @@ SET threads = 1;
 
 query II
 SELECT count(*), count(*) FILTER (WHERE id != 131072 - position)
-FROM (SELECT id, row_number() OVER () AS position FROM '{TEST_DIR}/ordered_lance');
+FROM (SELECT id, row_number() OVER () AS position FROM '{TEST_DIR}/ordered.lance');
 ----
 131073	0
 
 query III
-SELECT count(*), count(DISTINCT id), sum(id) FROM '{TEST_DIR}/unordered_lance';
+SELECT count(*), count(DISTINCT id), sum(id) FROM '{TEST_DIR}/unordered.lance';
 ----
 131072	131072	8589869056

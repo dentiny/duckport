@@ -18,11 +18,12 @@ crate::ffi::reader::export_reader!(duckport_csv_open, reader_options: CsvOptions
             value => CsvHeader::from(crate::utils::boolean("header", value)?),
         };
 
-        let format = CsvFileFormat::infer().with_dialect(CsvDialect {
-            header,
-            delimiter: reader_options.delimiter,
-            ..Default::default()
-        });
+        let format = CsvFileFormat::infer()
+            .with_dialect(CsvDialect {
+                header,
+                ..Default::default()
+            })
+            .with_delimiter(reader_options.delimiter);
         open_file_source(
             &locator,
             &storage_options,

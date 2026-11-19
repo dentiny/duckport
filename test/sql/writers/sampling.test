@@ -12,15 +12,13 @@ CREATE TABLE input AS SELECT i::INTEGER AS id, i::VARCHAR AS name FROM range(20)
 foreach option,value,expected sample_rows,7,7 sample_rows,100,20 sample_percent,0,0 sample_percent,100,20
 
 # Exercise the shared planner's full sampling matrix once, including empty output.
-query I
-COPY input TO '{TEST_DIR}/${option}_${value}/parquet'
-(FORMAT duckport_parquet, ${option} ${value});
-----
-${expected}
+statement ok
+COPY input TO '{TEST_DIR}/{option}_{value}/parquet'
+(FORMAT duckport_parquet, {option} {value});
 
 query I
-SELECT count(*) FROM read_parquet('{TEST_DIR}/${option}_${value}/parquet/*.parquet');
+SELECT count(*) = {expected} FROM read_parquet('{TEST_DIR}/{option}_{value}/parquet/*.parquet');
 ----
-${expected}
+true
 
 endloop
