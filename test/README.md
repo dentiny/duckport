@@ -63,8 +63,10 @@ annotated mutexes.
 ## Rust diagnostics and file helpers
 
 The fixture-only `test-fixtures` Cargo feature exports read-only Lance Blob-layout
-and field-metadata diagnostics. C++ owns/free returned strings through one shared
-adapter. `duckport_fixture_write` and `duckport_fixture_remove` manage temporary
+and field-metadata diagnostics, plus JSON scan metrics after the first batch and
+at EOF. `test/sql/readers/json_metrics.test` owns the progress, encoded-I/O and
+zero-column row-count assertions formerly kept in a disabled Rust unit test.
+C++ owns/frees returned strings through one shared adapter. `duckport_fixture_write` and `duckport_fixture_remove` manage temporary
 inputs in SQL tests. The Iceberg fixture serves a small unpartitioned people
 schema with controlled create/append/authentication behavior.
 

@@ -16,6 +16,8 @@ mod hathifiles;
 mod huggingface;
 mod internet_archive;
 mod json;
+#[cfg(feature = "test-fixtures")]
+pub(crate) use json::duckport_json_open;
 mod library_of_congress;
 mod meca;
 mod oapen;
