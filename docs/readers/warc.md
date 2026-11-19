@@ -16,7 +16,8 @@ manifest order; a segment can contain multiple WARC files. Local mirrors must
 retain the `crawl-data` path structure.
 
 WARC and Common Crawl share the upstream schema: `id` is the WARC record ID,
-`type` is the record type, and `body` contains the original binary payload.
+`type` is the record type, `date` is a timestamp with millisecond precision,
+and `body` contains the original binary payload.
 No HTML text extraction is performed. Top-level projection omits unselected Arrow values, but the parser
 still consumes the WARC body bytes. `batch_size` is the row target.
 
