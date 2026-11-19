@@ -1,6 +1,9 @@
 # Reader catalog
 
-Every function returns a DuckDB table and accepts `batch_size` (default 8192).
+Every function returns a DuckDB table and accepts `batch_size` (default 8192,
+range 1–1,048,576) and `read_concurrency` (`'auto'` or a positive integer).
+Automatic reads use DuckDB's `threads` limit where the source supports partitioning;
+providers without a partition planner remain serial.
 Reader-specific options below are named SQL arguments. Credentials and storage
 regions/endpoints come from [scoped secrets](../secrets.md); scan policy comes
 from [session settings](../storage.md).
@@ -35,7 +38,8 @@ Do not infer support for a particular format/container combination from a suffix
 | `duckport_scan_doab` | `records` or continuation token; OAI options | OAI-PMH metadata records |
 | `duckport_scan_oapen` | `records` or continuation token; OAI options | OAI-PMH metadata records |
 | `duckport_scan_gutenberg` | One RDF book object | One metadata row; linked books are not fetched |
-| `duckport_scan_pmc` | One article-version JSON object | Article metadata; linked content is not fetched |
+| [`duckport_scan_pmc`](pmc.md) | One metadata JSON object or directory ending in `/`; optional `content_format` | Article metadata and selected `content_url`; linked content is not fetched |
+| [`duckport_scan_pmc_shard`](pmc.md#read-one-inventory-shard-as-articles) | Bucket root; required `manifest`, `shard`; optional `content_format` | Article metadata from the selected inventory shard; linked content is not fetched |
 | `duckport_scan_pmc_inventory` | One S3 inventory manifest or local mirror | Rows from its gzip CSV shards under the same bucket/root |
 | `duckport_scan_courtlistener` | Root above `bulk-data/`; required `table_name`, `date` | One dated CSV export, retaining all columns as VARCHAR |
 | `duckport_scan_meca` | One MECA ZIP object | Validated manifest entries with binary payloads in manifest order |

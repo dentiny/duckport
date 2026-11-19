@@ -18,7 +18,8 @@ operators, sampling or backend work.
 
 ## Start here
 
-Install and load DuckPort in DuckDB:
+Once the community submission is merged and binaries are published for your
+DuckDB version and platform, install and load DuckPort:
 
 ```sql
 FORCE INSTALL duckport FROM community;
@@ -28,6 +29,19 @@ LOAD duckport;
 [Reader catalog](docs/readers/README.md) · [COPY reference](docs/writers/README.md) ·
 [Secrets](docs/secrets.md) · [Settings and profiling](docs/storage.md) ·
 [Documentation index](docs/README.md)
+
+## Supported sources
+
+| Source family | Readers / selection |
+| --- | --- |
+| Files | CSV/TSV, JSON/JSONL/NDJSON, Parquet, XML, WARC; same-schema files, lists, directories and globs |
+| Datasets and archives | Hugging Face Parquet exports, Common Crawl releases/segments, ATIF trajectories, arXiv bulk TAR shards, MECA packages |
+| Metadata | arXiv/DOAB/OAPEN OAI-PMH, Gutenberg RDF, PMC article metadata, PMC inventory and article-shard readers, CourtListener dated exports |
+| Selected attachments | Zenodo, Dataverse, Figshare, Internet Archive, Federal Register, GovInfo, HathiFiles, Library of Congress, Semantic Scholar, OpenStax, BHL, Regulations.gov, USPTO, bioRxiv/medRxiv |
+
+The [reader catalog](docs/readers/README.md) lists the exact `duckport_scan_*`
+functions, required selectors and links to examples. These are input readers;
+Lance, Parquet and Iceberg output capabilities are listed [below](#write-query-results).
 
 ## Read with SQL
 
@@ -74,6 +88,36 @@ All three accept sampling, generated columns, `TARGET_FILE_SIZE`, `READ_CONCURRE
 `WRITE_CONCURRENCY 'auto'` to opt into automatic writer planning. Read concurrency
 defaults to `'auto'`. Backend-specific options are validated against the sink's
 capabilities. Use native `FORMAT PARQUET` to write a single file.
+See [all COPY options](docs/writers/README.md#all-copy-options) for accepted
+values, defaults and supported sinks, including blob policies, compression,
+indexes, Iceberg catalog options and `EXTRA_OPTIONS` for source arguments.
+
+## Try a complete local round trip
+
+After loading DuckPort, this example creates its own input without downloads or
+credentials. Run it in a writable directory with unused output paths:
+
+```sql
+COPY (SELECT 1 AS id, 'hello' AS body UNION ALL SELECT 2, 'world')
+TO 'duckport_demo.csv' (FORMAT CSV, HEADER);
+
+SELECT * FROM duckport_scan_csv('duckport_demo.csv', header := true);
+
+COPY (
+    SELECT id, upper(body) AS body
+    FROM duckport_scan_csv('duckport_demo.csv', header := true)
+    WHERE id > 0
+) TO 'duckport_demo_dataset' (FORMAT duckport_parquet);
+
+SELECT * FROM read_parquet('duckport_demo_dataset/*.parquet') ORDER BY id;
+-- id | body
+--  1 | HELLO
+--  2 | WORLD
+```
+
+To write the same result to Lance, use a fresh `.lance` destination with
+`FORMAT duckport_lance`. Iceberg additionally requires a REST catalog, an existing
+namespace and storage configuration; follow the [Iceberg guide](docs/writers/iceberg.md).
 
 ## Configure secrets once
 
@@ -120,7 +164,7 @@ memory-budget control of the reference extension. See the
   sessions, Lance/Parquet/Iceberg backends and reusable blob, schema and concurrency
   layers. DuckPort uses its `core`, `layer`, `storage` and backend crates.
 
-The current manifest selects open-arrow-access 0.8.2 and open-arrow-sink 0.5.1
+The current manifest selects open-arrow-access 0.9.0 and open-arrow-sink 0.5.1
 with Arrow 58. These projects own format/service and storage mechanics; DuckPort
 owns SQL binding, secret lookup and Arrow C ABI adaptation. Read the
 [architecture guide](docs/architecture.md) before extending the bridge.

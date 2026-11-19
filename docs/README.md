@@ -10,7 +10,7 @@ read/query/write example.
 | [Reader catalog](readers/README.md) | Every scan function, options and output behavior |
 | [Secrets](secrets.md) | Scope selection, S3-compatible stores, HTTP/provider keys, Hugging Face and catalog authentication |
 | [Storage and profiling](storage.md) | Timeouts, retries, progress, projection and operational limits |
-| [COPY reference](writers/README.md) | Modes, ordering, sampling, generated columns, compression and indexes |
+| [COPY reference](writers/README.md) | Complete option/default/sink table, source arguments, modes, ordering, sampling, generated columns, compression and indexes |
 | [Lance](writers/lance.md) | Blob ingestion, ATIF policies and Lance write options |
 | [Parquet](writers/parquet.md) | Dataset directory writes and APPEND |
 | [Iceberg](writers/iceberg.md) | REST catalogs, table creation, storage roots and commits |
@@ -22,5 +22,5 @@ read/query/write example.
 Specialized reader guides cover [arXiv](readers/arxiv.md),
 [OAI-PMH](readers/oai.md), [provider attachments](readers/providers.md),
 [Hugging Face](readers/huggingface.md), [ATIF](readers/atif.md),
-[WARC/Common Crawl](readers/warc.md), [CSV](readers/csv.md), [TSV](readers/tsv.md),
+[WARC/Common Crawl](readers/warc.md), [PMC](readers/pmc.md), [CSV](readers/csv.md), [TSV](readers/tsv.md),
 [JSON](readers/json.md), [XML](readers/xml.md) and [Parquet](readers/parquet.md).
