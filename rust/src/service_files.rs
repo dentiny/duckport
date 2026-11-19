@@ -11,6 +11,34 @@ pub(crate) struct SelectedAttachment {
     options: AttachmentOptions,
 }
 
+/// Read the common attachment fields from a provider's borrowed FFI options.
+pub(crate) trait AttachmentSelection {
+    /// # Safety
+    /// Non-null attachment strings must be live NUL-terminated UTF-8 for this call.
+    unsafe fn read_attachment(&self) -> Result<SelectedAttachment>;
+}
+
+// Keep provider structs and their C ABI layouts unchanged. All implementations
+// delegate field validation and owned conversion to SelectedAttachment.
+macro_rules! impl_attachment_selection {
+    ($options:ty) => {
+        impl $crate::service_files::AttachmentSelection for $options {
+            unsafe fn read_attachment(
+                &self,
+            ) -> $crate::error::Result<$crate::service_files::SelectedAttachment> {
+                unsafe {
+                    $crate::service_files::SelectedAttachment::read(
+                        self.file_name,
+                        self.format,
+                        self.record_path,
+                    )
+                }
+            }
+        }
+    };
+}
+pub(crate) use impl_attachment_selection;
+
 impl SelectedAttachment {
     /// # Safety
     /// Non-null pointers must reference live NUL-terminated UTF-8 strings.
