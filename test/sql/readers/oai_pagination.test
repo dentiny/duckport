@@ -3,6 +3,7 @@
 # group: [sql]
 
 require duckport
+
 require duckport_test_fixture
 
 statement ok

@@ -6,14 +6,21 @@ require duckport
 
 statement ok
 COPY (
-    SELECT id, name, {'messages': [{'body': name}]} AS nested, name AS "literal.dot"
+    SELECT id, name, {'messages': [{'body': name}]} AS nested, name AS "literal_dot"
     FROM duckport_scan_parquet('testdata/parquet/people.parquet')
 ) TO '{TEST_DIR}/encoded.lance' (
     FORMAT duckport_lance,
-    COLUMN_COMPRESSION {'NAME': 'zstd', 'nested.messages.body': 'lz4', 'literal.dot': 'lz4'},
+    COLUMN_COMPRESSION {'NAME': 'zstd', 'nested.messages.body': 'lz4', 'literal_dot': 'lz4'},
     COLUMN_COMPRESSION_LEVEL {'name': 3},
     COLUMN_STRUCTURAL_ENCODING {'name': 'fullzip', 'nested': 'miniblock'}
 );
+
+# Lance rejects dots in top-level field names, even when a codec key matches.
+statement error
+COPY (SELECT 1 AS "literal.dot") TO '{TEST_DIR}/dotted.lance'
+(FORMAT duckport_lance, COLUMN_COMPRESSION {'literal.dot': 'lz4'});
+----
+Top level field literal.dot cannot contain
 
 restart no_extension_load
 
@@ -21,7 +28,7 @@ statement ok
 LOAD '{BUILD_DIRECTORY}/extension/lance/lance.duckdb_extension';
 
 query ITTT
-SELECT id, name, nested.messages[1].body, "literal.dot"
+SELECT id, name, nested.messages[1].body, "literal_dot"
 FROM '{TEST_DIR}/encoded.lance' ORDER BY id;
 ----
 1	Alice	Alice	Alice

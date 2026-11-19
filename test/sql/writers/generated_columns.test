@@ -6,17 +6,17 @@ require duckport
 
 require parquet
 
-foreach sink lance parquet
+foreach sink,path lance,generated.lance parquet,generated_parquet
 
 statement ok
-COPY (SELECT 1 AS id) TO '{TEST_DIR}/generated_${sink}' (
-    FORMAT duckport_${sink},
+COPY (SELECT 1 AS id) TO '{TEST_DIR}/{path}' (
+    FORMAT duckport_{sink},
     GENERATED_COLUMNS {'doubled': 'id * 2', 'label': 'doubled::VARCHAR'});
 
 # Formatting differences normalize to the same parsed definition.
 statement ok
-COPY (SELECT 2 AS id) TO '{TEST_DIR}/generated_${sink}' (
-    FORMAT duckport_${sink}, APPEND,
+COPY (SELECT 2 AS id) TO '{TEST_DIR}/{path}' (
+    FORMAT duckport_{sink}, APPEND,
     GENERATED_COLUMNS {'doubled': 'id*2', 'label': 'doubled :: VARCHAR'});
 
 endloop
@@ -33,7 +33,7 @@ statement ok
 LOAD '{BUILD_DIRECTORY}/extension/lance/lance.duckdb_extension';
 
 query IIT
-SELECT * FROM '{TEST_DIR}/generated_lance' ORDER BY id;
+SELECT * FROM '{TEST_DIR}/generated.lance' ORDER BY id;
 ----
 1	2	2
 2	4	4

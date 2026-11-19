@@ -14,23 +14,23 @@ FROM range(65536) t(i);
 foreach target 1024 67108864
 
 statement ok
-COPY input TO '{TEST_DIR}/${target}/lance'
-(FORMAT duckport_lance, TARGET_FILE_SIZE ${target});
+COPY input TO '{TEST_DIR}/{target}/lance'
+(FORMAT duckport_lance, TARGET_FILE_SIZE {target});
 
 statement ok
-COPY input TO '{TEST_DIR}/${target}/parquet'
-(FORMAT duckport_parquet, TARGET_FILE_SIZE ${target});
+COPY input TO '{TEST_DIR}/{target}/parquet'
+(FORMAT duckport_parquet, TARGET_FILE_SIZE {target});
 
 statement ok
-SET VARIABLE iceberg_catalog = duckport_iceberg_fixture('{TEST_DIR}/${target}/iceberg', 'start');
+SET VARIABLE iceberg_catalog = duckport_iceberg_fixture('{TEST_DIR}/{target}/iceberg', 'start');
 
 statement ok
 COPY input TO 'tests.people' (FORMAT duckport_iceberg, APPEND,
-    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/${target}/iceberg',
-    TARGET_FILE_SIZE ${target});
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/{target}/iceberg',
+    TARGET_FILE_SIZE {target});
 
 statement ok
-SELECT duckport_iceberg_fixture('{TEST_DIR}/${target}/iceberg', 'stop');
+SELECT duckport_iceberg_fixture('{TEST_DIR}/{target}/iceberg', 'stop');
 
 endloop
 
@@ -39,8 +39,8 @@ foreach files lance/data/*.lance parquet/*.parquet iceberg/people/data/*.parquet
 
 query I
 SELECT (
-    (SELECT max(size) FROM read_blob('{TEST_DIR}/1024/${files}')) <
-    (SELECT max(size) FROM read_blob('{TEST_DIR}/67108864/${files}'))
+    (SELECT max(size) FROM read_blob('{TEST_DIR}/1024/{files}')) <
+    (SELECT max(size) FROM read_blob('{TEST_DIR}/67108864/{files}'))
 )::INTEGER;
 ----
 1

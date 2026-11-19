@@ -3,6 +3,7 @@
 # group: [sql]
 
 require duckport
+
 require parquet
 
 statement ok
