@@ -145,7 +145,7 @@ impl DuckportSource {
                     ])?
                     .with_source_schema(self.source.schema()),
                 )
-                .open(options)
+                .open(scan::ScanRequest(options))
                 .await?
         } else if self.planned && concurrency > 1 {
             scan::PreparedScan(self.source.clone(), self.capability)
@@ -153,7 +153,7 @@ impl DuckportSource {
                     NonZeroUsize::new(concurrency).unwrap(),
                     NonZeroUsize::MIN,
                 ))
-                .open(options)
+                .open(scan::ScanRequest(options))
                 .await?
         } else {
             self.source.scan(options).await?
