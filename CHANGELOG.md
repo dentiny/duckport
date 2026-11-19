@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.2.0 - 2026-11-19
+
+### Added
+
+- Add `conversion_storage_io_request_size` to control source-object and Lance
+  Blob read request sizes, with a default of 2 MiB.
+- Add Lance COPY `BLOB_DOWNLOAD_FAILURE_POLICY 'skip_not_found'` to skip entire
+  rows only when selected source Blobs return HTTP 404 or typed NotFound.
+  Report failed source URLs to stderr and committed/skipped row counts through
+  DuckDB logging. Other source and destination errors still fail COPY.
+
+### Improved
+
+- Allow Lance `OVERWRITE` retries when failed writes leave uncommitted objects
+  without a dataset manifest. Corrupt manifests and other storage errors still fail.
+- Build WARC dates directly as millisecond timestamps while preserving the
+  existing date and binary-body schema.
+- Upgrade to open-arrow-access 0.10.3 and open-arrow-sink 0.6.2, retaining Arrow 58.
+
+### Fixed
+
+- Apply configured byte-read options to prepared scans.
+- Make CSV dialect handling compatible with community CI.
+- Declare the native dependencies required by community builds.
+
 ## 0.1.0
 
 Initial release prepared for submission to DuckDB Community Extensions.
