@@ -14,9 +14,6 @@ statement ok
 SET VARIABLE fixture_endpoint = duckport_fixture('regulations', 'start_authenticated');
 
 statement ok
-SET VARIABLE fixture_download_endpoint = duckport_fixture('regulations', 'download_endpoint');
-
-statement ok
 SET VARIABLE fixture_scope = duckport_fixture('regulations', 'scope');
 
 statement ok

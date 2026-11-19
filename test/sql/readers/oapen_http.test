@@ -13,9 +13,6 @@ set ignore_error_messages
 statement ok
 SET VARIABLE fixture_endpoint = duckport_fixture('oapen', 'start_anonymous');
 
-statement ok
-SET VARIABLE fixture_download_endpoint = duckport_fixture('oapen', 'download_endpoint');
-
 # Adapted from open-arrow-access OAI provider tests: deleted records and opaque cursors.
 
 query T rowsort

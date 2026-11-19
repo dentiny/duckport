@@ -13,9 +13,6 @@ set ignore_error_messages
 statement ok
 SET VARIABLE fixture_endpoint = duckport_fixture('federal_register', 'start_anonymous');
 
-statement ok
-SET VARIABLE fixture_download_endpoint = duckport_fixture('federal_register', 'download_endpoint');
-
 # Adapted from open-arrow-access-service 0.1.0 provider fixture tests.
 # Binary preserves original bytes independently of filename extensions.
 

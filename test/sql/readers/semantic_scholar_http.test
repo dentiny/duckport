@@ -14,9 +14,6 @@ statement ok
 SET VARIABLE fixture_endpoint = duckport_fixture('semantic_scholar', 'start_authenticated');
 
 statement ok
-SET VARIABLE fixture_download_endpoint = duckport_fixture('semantic_scholar', 'download_endpoint');
-
-statement ok
 SET VARIABLE fixture_scope = duckport_fixture('semantic_scholar', 'scope');
 
 statement ok
