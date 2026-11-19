@@ -173,10 +173,10 @@ void LoadInternal(ExtensionLoader &loader) {
 		options.Add("record_path", LogicalType::VARCHAR);
 		options.Add("endpoint", LogicalType::VARCHAR);
 	});
-	RegisterReader(loader, "duckport_scan_pmc", OpenPmc, [](TypedKwargs &options) {
+	RegisterReader(loader, "duckport_scan_pmc", OpenPmcMetadata, [](TypedKwargs &options) {
 		options.Add("content_format", LogicalType::VARCHAR);
 	});
-	RegisterReader(loader, "duckport_scan_pmc_shard", OpenPmcShard, [](TypedKwargs &options) {
+	RegisterReader(loader, "duckport_scan_pmc_shard", OpenPmcInventoryShard, [](TypedKwargs &options) {
 		options.Add("manifest", LogicalType::VARCHAR);
 		options.Add("shard", LogicalType::VARCHAR);
 		options.Add("content_format", LogicalType::VARCHAR);

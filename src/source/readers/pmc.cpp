@@ -4,15 +4,15 @@
 #include "storage_options.hpp"
 
 namespace duckdb {
-char *OpenPmc(ClientContext &context, const string &locator, const DuckportScanOptions &scan,
-              const TableFunctionBindInput &input, DuckportSource **output) {
+char *OpenPmcMetadata(ClientContext &context, const string &locator, const DuckportScanOptions &scan,
+                      const TableFunctionBindInput &input, DuckportSource **output) {
 	auto format = ReadStringOption(input, "content_format");
 	PmcOptions options {format ? format->c_str() : nullptr};
 	StorageParameters storage(context, locator, /*secret_type=*/ {});
 	return duckport_pmc_open(locator.c_str(), storage.config, scan, options, output);
 }
-char *OpenPmcShard(ClientContext &context, const string &locator, const DuckportScanOptions &scan,
-                   const TableFunctionBindInput &input, DuckportSource **output) {
+char *OpenPmcInventoryShard(ClientContext &context, const string &locator, const DuckportScanOptions &scan,
+                            const TableFunctionBindInput &input, DuckportSource **output) {
 	auto manifest = ReadStringOption(input, "manifest");
 	auto shard = ReadStringOption(input, "shard");
 	auto format = ReadStringOption(input, "content_format");
