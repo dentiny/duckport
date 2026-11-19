@@ -9,7 +9,9 @@ duckdb_extension_load(duckport LOAD_TESTS SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR})
 # Loopback HTTP fixtures are isolated from the production extension.
 option(DUCKPORT_BUILD_TEST_FIXTURES "Build native SQLLogicTest fixtures"
        ${BUILD_UNITTESTS})
-if(DUCKPORT_BUILD_TEST_FIXTURES)
+# The manifest-only configure disables BUILD_UNITTESTS. Register test
+# dependencies there too so the merged vcpkg manifest matches the real build.
+if(DUCKPORT_BUILD_TEST_FIXTURES OR EXTENSION_CONFIG_BUILD)
   duckdb_extension_load(duckport_test_fixture SOURCE_DIR
                         ${CMAKE_CURRENT_LIST_DIR}/test/fixture)
   include(
@@ -18,7 +20,7 @@ endif()
 
 # Independent readers for COPY round-trip tests; excluded from production
 # builds.
-if(BUILD_UNITTESTS)
+if(BUILD_UNITTESTS OR EXTENSION_CONFIG_BUILD)
   include(
     "${CMAKE_CURRENT_LIST_DIR}/duckdb/.github/config/extensions/iceberg.cmake")
   duckdb_extension_load(parquet)
