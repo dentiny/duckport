@@ -25,6 +25,7 @@ pub(crate) async fn open_writer<S: ParallelSink>(
 
 pub struct DuckportSink {
     pub(crate) metrics: open_arrow_sink_core::IoMetrics,
+    pub(crate) summary: open_arrow_sink_core::CommitSummary,
     pub(crate) writer: Option<Box<dyn Writer>>,
     pub(crate) schema: SchemaRef,
     pub(crate) output_schema: Option<SchemaRef>,
@@ -58,7 +59,7 @@ impl DuckportSink {
     }
     pub(crate) async fn commit(&mut self) -> Result<()> {
         let writer = validation::required(self.writer.take(), "sink writer is closed")?;
-        writer.commit().await?;
+        self.summary = writer.commit().await?;
         Ok(())
     }
 }

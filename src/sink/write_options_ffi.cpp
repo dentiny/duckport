@@ -24,6 +24,7 @@ SinkWriteOptionsFfiView::SinkWriteOptionsFfiView(const SinkWriteOptions &options
 		    .option = entry.option.c_str(),
 		});
 	}
+	config.blob_download_failure_policy = options.blob_download_failure_policy.c_str();
 	config.indexes = index_options.data();
 	config.index_count = index_options.size();
 	config.column_encodings = encodings.data();

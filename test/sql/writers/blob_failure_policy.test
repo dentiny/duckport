@@ -1,0 +1,48 @@
+# name: test/sql/writers/blob_failure_policy.test
+# description: Lance COPY succeeds for skipped 404s and fails for other download errors
+# group: [sql]
+
+require duckport
+
+require duckport_test_fixture
+
+set ignore_error_messages
+
+statement ok
+SET VARIABLE blob_endpoint = duckport_fixture('blob_http', 'start_anonymous');
+
+# Skip missing source Blobs and complete the conversion.
+statement ok
+COPY (SELECT getvariable('blob_endpoint') || path AS payload
+      FROM (VALUES ('/missing.bin'), ('/public/records.json')) t(path))
+TO '{TEST_DIR}/http_skip.lance' (
+    FORMAT duckport_lance, BLOB_COLUMNS ('payload'),
+    BLOB_DOWNLOAD_FAILURE_POLICY 'skip_not_found');
+
+# Skipping missing objects must not hide forbidden downloads.
+statement error
+COPY (SELECT getvariable('blob_endpoint') || '/public/forbidden.bin' AS payload)
+TO '{TEST_DIR}/forbidden.lance' (
+    FORMAT duckport_lance, BLOB_COLUMNS ('payload'),
+    BLOB_DOWNLOAD_FAILURE_POLICY 'skip_not_found');
+----
+DuckPort
+
+# The default and explicit fail policies still fail on missing objects.
+statement error
+COPY (SELECT getvariable('blob_endpoint') || '/missing.bin' AS payload)
+TO '{TEST_DIR}/default_fail.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('payload'));
+----
+DuckPort
+
+statement error
+COPY (SELECT getvariable('blob_endpoint') || '/missing.bin' AS payload)
+TO '{TEST_DIR}/explicit_fail.lance' (
+    FORMAT duckport_lance, BLOB_COLUMNS ('payload'), BLOB_DOWNLOAD_FAILURE_POLICY 'fail');
+----
+DuckPort
+
+query T
+SELECT duckport_fixture('blob_http', 'stop');
+----
+stopped

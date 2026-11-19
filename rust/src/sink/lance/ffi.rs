@@ -55,6 +55,8 @@ pub unsafe extern "C" fn duckport_lance_open(
                 columns,
                 &storage.read()?,
                 write_options,
+                validation::required(options.as_ref(), "null Lance write options")?
+                    .blob_policy()?,
                 ingestion,
                 crate::blob_auth::read_secrets(secrets, secret_count)?,
                 sources,

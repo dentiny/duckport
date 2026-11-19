@@ -20,6 +20,11 @@ pub unsafe extern "C" fn duckport_parquet_open(
 ) -> *mut c_char {
     unsafe {
         let open = |schema, write_options, ingestion| async move {
+            if validation::required(options.as_ref(), "null write options")?.blob_policy()?
+                != open_arrow_sink_core::DownloadFailurePolicy::Fail
+            {
+                return Err("BLOB_DOWNLOAD_FAILURE_POLICY is supported only for Lance COPY".into());
+            }
             let storage = validation::required(storage.as_ref(), "null Parquet options")?;
             super::open(
                 &string(path)?,

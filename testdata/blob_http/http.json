@@ -1,6 +1,14 @@
 {
   "routes": [
     {
+      "path": "/public/forbidden.bin",
+      "file": "payload.bin",
+      "auth_header": "",
+      "auth_value": "",
+      "status": 403,
+      "redirect": ""
+    },
+    {
       "path": "/private/a.bin",
       "file": "payload.bin",
       "auth_header": "Authorization",

@@ -115,6 +115,7 @@ pub(crate) async fn open_catalog(
     let writer = open_writer(sink, identifier, output_schema.clone(), options, ingestion).await?;
     Ok(DuckportSink {
         metrics,
+        summary: Default::default(),
         writer: Some(writer),
         schema,
         output_schema: Some(output_schema),

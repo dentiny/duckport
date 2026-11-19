@@ -58,11 +58,13 @@ struct SinkWriteOptions {
 	    .writer_count = 1,
 	    .source_bytes = 0,
 	    .source_bytes_known = false,
+	    .blob_download_failure_policy = nullptr,
 	};
 	string catalog_uri;
 	string warehouse;
 	string storage_root;
 	string storage_version;
+	string blob_download_failure_policy = "fail";
 	vector<ColumnEncodingOptions> column_encodings;
 	vector<IndexOptions> indexes;
 };

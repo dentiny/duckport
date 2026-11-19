@@ -14,7 +14,7 @@ macro_rules! export_reader {
             $($reader: &$options,)?
             output: *mut *mut $crate::ffi::source::DuckportSource,
         ) -> *mut std::ffi::c_char {
-            let open = |$locator: String, $storage: $crate::options::StorageConfig, $scan| $open;
+            let open = |$locator: String, $storage: $crate::options::StorageConfig, $scan: $crate::options::ScanOptions| $open;
             unsafe {
                 $crate::ffi::source::open_reader(
                     locator, storage_options, scan_options, output, open,
