@@ -6,7 +6,9 @@ Automatic reads use DuckDB's `threads` limit where the source supports partition
 providers without a partition planner remain serial. Parallel planned reads use
 open-arrow-access's `CrawlAccessor` with ordered emission. This includes standard
 file readers, arXiv bulk shards, PMC articles/inventory, Common Crawl, Hugging Face,
-CourtListener and MECA. Single-concurrency reads keep the retained-reader path,
+CourtListener, MECA and the shared attachment-provider adapter. Binary
+attachments remain indivisible; text/Parquet attachments expose their native
+partitions. Single-concurrency reads keep the retained-reader path,
 except PMC shard URL conversion, which also uses crawl evolution at concurrency 1.
 Reader-specific options below are named SQL arguments. Credentials and storage
 regions/endpoints come from [scoped secrets](../secrets.md); scan policy comes

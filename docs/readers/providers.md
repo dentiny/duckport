@@ -70,3 +70,16 @@ Do not add credential-bearing options to the scan call.
 The committed [HTTP SQL tests](../../test/sql/readers/) demonstrate fixture
 selectors, redirects, authentication failures and cross-origin isolation without
 requiring live provider accounts.
+
+## Shared crawl execution
+
+All selected-attachment providers bind their resolved namespace through the same
+`SelectedAttachment` adapter. Decoded attachments retain the upstream native scan
+planner and enter the common `CrawlAccessor` execution path when
+`read_concurrency` is greater than one. SQL output remains ordered; projections,
+batch size, scoped credentials and byte-I/O settings use the existing interfaces.
+A binary attachment still produces one unchanged row from one document partition.
+
+This integration currently pins the upstream attachment-planning revision from
+[open-arrow-access #586](https://github.com/dentiny/open-arrow-access/pull/586);
+a released dependency must replace that pin before merging.

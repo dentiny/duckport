@@ -64,14 +64,20 @@ retain their upstream planners rather than erasing them during preparation. Thei
 provider code supplies selection/configuration; the shared source path owns
 execution. arXiv, PMC articles/shards and standard file readers use that same path.
 
-The 14 selected-attachment providers already share `SelectedAttachment` and the
-upstream `AttachmentAccessor`. The latter exposes only `Accessor` in access
-0.12.0, so those single-selected-file readers keep their existing preparation
-path. Native attachment planning is tracked in
+All 14 selected-attachment providers use one `SelectedAttachment` adapter. It
+retains `AttachmentAccessor` planning through `DuckportSource::plannable`; the
+common execution-time `PreparedScan` then enters `CrawlAccessor::new` with SQL
+projection, batch size, concurrency and ordered emission. Provider-specific code
+only resolves selection/authentication and supplies the bound byte namespace.
+Parquet/text formats retain native partitions; a binary attachment stays one
+whole-document partition.
+
+This attachment path depends on
 [open-arrow-access #586](https://github.com/dentiny/open-arrow-access/pull/586).
-After it is released, changing the shared attachment adapter to retain planning
-will connect all 14 providers to this crawl path. OAI providers
-share upstream `SelectionAccessor` and `LimitLayer` for fixed selectors and
+The manifest temporarily pins its exact Git revision; switch to a published
+version containing that PR before merging this dependent change.
+
+OAI providers share upstream `SelectionAccessor` and `LimitLayer` for fixed selectors and
 `max_records`, replacing DuckPort's manual continuation-reader wrapper. Their
 token-dependent continuation chain remains sequential.
 
