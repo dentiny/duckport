@@ -26,7 +26,7 @@ Settings are copied from the current connection when an operation opens.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `conversion_storage_io_request_size` | `67108864` (64 MiB) | Target bytes per source-object and Blob read request |
+| `conversion_storage_io_request_size` | `2097152` (2 MiB) | Target bytes per source-object and Blob read request |
 | `conversion_storage_timeout_ms` | `30000` | Control-operation timeout per attempt; provider HTTP request timeout |
 | `conversion_storage_io_timeout_ms` | `30000` | I/O-operation/body-method timeout |
 | `conversion_storage_retry_max_times` | `5` | Retries after the initial attempt; zero disables retries |
@@ -35,7 +35,7 @@ Settings are copied from the current connection when an operation opens.
 | `conversion_storage_retry_factor` | `2.0` | Finite multiplier between 1 and `f32::MAX` |
 
 ```sql
-SET conversion_storage_io_request_size = 64 * 1024 * 1024;
+SET conversion_storage_io_request_size = 2 * 1024 * 1024;
 SET conversion_storage_timeout_ms = 30000;
 SET conversion_storage_io_timeout_ms = 30000;
 SET conversion_storage_retry_max_times = 5;

@@ -31,7 +31,7 @@ impl Default for DuckportStoragePolicy {
             retry_min_delay_ms: DEFAULT_STORAGE_RETRY_MIN_DELAY_MS,
             retry_max_delay_ms: DEFAULT_STORAGE_RETRY_MAX_DELAY_MS,
             retry_factor: DEFAULT_STORAGE_RETRY_FACTOR,
-            io_request_size: 64 * 1024 * 1024,
+            io_request_size: 2 * 1024 * 1024,
         }
     }
 }
