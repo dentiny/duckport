@@ -25,8 +25,6 @@ public:
 	}
 	AttachmentOptionsFfiView(const AttachmentOptionsFfiView &) = delete;
 	AttachmentOptionsFfiView &operator=(const AttachmentOptionsFfiView &) = delete;
-	AttachmentOptionsFfiView(AttachmentOptionsFfiView &&) = delete;
-	AttachmentOptionsFfiView &operator=(AttachmentOptionsFfiView &&) = delete;
 
 	const optional<string> &Endpoint() const & {
 		return endpoint;
