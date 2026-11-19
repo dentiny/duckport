@@ -1,13 +1,13 @@
 //! Parsing, normalization and object construction; input checks live in validation.
 use crate::{error::Result, options::StorageConfig, validation};
-use arrow_schema::{DataType, Schema};
+use arrow_schema::{DataType, Field, FieldRef, Schema};
 use open_arrow_access::service::arxiv::ArxivKind;
 use open_arrow_access::service::biorxiv::Server;
 use open_arrow_access::service::huggingface::HuggingFaceDatasetRequest;
 use open_arrow_access::service::regulations::RegulationsResource;
 use open_arrow_access::{AttachmentFormat, AttachmentOptions, OuterCompression};
 use open_arrow_sink_core::{CompressionSpec, IndexSpec, IndexType, StructuralEncoding, WriteMode};
-use std::num::NonZeroUsize;
+use std::{num::NonZeroUsize, sync::Arc};
 use url::Url;
 
 /// # Safety
@@ -355,4 +355,29 @@ pub(crate) fn index_spec(schema: &Schema, column: &str, option: &str) -> Result<
         _ => return Err(format!("Unknown index option: {option}").into()),
     };
     Ok(IndexSpec::new(field.name().clone(), index_type))
+}
+
+/// Rebuild Struct/List/LargeList children before applying a field policy.
+/// Paths include struct members, but omit list element names. Preserve the other
+/// field properties, including nullability and metadata, unless the callback changes them.
+pub(crate) fn map_field_tree<E>(
+    field: &FieldRef,
+    path: &str,
+    map: &mut impl FnMut(Field, &str) -> std::result::Result<Field, E>,
+) -> std::result::Result<FieldRef, E> {
+    let data_type = match field.data_type() {
+        DataType::Struct(fields) => DataType::Struct(
+            fields
+                .iter()
+                .map(|child| map_field_tree(child, &format!("{path}.{}", child.name()), map))
+                .collect::<std::result::Result<_, E>>()?,
+        ),
+        DataType::List(item) => DataType::List(map_field_tree(item, path, map)?),
+        DataType::LargeList(item) => DataType::LargeList(map_field_tree(item, path, map)?),
+        other => other.clone(),
+    };
+    Ok(Arc::new(map(
+        field.as_ref().clone().with_data_type(data_type),
+        path,
+    )?))
 }

@@ -1,32 +1,18 @@
 //! ATIF policy only; schema adaptation and media I/O belong to sink layers.
-use crate::{error::Result, readers::atif::STORAGE_POLICY};
-use arrow_schema::{DataType, FieldRef, Schema, SchemaRef};
+use crate::{error::Result, readers::atif::STORAGE_POLICY, utils::map_field_tree};
+use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use std::{collections::HashSet, sync::Arc};
 
-// Apply ATIF storage hints recursively, collecting tagged string paths for download
-// and promoting tagged binary text to large binary with lz4 as the default codec.
-// List elements keep their parent's path because sink paths omit list item names.
-fn field(input: &FieldRef, path: &str, urls: &mut HashSet<String>) -> Result<FieldRef> {
-    let data_type = match input.data_type() {
-        DataType::Struct(fields) => DataType::Struct(
-            fields
-                .iter()
-                .map(|child| field(child, &format!("{path}.{}", child.name()), urls))
-                .collect::<Result<_>>()?,
-        ),
-        DataType::List(item) => DataType::List(field(item, path, urls)?),
-        DataType::LargeList(item) => DataType::LargeList(field(item, path, urls)?),
-        other => other.clone(),
-    };
-    let mut output = input.as_ref().clone().with_data_type(data_type);
-    match input.metadata().get(STORAGE_POLICY).map(String::as_str) {
-        Some("blob") if input.data_type().is_string() => {
+// Collect tagged URL paths and promote binary text with the default codec.
+fn apply_storage_policy(mut field: Field, path: &str, urls: &mut HashSet<String>) -> Result<Field> {
+    match field.metadata().get(STORAGE_POLICY).map(String::as_str) {
+        Some("blob") if field.data_type().is_string() => {
             urls.insert(path.to_owned());
         }
-        Some("text") if matches!(input.data_type(), DataType::Binary | DataType::LargeBinary) => {
-            output = output.with_data_type(DataType::LargeBinary);
+        Some("text") if matches!(field.data_type(), DataType::Binary | DataType::LargeBinary) => {
+            field = field.with_data_type(DataType::LargeBinary);
             // Default ATIF text compression to lz4, preserving any existing codec.
-            output
+            field
                 .metadata_mut()
                 .entry("lance-encoding:compression".into())
                 .or_insert_with(|| "lz4".into());
@@ -34,7 +20,7 @@ fn field(input: &FieldRef, path: &str, urls: &mut HashSet<String>) -> Result<Fie
         Some("blob" | "text") | None => {}
         Some(policy) => return Err(format!("invalid ATIF storage policy: {policy}").into()),
     }
-    Ok(Arc::new(output))
+    Ok(field)
 }
 
 // Return the target schema for schema evolution and media paths for DownloadBlobLayer.
@@ -44,7 +30,11 @@ pub(super) fn configure(schema: &SchemaRef) -> Result<(SchemaRef, HashSet<String
     let fields = schema
         .fields()
         .iter()
-        .map(|f| field(f, f.name(), &mut urls))
+        .map(|field| {
+            map_field_tree(field, field.name(), &mut |field, path| {
+                apply_storage_policy(field, path, &mut urls)
+            })
+        })
         .collect::<Result<Vec<_>>>()?;
     Ok((
         Arc::new(Schema::new_with_metadata(fields, schema.metadata().clone())),
