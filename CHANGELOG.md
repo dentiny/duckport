@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (Unreleased)
+## 0.1.0
 
 Initial release prepared for submission to DuckDB Community Extensions.
 DuckPort reads files and dataset services into DuckDB tables and streams SQL
