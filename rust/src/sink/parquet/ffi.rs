@@ -1,9 +1,9 @@
 //! Parquet Arrow C ABI opener.
 use super::super::DuckportSink;
-use crate::ffi::sink::DuckportWriteOptions;
-use crate::{error::call, ffi::common::RUNTIME, utils::string, validation};
-use arrow_schema::{Schema, ffi::FFI_ArrowSchema};
-use std::{ffi::c_char, ptr, sync::Arc};
+use crate::ffi::sink::{DuckportWriteOptions, open_sink};
+use crate::{utils::string, validation};
+use arrow_schema::ffi::FFI_ArrowSchema;
+use std::ffi::c_char;
 
 /// # Safety
 /// Strings are NUL-terminated UTF-8; schema and storage are live and borrowed.
@@ -18,23 +18,19 @@ pub unsafe extern "C" fn duckport_parquet_open(
     storage: *const crate::options::DuckportStorageOptions,
     output: *mut *mut DuckportSink,
 ) -> *mut c_char {
-    call(|| unsafe {
-        validation::non_null(output, "null sink output")?;
-        *output = ptr::null_mut();
-        let schema = validation::required(schema.as_ref(), "null sink schema")?;
-        let storage = validation::required(storage.as_ref(), "null Parquet options")?;
-        let options = validation::required(options.as_ref(), "null sink write options")?;
-        let schema = Arc::new(Schema::try_from(schema)?);
-        let write_options = options.convert(column_count, &schema)?;
-        let sink = RUNTIME.block_on(super::open(
-            &string(path)?,
-            schema,
-            &string(mode)?,
-            &storage.read()?,
-            write_options,
-            options.ingestion()?,
-        ))?;
-        *output = Box::into_raw(Box::new(sink));
-        Ok(())
-    })
+    unsafe {
+        let open = |schema, write_options, ingestion| async move {
+            let storage = validation::required(storage.as_ref(), "null Parquet options")?;
+            super::open(
+                &string(path)?,
+                schema,
+                &string(mode)?,
+                &storage.read()?,
+                write_options,
+                ingestion,
+            )
+            .await
+        };
+        open_sink(schema, column_count, options, output, open)
+    }
 }
