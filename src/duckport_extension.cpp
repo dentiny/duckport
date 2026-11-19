@@ -11,6 +11,7 @@
 #include "source/readers/arxiv.hpp"
 #include "readers/arxiv_metadata.h"
 #include "source/readers/oai.hpp"
+#include "source/readers/attachment.hpp"
 #include "readers/meca.h"
 #include "source/readers/courtlistener.hpp"
 #include "source/readers/biorxiv.hpp"
@@ -59,100 +60,44 @@ void LoadInternal(ExtensionLoader &loader) {
 		options.Add("date", LogicalType::VARCHAR);
 	});
 	RegisterReader(loader, "duckport_scan_biorxiv", OpenBiorxiv, [](TypedKwargs &options) {
-		options.Add("file_name", LogicalType::VARCHAR);
-		options.Add("format", LogicalType::VARCHAR);
-		options.Add("record_path", LogicalType::VARCHAR);
-		options.Add("endpoint", LogicalType::VARCHAR);
+		AddAttachmentOptions(options);
 		options.Add("until", LogicalType::VARCHAR);
 		options.Add("server", LogicalType::VARCHAR);
 		options.Add("cursor", LogicalType::VARCHAR);
 	});
 	RegisterReader(loader, "duckport_scan_uspto", OpenUspto, [](TypedKwargs &options) {
-		options.Add("file_name", LogicalType::VARCHAR);
-		options.Add("format", LogicalType::VARCHAR);
-		options.Add("record_path", LogicalType::VARCHAR);
-		options.Add("endpoint", LogicalType::VARCHAR);
+		AddAttachmentOptions(options);
 		options.Add("offset", LogicalType::VARCHAR);
 		options.Add("page_size", LogicalType::VARCHAR);
 	});
 	RegisterReader(loader, "duckport_scan_regulations", OpenRegulations, [](TypedKwargs &options) {
-		options.Add("file_name", LogicalType::VARCHAR);
-		options.Add("format", LogicalType::VARCHAR);
-		options.Add("record_path", LogicalType::VARCHAR);
-		options.Add("endpoint", LogicalType::VARCHAR);
+		AddAttachmentOptions(options);
 		options.Add("resource", LogicalType::VARCHAR);
 	});
-	RegisterReader(loader, "duckport_scan_bhl", OpenBhl, [](TypedKwargs &options) {
-		options.Add("file_name", LogicalType::VARCHAR);
-		options.Add("format", LogicalType::VARCHAR);
-		options.Add("record_path", LogicalType::VARCHAR);
-		options.Add("endpoint", LogicalType::VARCHAR);
-	});
+	RegisterReader(loader, "duckport_scan_bhl", OpenBhl, AddAttachmentOptions);
 	RegisterReader(loader, "duckport_scan_openstax", OpenOpenstax, [](TypedKwargs &options) {
-		options.Add("file_name", LogicalType::VARCHAR);
-		options.Add("format", LogicalType::VARCHAR);
-		options.Add("record_path", LogicalType::VARCHAR);
-		options.Add("endpoint", LogicalType::VARCHAR);
+		AddAttachmentOptions(options);
 		options.Add("revision", LogicalType::VARCHAR);
 		options.Add("archive_endpoint", LogicalType::VARCHAR);
 	});
 	RegisterReader(loader, "duckport_scan_semantic_scholar", OpenSemanticScholar, [](TypedKwargs &options) {
-		options.Add("file_name", LogicalType::VARCHAR);
-		options.Add("format", LogicalType::VARCHAR);
-		options.Add("record_path", LogicalType::VARCHAR);
-		options.Add("endpoint", LogicalType::VARCHAR);
+		AddAttachmentOptions(options);
 		options.Add("release", LogicalType::VARCHAR);
 	});
-	RegisterReader(loader, "duckport_scan_library_of_congress", OpenLibraryOfCongress, [](TypedKwargs &options) {
-		options.Add("file_name", LogicalType::VARCHAR);
-		options.Add("format", LogicalType::VARCHAR);
-		options.Add("record_path", LogicalType::VARCHAR);
-		options.Add("endpoint", LogicalType::VARCHAR);
-	});
-	RegisterReader(loader, "duckport_scan_hathifiles", OpenHathifiles, [](TypedKwargs &options) {
-		options.Add("file_name", LogicalType::VARCHAR);
-		options.Add("format", LogicalType::VARCHAR);
-		options.Add("record_path", LogicalType::VARCHAR);
-		options.Add("endpoint", LogicalType::VARCHAR);
-	});
-	RegisterReader(loader, "duckport_scan_govinfo", OpenGovinfo, [](TypedKwargs &options) {
-		options.Add("file_name", LogicalType::VARCHAR);
-		options.Add("format", LogicalType::VARCHAR);
-		options.Add("record_path", LogicalType::VARCHAR);
-		options.Add("endpoint", LogicalType::VARCHAR);
-	});
-	RegisterReader(loader, "duckport_scan_federal_register", OpenFederalRegister, [](TypedKwargs &options) {
-		options.Add("file_name", LogicalType::VARCHAR);
-		options.Add("format", LogicalType::VARCHAR);
-		options.Add("record_path", LogicalType::VARCHAR);
-		options.Add("endpoint", LogicalType::VARCHAR);
-	});
-	RegisterReader(loader, "duckport_scan_internet_archive", OpenInternetArchive, [](TypedKwargs &options) {
-		options.Add("file_name", LogicalType::VARCHAR);
-		options.Add("format", LogicalType::VARCHAR);
-		options.Add("record_path", LogicalType::VARCHAR);
-		options.Add("endpoint", LogicalType::VARCHAR);
-	});
+	RegisterReader(loader, "duckport_scan_library_of_congress", OpenLibraryOfCongress, AddAttachmentOptions);
+	RegisterReader(loader, "duckport_scan_hathifiles", OpenHathifiles, AddAttachmentOptions);
+	RegisterReader(loader, "duckport_scan_govinfo", OpenGovinfo, AddAttachmentOptions);
+	RegisterReader(loader, "duckport_scan_federal_register", OpenFederalRegister, AddAttachmentOptions);
+	RegisterReader(loader, "duckport_scan_internet_archive", OpenInternetArchive, AddAttachmentOptions);
 	RegisterReader(loader, "duckport_scan_figshare", OpenFigshare, [](TypedKwargs &options) {
-		options.Add("file_name", LogicalType::VARCHAR);
-		options.Add("format", LogicalType::VARCHAR);
-		options.Add("record_path", LogicalType::VARCHAR);
-		options.Add("endpoint", LogicalType::VARCHAR);
+		AddAttachmentOptions(options);
 		options.Add("version", LogicalType::VARCHAR);
 	});
 	RegisterReader(loader, "duckport_scan_dataverse", OpenDataverse, [](TypedKwargs &options) {
-		options.Add("file_name", LogicalType::VARCHAR);
-		options.Add("format", LogicalType::VARCHAR);
-		options.Add("record_path", LogicalType::VARCHAR);
-		options.Add("endpoint", LogicalType::VARCHAR);
+		AddAttachmentOptions(options);
 		options.Add("version", LogicalType::VARCHAR);
 	});
-	RegisterReader(loader, "duckport_scan_zenodo", OpenZenodo, [](TypedKwargs &options) {
-		options.Add("file_name", LogicalType::VARCHAR);
-		options.Add("format", LogicalType::VARCHAR);
-		options.Add("record_path", LogicalType::VARCHAR);
-		options.Add("endpoint", LogicalType::VARCHAR);
-	});
+	RegisterReader(loader, "duckport_scan_zenodo", OpenZenodo, AddAttachmentOptions);
 	RegisterReader(loader, "duckport_scan_pmc", OpenPmcMetadata, [](TypedKwargs &options) {
 		options.Add("content_format", LogicalType::VARCHAR);
 	});

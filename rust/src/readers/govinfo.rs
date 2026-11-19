@@ -1,3 +1,4 @@
+use crate::service_files::{AttachmentSelection, impl_attachment_selection};
 use crate::utils::optional_string;
 use open_arrow_access::service::common::Connection;
 use open_arrow_access::service::govinfo::GovInfoService;
@@ -11,15 +12,11 @@ pub struct GovinfoOptions {
     pub endpoint: *const c_char,
 }
 
+impl_attachment_selection!(GovinfoOptions);
+
 crate::ffi::reader::export_reader!(duckport_govinfo_open, reader_options: GovinfoOptions;
     |locator, storage_options, scan_options| async move {
-        let attachment = unsafe {
-            crate::service_files::SelectedAttachment::read(
-                reader_options.file_name,
-                reader_options.format,
-                reader_options.record_path,
-            )
-        }?;
+        let attachment = unsafe { reader_options.read_attachment() }?;
         let endpoint = unsafe { optional_string(reader_options.endpoint) }?
             .unwrap_or_else(|| "https://www.govinfo.gov".into());
         let connection = crate::provider_auth::connection(
