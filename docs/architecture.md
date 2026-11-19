@@ -67,7 +67,10 @@ execution. arXiv, PMC articles/shards and standard file readers use that same pa
 The 14 selected-attachment providers already share `SelectedAttachment` and the
 upstream `AttachmentAccessor`. The latter exposes only `Accessor` in access
 0.12.0, so those single-selected-file readers keep their existing preparation
-path; native attachment planning is an upstream extension point. OAI providers
+path. Native attachment planning is tracked in
+[open-arrow-access #586](https://github.com/dentiny/open-arrow-access/pull/586).
+After it is released, changing the shared attachment adapter to retain planning
+will connect all 14 providers to this crawl path. OAI providers
 share upstream `SelectionAccessor` and `LimitLayer` for fixed selectors and
 `max_records`, replacing DuckPort's manual continuation-reader wrapper. Their
 token-dependent continuation chain remains sequential.
