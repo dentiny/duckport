@@ -1,3 +1,4 @@
+#include "duckdb/common/string_util.hpp"
 #include "readers/zenodo.h"
 #include "source/readers/attachment.hpp"
 #include "source/readers/zenodo.hpp"
@@ -12,7 +13,7 @@ char *OpenZenodo(ClientContext &context, const string &locator, const DuckportSc
 	if (!origin.empty() && origin.back() == '/') {
 		origin.pop_back();
 	}
-	StorageParameters storage(context, origin + "/api/records/" + locator, /*secret_type=*/ {});
+	StorageParameters storage(context, StringUtil::Format("%s/api/records/%s", origin, locator), /*secret_type=*/ {});
 	return duckport_zenodo_open(locator.c_str(), storage.config, scan, reader_options, output);
 }
 } // namespace duckdb

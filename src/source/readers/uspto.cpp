@@ -1,3 +1,4 @@
+#include "duckdb/common/string_util.hpp"
 #include "readers/uspto.h"
 #include "source/readers/attachment.hpp"
 #include "source/readers/uspto.hpp"
@@ -12,7 +13,8 @@ char *OpenUspto(ClientContext &context, const string &locator, const DuckportSca
 	reader_options.offset = offset ? offset->c_str() : nullptr;
 	auto page_size = ReadStringOption(input, "page_size");
 	reader_options.page_size = page_size ? page_size->c_str() : nullptr;
-	StorageParameters storage(context, common.Endpoint().value_or("https://api.uspto.gov") + "/", /*secret_type=*/ {});
+	StorageParameters storage(context, StringUtil::Format("%s/", common.Endpoint().value_or("https://api.uspto.gov")),
+	                          /*secret_type=*/ {});
 	return duckport_uspto_open(locator.c_str(), storage.config, scan, reader_options, output);
 }
 } // namespace duckdb

@@ -1,3 +1,4 @@
+#include "duckdb/common/string_util.hpp"
 #include "readers/dataverse.h"
 #include "source/readers/attachment.hpp"
 #include "source/readers/dataverse.hpp"
@@ -10,7 +11,8 @@ char *OpenDataverse(ClientContext &context, const string &locator, const Duckpor
 	AttachmentOptionsFfiView common(input, reader_options);
 	auto version = ReadStringOption(input, "version");
 	reader_options.version = version ? version->c_str() : nullptr;
-	StorageParameters storage(context, common.Endpoint().value_or("https://dataverse.harvard.edu") + "/",
+	StorageParameters storage(context,
+	                          StringUtil::Format("%s/", common.Endpoint().value_or("https://dataverse.harvard.edu")),
 	                          /*secret_type=*/ {});
 	return duckport_dataverse_open(locator.c_str(), storage.config, scan, reader_options, output);
 }

@@ -1,3 +1,4 @@
+#include "duckdb/common/string_util.hpp"
 #include "readers/biorxiv.h"
 #include "source/readers/attachment.hpp"
 #include "source/readers/biorxiv.hpp"
@@ -14,7 +15,7 @@ char *OpenBiorxiv(ClientContext &context, const string &locator, const DuckportS
 	reader_options.server = server ? server->c_str() : nullptr;
 	auto cursor = ReadStringOption(input, "cursor");
 	reader_options.cursor = cursor ? cursor->c_str() : nullptr;
-	StorageParameters storage(context, common.Endpoint().value_or("https://api.biorxiv.org") + "/",
+	StorageParameters storage(context, StringUtil::Format("%s/", common.Endpoint().value_or("https://api.biorxiv.org")),
 	                          /*secret_type=*/ {});
 	return duckport_biorxiv_open(locator.c_str(), storage.config, scan, reader_options, output);
 }
