@@ -107,24 +107,6 @@ pub struct DuckportWriteOptions {
     pub source_bytes_known: bool,
 }
 
-impl Default for DuckportWriteOptions {
-    fn default() -> Self {
-        Self {
-            blob_inline_size_threshold: -1,
-            blob_dedicated_size_threshold: -1,
-            target_file_size: 512 * 1024 * 1024,
-            storage_version: std::ptr::null(),
-            column_encodings: std::ptr::null(),
-            column_encoding_count: 0,
-            indexes: std::ptr::null(),
-            index_count: 0,
-            writer_count: 1,
-            source_bytes: 0,
-            source_bytes_known: false,
-        }
-    }
-}
-
 impl DuckportWriteOptions {
     pub(crate) fn ingestion(&self) -> Result<open_arrow_sink_layer::ParallelIngestionLayer> {
         use open_arrow_sink_layer::{InputSizeHint, ParallelIngestionLayer};
