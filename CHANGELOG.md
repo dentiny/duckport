@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Upgrade open-arrow-access to 0.11.0, adopting byte-budgeted streaming read-ahead and owned WARC BinaryView bodies.
+- Reject numeric and boolean values in JSON string fields instead of coercing them.
+
 ## 0.2.0 - 2026-11-19
 
 ### Added

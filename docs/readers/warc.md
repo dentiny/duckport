@@ -17,7 +17,8 @@ retain the `crawl-data` path structure.
 
 WARC and Common Crawl share the upstream schema: `id` is the WARC record ID,
 `type` is the record type, `date` is a timestamp with millisecond precision,
-and `body` contains the original binary payload.
+and `body` contains the original binary payload. The Arrow reader uses owned
+`BinaryView` buffers; the SQL column remains `BLOB`.
 No HTML text extraction is performed. Top-level projection omits unselected Arrow values, but the parser
 still consumes the WARC body bytes. `batch_size` is the row target.
 
