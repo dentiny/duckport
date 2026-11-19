@@ -10,9 +10,39 @@ use arrow_array::{
     RecordBatch, StructArray,
     ffi::{FFI_ArrowArray, from_ffi},
 };
-use arrow_schema::ffi::FFI_ArrowSchema;
+use arrow_schema::{Schema, SchemaRef, ffi::FFI_ArrowSchema};
 use open_arrow_sink_core::{BlobHandleConfig, WriteOptions};
-use std::ffi::c_char;
+use std::{ffi::c_char, future::Future, ptr, sync::Arc};
+
+/// Open a fixed-schema sink behind the common panic/error and ownership boundary.
+///
+/// # Safety
+/// Schema and options point to live borrowed values; their nested arrays/strings
+/// meet `DuckportWriteOptions::convert` requirements. Output is writable pointer
+/// storage. The backend future must not retain borrowed FFI inputs after this call.
+pub(crate) unsafe fn open_sink<F, Fut>(
+    schema: *const FFI_ArrowSchema,
+    column_count: usize,
+    options: *const DuckportWriteOptions,
+    output: *mut *mut DuckportSink,
+    open: F,
+) -> *mut c_char
+where
+    F: FnOnce(SchemaRef, WriteOptions, open_arrow_sink_layer::ParallelIngestionLayer) -> Fut,
+    Fut: Future<Output = Result<DuckportSink>>,
+{
+    call(|| unsafe {
+        validation::non_null(output, "null sink output")?;
+        *output = ptr::null_mut();
+        let schema = validation::required(schema.as_ref(), "null sink schema")?;
+        let options = validation::required(options.as_ref(), "null sink write options")?;
+        let schema = Arc::new(Schema::try_from(schema)?);
+        let write_options = options.convert(column_count, &schema)?;
+        let sink = RUNTIME.block_on(open(schema, write_options, options.ingestion()?))?;
+        *output = Box::into_raw(Box::new(sink));
+        Ok(())
+    })
+}
 
 /// # Safety
 /// Name is a borrowed NUL-terminated UTF-8 write-option name.
