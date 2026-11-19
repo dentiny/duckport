@@ -1,5 +1,4 @@
 //! Read-only diagnostics for SQLLogicTest fixtures; excluded from production builds.
-mod source_metrics;
 use crate::{
     error::{Result, call},
     ffi::common::RUNTIME,

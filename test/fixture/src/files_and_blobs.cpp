@@ -8,7 +8,6 @@
 #include "duckdb/common/fstream.hpp"
 
 extern "C" {
-char *duckport_fixture_json_metrics(const char *, char **);
 char *duckport_fixture_blob_layout(const char *, const char *, char **);
 char *duckport_fixture_field_metadata(const char *, const char *, const char *, char **);
 void duckport_source_error_free(char *);
@@ -62,18 +61,6 @@ void RegisterMetadataFixture(ExtensionLoader &loader) {
 	loader.RegisterFunction(metadata);
 }
 
-void RegisterSourceMetricsFixture(ExtensionLoader &loader) {
-	ScalarFunction metrics(
-	    "duckport_fixture_json_metrics", {LogicalType::VARCHAR}, LogicalType::VARCHAR,
-	    [](DataChunk &args, ExpressionState &, Vector &result) {
-		    UnaryExecutor::Execute<string_t, string_t>(args.data[0], result, args.size(), [&result](string_t path) {
-			    return ReadDiagnostic(result, "JSON metrics", duckport_fixture_json_metrics, path.GetString().c_str());
-		    });
-	    });
-	metrics.SetVolatile();
-	loader.RegisterFunction(metrics);
-}
-
 void RegisterWriteFixture(ExtensionLoader &loader) {
 	ScalarFunction write("duckport_fixture_write", {LogicalType::VARCHAR, LogicalType::BLOB}, LogicalType::VARCHAR,
 	                     [](DataChunk &args, ExpressionState &, Vector &result) {
@@ -109,7 +96,6 @@ void RegisterFileAndBlobFixtures(ExtensionLoader &loader) {
 	layout.SetVolatile();
 	loader.RegisterFunction(layout);
 	RegisterMetadataFixture(loader);
-	RegisterSourceMetricsFixture(loader);
 	RegisterWriteFixture(loader);
 	RegisterRemoveFixture(loader);
 }
