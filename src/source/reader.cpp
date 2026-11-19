@@ -1,6 +1,6 @@
 #include "duckdb/function/table/arrow.hpp"
 #include "duckdb/main/settings.hpp"
-#include "duckdb/main/query_profiler.hpp"
+#include "duckdb/main/profiler/profiling_node.hpp"
 #include "error.hpp"
 #include "source/options.hpp"
 #include "source/reader.hpp"
