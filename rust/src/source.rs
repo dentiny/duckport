@@ -24,7 +24,7 @@ pub struct DuckportSource {
     options: ReadOptions,
     media: Option<Arc<crate::readers::atif::MediaResolver>>,
     // PMC shard plans currently select PDF; override its URL only after parallel reads.
-    pmc_content: Option<&'static str>,
+    content_url_source_column: Option<&'static str>,
 }
 
 impl DuckportSource {
@@ -56,7 +56,7 @@ impl DuckportSource {
             planned,
             read_concurrency: AtomicUsize::new(1),
             media: None,
-            pmc_content: None,
+            content_url_source_column: None,
         }
     }
 
@@ -90,8 +90,8 @@ impl DuckportSource {
         ))
     }
 
-    pub(crate) fn with_pmc_content(mut self, field: &'static str) -> Self {
-        self.pmc_content = Some(field);
+    pub(crate) fn with_content_url_source_column(mut self, field: &'static str) -> Self {
+        self.content_url_source_column = Some(field);
         self
     }
 
@@ -127,7 +127,7 @@ impl DuckportSource {
             Some(projection)
         };
         let concurrency = self.read_concurrency.load(Ordering::Relaxed);
-        let reader = if let Some(field) = self.pmc_content {
+        let reader = if let Some(field) = self.content_url_source_column {
             // Transform outside the parallel executor, retaining native shard partitions.
             // The upstream layer resolves projections and obtains the selected URL field.
             scan::PreparedScan(self.source.clone(), self.capability)

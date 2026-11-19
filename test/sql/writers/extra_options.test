@@ -7,19 +7,21 @@ require duckport
 require parquet
 
 statement ok
-COPY (SELECT content_url AS content, text_url FROM duckport_scan_pmc('testdata/pmc/metadata.json'))
+COPY (SELECT content_url AS content, text_url,
+             (SELECT content_url FROM DUCKPORT_SCAN_PMC('testdata/pmc/metadata.json')) AS nested_content
+      FROM duckport_scan_pmc('testdata/pmc/metadata.json'))
 TO '{TEST_DIR}/pmc_txt' (FORMAT duckport_parquet, EXTRA_OPTIONS MAP {'content_format': 'txt'});
 
 query I
-SELECT content = text_url FROM read_parquet('{TEST_DIR}/pmc_txt/*.parquet');
+SELECT content = text_url AND nested_content = text_url FROM read_parquet('{TEST_DIR}/pmc_txt/*.parquet');
 ----
 true
 
 statement error
-COPY (SELECT * FROM duckport_scan_pmc('testdata/pmc/metadata.json', content_format := 'pdf'))
+COPY (SELECT * FROM duckport_scan_pmc('testdata/pmc/metadata.json', content_format = 'pdf'))
 TO '{TEST_DIR}/duplicate_option' (FORMAT duckport_parquet, EXTRA_OPTIONS {'content_format': 'txt'});
 ----
-EXTRA_OPTIONS duplicates reader option
+Duplicate named argument
 
 statement error
 COPY (SELECT * FROM duckport_scan_pmc('testdata/pmc/metadata.json'))

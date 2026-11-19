@@ -24,11 +24,11 @@ crate::ffi::reader::export_reader!(duckport_pmc_open, reader_options: PmcOptions
     |locator, storage_options, scan_options| async move {
         let format = unsafe { optional_string(reader_options.content_format) }?
             .map(|value| value.parse::<PmcFormat>()).transpose()?.unwrap_or_default();
-        let directory = locator.ends_with('/');
-        let (operator, mut path) = storage::operator(locator.trim_end_matches('/'), &storage_options)?;
-        if directory {
-            path.push('/');
-        }
+        let (operator, path) = if locator.ends_with('/') {
+            (storage::directory_operator(&locator, &storage_options)?, "/".to_owned())
+        } else {
+            storage::operator(&locator, &storage_options)?
+        };
         AsyncSource::plannable(
             PmcDatasetAccessor::new(OpenDalAccessor::new(operator)).with_format(format),
             ReadRequest::new(path).with_options(scan_options),
@@ -50,8 +50,8 @@ crate::ffi::reader::export_reader!(duckport_pmc_shard_open, reader_options: PmcS
             PmcInventoryShardRequest::new(manifest, shard).with_options(scan_options),
         ).await.map(|source| match format {
             PmcFormat::Pdf => source,
-            PmcFormat::Xml => source.with_pmc_content("xml_url"),
-            PmcFormat::Txt => source.with_pmc_content("text_url"),
+            PmcFormat::Xml => source.with_content_url_source_column("xml_url"),
+            PmcFormat::Txt => source.with_content_url_source_column("text_url"),
         })
     }
 );

@@ -2,6 +2,7 @@
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/parser/expression/constant_expression.hpp"
 #include "duckdb/parser/expression/function_expression.hpp"
+#include "duckdb/parser/expression/subquery_expression.hpp"
 #include "duckdb/parser/parsed_data/copy_info.hpp"
 #include "duckdb/parser/parsed_expression_iterator.hpp"
 #include "duckdb/parser/tableref/table_function_ref.hpp"
@@ -52,32 +53,42 @@ void ApplyCopyExtraOptions(QueryNode &query, CopyInfo &info) {
 	}
 	auto options = ReadExtraOptions(entry->second);
 	idx_t readers = 0;
-	ParsedExpressionIterator::EnumerateQueryNodeChildren(
-	    query, [](unique_ptr<ParsedExpression> &) {},
-	    [&](TableRef &ref) {
-		    if (ref.type != TableReferenceType::TABLE_FUNCTION) {
-			    return;
-		    }
-		    auto &expression = *ref.Cast<TableFunctionRef>().function;
-		    if (expression.GetExpressionClass() != ExpressionClass::FUNCTION) {
-			    return;
-		    }
-		    auto &function = expression.Cast<FunctionExpression>();
-		    if (!StringUtil::StartsWith(StringUtil::Lower(function.FunctionName().GetIdentifierName()),
-		                                "duckport_scan_")) {
-			    return;
-		    }
-		    readers++;
-		    auto &arguments = function.GetArgumentsMutable();
-		    for (const auto &option : options) {
-			    for (const auto &argument : arguments) {
-				    if (argument.HasName() && argument.GetName() == option.first) {
-					    throw BinderException("EXTRA_OPTIONS duplicates reader option: %s", option.first);
-				    }
-			    }
-			    arguments.emplace_back(option.first, ConstantExpression::FromValue(option.second));
-		    }
-	    });
+	std::function<void(QueryNode &)> visit_query;
+	std::function<void(unique_ptr<ParsedExpression> &)> visit_expression;
+	visit_expression = [&](unique_ptr<ParsedExpression> &expression) {
+		if (expression->GetExpressionClass() == ExpressionClass::SUBQUERY) {
+			visit_query(*expression->Cast<SubqueryExpression>().SubqueryMutable()->node);
+		}
+		ParsedExpressionIterator::EnumerateChildren(*expression, visit_expression);
+	};
+	visit_query = [&](QueryNode &node) {
+		ParsedExpressionIterator::EnumerateQueryNodeChildren(node, visit_expression, [&](TableRef &ref) {
+			if (ref.type != TableReferenceType::TABLE_FUNCTION) {
+				return;
+			}
+			auto &table = ref.Cast<TableFunctionRef>();
+			if (table.subquery) {
+				visit_query(*table.subquery->node);
+			}
+			auto &expression = *table.function;
+			if (expression.GetExpressionClass() != ExpressionClass::FUNCTION) {
+				return;
+			}
+			auto &function = expression.Cast<FunctionExpression>();
+			if (!StringUtil::StartsWith(StringUtil::Lower(function.FunctionName().GetIdentifierName()),
+			                            "duckport_scan_")) {
+				return;
+			}
+			readers++;
+			for (const auto &option : options) {
+				auto value = ConstantExpression::FromValue(option.second);
+				// The table-function binder reads expression aliases, not FunctionArgument names.
+				value->SetAlias(option.first);
+				function.GetArgumentsMutable().emplace_back(option.first, std::move(value));
+			}
+		});
+	};
+	visit_query(query);
 	if (!options.empty() && readers == 0) {
 		throw BinderException("EXTRA_OPTIONS requires an explicit duckport_scan_* source");
 	}
