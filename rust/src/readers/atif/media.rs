@@ -1,15 +1,15 @@
 //! Normalize ATIF media references without reading their payloads.
 use super::STORAGE_POLICY;
-use crate::error::Result;
+use crate::{error::Result, utils::map_field_tree};
 use arrow_array::{
     ArrayRef, RecordBatch, RecordBatchOptions, builder::StringBuilder, cast::AsArray, make_array,
 };
-use arrow_schema::{DataType, FieldRef, SchemaRef};
+use arrow_schema::{DataType, Field, FieldRef, SchemaRef};
 use open_arrow_access::{RecordReader, map_record_reader};
-use std::sync::Arc;
+use std::{convert::Infallible, sync::Arc};
 use url::Url;
 
-fn tag_field(field: &FieldRef, path: &str, document: &str) -> FieldRef {
+fn tag_field(mut field: Field, path: &str, document: &str) -> Field {
     let policy = match path {
         "steps.message.text" | "steps.observation.results.content.text" => Some("text"),
         "steps.message.source.path" | "steps.observation.results.content.source.path" => {
@@ -17,17 +17,6 @@ fn tag_field(field: &FieldRef, path: &str, document: &str) -> FieldRef {
         }
         _ => None,
     };
-    let data_type = match field.data_type() {
-        DataType::Struct(fields) => DataType::Struct(
-            fields
-                .iter()
-                .map(|child| tag_field(child, &format!("{path}.{}", child.name()), document))
-                .collect(),
-        ),
-        DataType::List(item) => DataType::List(tag_field(item, path, document)),
-        other => other.clone(),
-    };
-    let mut field = field.as_ref().clone().with_data_type(data_type);
     if let Some(policy) = policy {
         field
             .metadata_mut()
@@ -38,7 +27,7 @@ fn tag_field(field: &FieldRef, path: &str, document: &str) -> FieldRef {
                 .insert("duckport:media_document".into(), document.into());
         }
     }
-    Arc::new(field)
+    field
 }
 
 pub(crate) fn uri_schema(schema: &SchemaRef, document: &str) -> SchemaRef {
@@ -46,7 +35,12 @@ pub(crate) fn uri_schema(schema: &SchemaRef, document: &str) -> SchemaRef {
     schema.fields = schema
         .fields
         .iter()
-        .map(|field| tag_field(field, field.name(), document))
+        .map(|field| {
+            map_field_tree(field, field.name(), &mut |field, path| {
+                Ok::<_, Infallible>(tag_field(field, path, document))
+            })
+            .unwrap_or_else(|never| match never {})
+        })
         .collect();
     Arc::new(schema)
 }
@@ -133,7 +127,7 @@ impl MediaResolver {
         }
         let children: &[FieldRef] = match field.data_type() {
             DataType::Struct(fields) => fields,
-            DataType::List(item) => std::slice::from_ref(item),
+            DataType::List(item) | DataType::LargeList(item) => std::slice::from_ref(item),
             _ => return Ok(array.clone()),
         };
         let data = array.to_data();
