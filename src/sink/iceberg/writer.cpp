@@ -1,4 +1,5 @@
 #include "sink/copy.hpp"
+#include "sink/write_options_ffi.hpp"
 #include "storage_options.hpp"
 #include "sink/writer_context.hpp"
 #include "error.hpp"

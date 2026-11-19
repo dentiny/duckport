@@ -91,6 +91,7 @@ list(
   src/sink/copy_query.cpp
   src/sink/extra_options.cpp
   src/sink/writer.cpp
+  src/sink/write_options_ffi.cpp
   src/sink/lance/writer.cpp
   src/sink/parquet/writer.cpp
   src/sink/iceberg/writer.cpp)
