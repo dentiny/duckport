@@ -200,6 +200,7 @@ BoundStatement PlanCopy(Binder &binder, CopyStatement &statement) {
 	auto function = entry.function;
 	function.plan = nullptr;
 	auto query = info->select_statement->Copy();
+	ApplyCopyExtraOptions(*query, *info);
 	auto generated = TakeGeneratedColumns(binder.context, *info);
 	if (auto sample = TakeSampleOptions(binder.context, *info)) {
 		query = ApplyCopySample(std::move(query), std::move(sample));

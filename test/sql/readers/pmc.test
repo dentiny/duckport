@@ -22,12 +22,58 @@ EXECUTE pmc_scan;
 ----
 PMC123	1	Test article
 
-query TTIII
-SELECT trim(pmcid), license_code, version, pmid, metadata.pmid FROM duckport_scan_pmc('testdata/pmc/metadata.json');
+query TTII
+SELECT trim(pmcid), license_code, version, pmid FROM duckport_scan_pmc('testdata/pmc/metadata.json');
 ----
-pmc00123	CC BY	2	36537061	36537061
+pmc00123	CC BY	2	36537061
 
 query I
 SELECT count(*) FROM duckport_scan_pmc_inventory('testdata/pmc/inventory/manifest.json', batch_size := 1);
 ----
 3
+
+query III
+SELECT content_url = pdf_url, xml_url IS NOT NULL, text_url IS NOT NULL
+FROM duckport_scan_pmc('testdata/pmc/metadata.json');
+----
+true	true	true
+
+query I
+SELECT content_url = xml_url FROM duckport_scan_pmc('testdata/pmc/metadata.json', content_format := 'xml');
+----
+true
+
+query I
+SELECT content_url = text_url FROM duckport_scan_pmc('testdata/pmc/metadata.json', content_format := 'txt');
+----
+true
+
+query II
+SELECT count(*), count_if(content_url = text_url)
+FROM duckport_scan_pmc_shard('testdata/pmc/shard', manifest := 'manifest.json',
+    shard := 'inventory-reports/pmc-oa-opendata/metadata/data/13cbabe4-91e8-4d22-977f-adc2fc7eb6cb.csv.gz',
+    content_format := 'txt', read_concurrency := 2, batch_size := 1);
+----
+3	3
+
+query I
+SELECT count(*)
+FROM duckport_scan_pmc_shard('testdata/pmc/shard', manifest := 'manifest.json',
+    shard := 'inventory-reports/pmc-oa-opendata/metadata/data/13cbabe4-91e8-4d22-977f-adc2fc7eb6cb.csv.gz',
+    content_format := 'xml', read_concurrency := 2);
+----
+3
+
+query T rowsort
+SELECT pmcid FROM duckport_scan_pmc_shard('testdata/pmc/shard', manifest := 'manifest.json',
+    shard := 'inventory-reports/pmc-oa-opendata/metadata/data/13cbabe4-91e8-4d22-977f-adc2fc7eb6cb.csv.gz',
+    read_concurrency := 2);
+----
+PMC5000000
+PMC5000001
+PMC5000002
+
+statement error
+SELECT * FROM duckport_scan_pmc('testdata/pmc/metadata.json', content_format := 'html');
+----
+PMC format must be pdf, xml or txt

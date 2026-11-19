@@ -4,5 +4,6 @@
   "license_code": "CC BY", "is_pmc_openaccess": true,
   "pdf_url": "s3://pmc-oa-opendata/PMC123.2/article%20%2B%2520.pdf?md5=example",
   "xml_url": "s3://pmc-oa-opendata/PMC123.2/article.xml",
+  "text_url": "fixture://testdata/pmc/article.txt",
   "mid": null
 }
