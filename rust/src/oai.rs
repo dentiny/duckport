@@ -5,7 +5,7 @@ use crate::{
 };
 use futures::stream;
 use open_arrow_access::{
-    Accessor, ReadOptions, ReadRequest, RecordCapability, RecordReader, StreamReader, async_trait,
+    Accessor, ReadRequest, RecordCapability, RecordReader, StreamReader, async_trait,
     file_format::xml::{NamespaceBinding, XmlFormat},
     service::oai::{OaiHarvestRequest, OaiHarvester, OaiProvider, OaiProviderService},
 };
@@ -59,10 +59,10 @@ impl OaiOptions {
     }
 }
 
-pub async fn open<P: OaiProvider>(
+pub(crate) async fn open<P: OaiProvider>(
     locator: String,
     storage_options: StorageConfig,
-    scan_options: ReadOptions,
+    scan_options: crate::options::ScanOptions,
     selection: OaiSelection,
 ) -> Result<AsyncSource> {
     let OaiSelection {
@@ -94,7 +94,9 @@ pub async fn open<P: OaiProvider>(
         }]),
         None => service.record_format(),
     };
-    let mut selection = OaiHarvestRequest::new(ReadRequest::new(locator.clone()));
+    let mut selection = OaiHarvestRequest::new(
+        ReadRequest::new(locator.clone()).with_byte_options(scan_options.bytes),
+    );
     selection.from = from_date;
     selection.until = until_date;
     selection.set = set_spec;
@@ -105,11 +107,7 @@ pub async fn open<P: OaiProvider>(
         selection,
         max_records,
     };
-    AsyncSource::new(
-        accessor,
-        ReadRequest::new(locator).with_options(scan_options),
-    )
-    .await
+    AsyncSource::new(accessor, scan_options.request(ReadRequest::new(locator))).await
 }
 
 // Keep provider selectors fixed while PreparedSource replaces projection and batch size.

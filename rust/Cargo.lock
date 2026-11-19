@@ -2040,7 +2040,6 @@ dependencies = [
  "arrow-cast",
  "arrow-schema",
  "arrow-select",
- "csv-async",
  "futures",
  "glob",
  "http",

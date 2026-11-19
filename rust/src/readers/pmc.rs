@@ -31,7 +31,7 @@ crate::ffi::reader::export_reader!(duckport_pmc_open, reader_options: PmcOptions
         };
         AsyncSource::plannable(
             PmcDatasetAccessor::new(OpenDalAccessor::new(operator)).with_format(format),
-            ReadRequest::new(path).with_options(scan_options),
+            scan_options.request(ReadRequest::new(path)),
         ).await
     }
 );
@@ -47,7 +47,7 @@ crate::ffi::reader::export_reader!(duckport_pmc_shard_open, reader_options: PmcS
         let operator = storage::directory_operator(&locator, &storage_options)?;
         AsyncSource::plannable(
             PmcInventoryShardAccessor::new(OpenDalAccessor::new(operator)),
-            PmcInventoryShardRequest::new(manifest, shard).with_options(scan_options),
+            scan_options.request(PmcInventoryShardRequest::new(manifest, shard)),
         ).await.map(|source| match format {
             PmcFormat::Pdf => source,
             PmcFormat::Xml => source.with_content_url_source_column("xml_url"),
@@ -61,7 +61,7 @@ crate::ffi::reader::export_reader!(duckport_pmc_inventory_open;
         let (operator, path) = storage::operator(&locator, &storage_options)?;
         AsyncSource::new(
             PmcInventoryAccessor::new(OpenDalAccessor::new(operator)),
-            ReadRequest::new(path).with_options(scan_options),
+            scan_options.request(ReadRequest::new(path)),
         ).await
     }
 );

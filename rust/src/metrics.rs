@@ -153,6 +153,16 @@ impl<A: open_arrow_access::ByteAccessor> open_arrow_access::Accessor for Observe
     ) -> open_arrow_access::Result<Option<open_arrow_access::ByteMetadata>> {
         self.inner.inspect_metadata(request).await
     }
+    async fn open_sequential(
+        &self,
+        request: Self::Request,
+    ) -> open_arrow_access::Result<Box<Self::Reader>> {
+        let reader = self.inner.open_sequential(request).await?;
+        if let Some(total) = reader.metadata().content_length {
+            self.metrics.set_total_bytes(total);
+        }
+        Ok(reader.instrument(self.metrics.clone()))
+    }
     async fn open(&self, request: Self::Request) -> open_arrow_access::Result<Box<Self::Reader>> {
         let reader = self.inner.open(request).await?;
         if let Some(total) = reader.metadata().content_length {

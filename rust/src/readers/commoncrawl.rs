@@ -2,7 +2,7 @@ use crate::{
     error::Result, options::StorageConfig, source::DuckportSource as AsyncSource, storage,
 };
 use open_arrow_access::{
-    AccessorExt, ReadOptions,
+    AccessorExt,
     decompression::AutoDecompressionLayer,
     file_format::{FileAccessor, warc::WarcArrowFormat},
     service::{
@@ -31,7 +31,7 @@ fn create_location(locator: &str, options: &StorageConfig) -> Result<(opendal::O
 async fn open_commoncrawl(
     locator: String,
     options: StorageConfig,
-    scan: ReadOptions,
+    scan: crate::options::ScanOptions,
     scope: Scope,
 ) -> Result<AsyncSource> {
     let (operator, key) = create_location(&locator, &options)?;
@@ -43,14 +43,14 @@ async fn open_commoncrawl(
         Scope::Dataset => {
             AsyncSource::new(
                 CommonCrawlWarcAccessor::new(manifests, files),
-                CommonCrawlWarcRequest::from_url(&selection)?.with_options(scan),
+                scan.request(CommonCrawlWarcRequest::from_url(&selection)?),
             )
             .await
         }
         Scope::Segment => {
             AsyncSource::new(
                 CommonCrawlSegmentAccessor::new(manifests, files),
-                CommonCrawlSegmentRequest::from_url(&selection)?.with_options(scan),
+                scan.request(CommonCrawlSegmentRequest::from_url(&selection)?),
             )
             .await
         }

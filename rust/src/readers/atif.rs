@@ -12,12 +12,12 @@ crate::ffi::reader::export_reader!(duckport_atif_open;
 pub(crate) async fn open(
     locator: &str,
     storage_options: crate::options::StorageConfig,
-    scan_options: open_arrow_access::ReadOptions,
+    scan_options: crate::options::ScanOptions,
 ) -> crate::error::Result<crate::source::DuckportSource> {
     let (operator, path) = storage::operator(locator, &storage_options)?;
     let source = open_file_source(
         operator,
-        ReadRequest::new(path).with_options(scan_options),
+        scan_options.request(ReadRequest::new(path)),
         AtifFormat::Auto,
         OuterCompression::Auto,
         &storage_options.metrics,

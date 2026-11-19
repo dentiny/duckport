@@ -69,22 +69,6 @@ pub(crate) fn validate_http_config(config: &StorageConfig) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn validate_huggingface_path(
-    owner: &str,
-    repository: &str,
-    revision: &str,
-    config: &str,
-    split: &str,
-) -> Result<()> {
-    if [owner, repository, config, split].iter().any(|value| {
-        value.is_empty() || matches!(*value, "." | "..") || value.contains(['/', '\\', '\0'])
-    }) || revision.is_empty()
-    {
-        return Err("Hugging Face URL contains an invalid path component".into());
-    }
-    Ok(())
-}
-
 pub(crate) fn validate_huggingface_url_options(
     revision: Option<&str>,
     config: Option<&str>,
@@ -168,24 +152,6 @@ pub(crate) fn validate_boolean(name: &str, value: i32) -> Result<()> {
 pub(crate) fn validate_sink_scheme(url: &Url) -> Result<()> {
     if !matches!(url.scheme(), "file" | "s3") {
         return Err("sink destination must be a local path, file:// URI, or s3:// URI".into());
-    }
-    Ok(())
-}
-
-pub(crate) fn validate_courtlistener_header(header: &csv_async::StringRecord) -> Result<()> {
-    let mut names = std::collections::HashSet::new();
-    for name in header {
-        if name.is_empty() || !names.insert(name) {
-            return Err("CourtListener CSV header names must be nonempty and unique".into());
-        }
-    }
-    Ok(())
-}
-
-pub(crate) fn validate_huggingface_uri(url: &Url) -> Result<()> {
-    validate_uri(url)?;
-    if url.scheme() != "hf" || url.host_str() != Some("datasets") || url.port().is_some() {
-        return Err("expected hf://datasets/<owner>/<repo>@<revision>/<config>/<split>/".into());
     }
     Ok(())
 }

@@ -16,6 +16,7 @@ struct DuckportStoragePolicy {
 	uint64_t retry_min_delay_ms;
 	uint64_t retry_max_delay_ms;
 	double retry_factor;
+	uint64_t io_request_size;
 };
 
 struct DuckportHttpHeader {

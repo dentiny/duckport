@@ -19,6 +19,7 @@ pub struct DuckportStoragePolicy {
     pub retry_min_delay_ms: u64,
     pub retry_max_delay_ms: u64,
     pub retry_factor: f64,
+    pub io_request_size: u64,
 }
 
 impl Default for DuckportStoragePolicy {
@@ -30,13 +31,29 @@ impl Default for DuckportStoragePolicy {
             retry_min_delay_ms: DEFAULT_STORAGE_RETRY_MIN_DELAY_MS,
             retry_max_delay_ms: DEFAULT_STORAGE_RETRY_MAX_DELAY_MS,
             retry_factor: DEFAULT_STORAGE_RETRY_FACTOR,
+            io_request_size: 64 * 1024 * 1024,
         }
     }
 }
 
 impl DuckportStoragePolicy {
+    pub(crate) fn io_request_size(self) -> Result<std::num::NonZeroUsize> {
+        crate::validation::required(
+            std::num::NonZeroUsize::new(usize::try_from(self.io_request_size)?),
+            "conversion_storage_io_request_size must be positive",
+        )
+    }
+
+    pub(crate) fn byte_options(self) -> Result<open_arrow_access::ByteReadOptions> {
+        Ok(open_arrow_access::ByteReadOptions {
+            io_chunk_size: Some(self.io_request_size()?),
+            ..Default::default()
+        })
+    }
+
     pub(crate) fn config(self) -> Result<StorageConfig> {
         crate::validation::validate_storage_policy(&self)?;
+        self.io_request_size()?;
         Ok(StorageConfig {
             timeout: Some(TimeoutConfig {
                 operation_timeout: Duration::from_millis(self.timeout_ms),

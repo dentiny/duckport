@@ -1,8 +1,6 @@
 //! SQL attachment selection; membership and decoding belong to open-arrow-access.
 use crate::{error::Result, metrics::ReadMetrics, source::DuckportSource, utils};
-use open_arrow_access::{
-    AttachmentAccessor, AttachmentOptions, ByteAccessor, ReadOptions, ReadRequest,
-};
+use open_arrow_access::{AttachmentAccessor, AttachmentOptions, ByteAccessor, ReadRequest};
 use std::ffi::c_char;
 
 /// Owned selection shared by provider adapters without changing their C ABI.
@@ -63,7 +61,7 @@ impl SelectedAttachment {
     pub(crate) async fn open<A: ByteAccessor + 'static>(
         self,
         accessor: A,
-        options: ReadOptions,
+        options: crate::options::ScanOptions,
         metrics: ReadMetrics,
     ) -> Result<DuckportSource> {
         DuckportSource::new(
@@ -71,7 +69,7 @@ impl SelectedAttachment {
                 crate::metrics::ObservedBytes::new(accessor, metrics),
                 self.options,
             )?,
-            ReadRequest::new(self.file_name).with_options(options),
+            options.request(ReadRequest::new(self.file_name)),
         )
         .await
     }
