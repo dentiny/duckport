@@ -13,7 +13,10 @@ SELECT * FROM duckport_scan_commoncrawl_segment(
 select one release or segment using `warc.paths.gz` under the normal
 `crawl-data/<crawl>/segments/<segment>/` layout. Selection follows upstream
 manifest order; a segment can contain multiple WARC files. Local mirrors must
-retain the `crawl-data` path structure.
+retain the `crawl-data` path structure. `read_concurrency := N` drives the native
+Common Crawl scan through the upstream crawl executor, retaining manifest order.
+Multiple streaming files share one worker budget; increasing concurrency does
+not change the configured per-reader I/O request size or HTTP policy.
 
 WARC and Common Crawl share the upstream schema: `id` is the WARC record ID,
 `type` is the record type, `date` is a timestamp with millisecond precision,

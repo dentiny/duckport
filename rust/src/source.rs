@@ -3,9 +3,11 @@ mod scan;
 use crate::error::Result;
 use arrow_schema::SchemaRef;
 use open_arrow_access::{
-    Accessor, AccessorExt, ByteAccessor, OuterCompression, PreparedSource, ReadOptions,
-    ReadOptionsProvider, ReadRequest, ReaderFactory, RecordReader,
+    Accessor, AccessorExt, ByteAccessor, EmissionPolicy, OuterCompression, PreparedSource,
+    ReadOptions, ReadOptionsProvider, ReadRequest, ReaderFactory, RecordReader,
+    crawl::{CrawlAccessor, CrawlOptions},
     decompression::AutoDecompressionLayer,
+    layers::{ColumnEvolution, ParallelReadLayer, SchemaEvolutionLayer},
     storage::{OpenDalAccessor, opendal},
 };
 use std::{
@@ -23,7 +25,7 @@ pub struct DuckportSource {
     read_concurrency: AtomicUsize,
     options: ReadOptions,
     media: Option<Arc<crate::readers::atif::MediaResolver>>,
-    // PMC shard plans currently select PDF; override its URL only after parallel reads.
+    // PMC shard plans select PDF; crawl evolution selects the requested URL.
     content_url_source_column: Option<&'static str>,
 }
 
@@ -127,34 +129,29 @@ impl DuckportSource {
             Some(projection)
         };
         let concurrency = self.read_concurrency.load(Ordering::Relaxed);
-        let reader = if let Some(field) = self.content_url_source_column {
-            // Transform outside the parallel executor, retaining native shard partitions.
-            // The upstream layer resolves projections and obtains the selected URL field.
-            scan::PreparedScan(self.source.clone(), self.capability)
-                .layer(open_arrow_access::layers::ParallelReadLayer::new(
+        let reader = if self.content_url_source_column.is_some() || self.planned && concurrency > 1
+        {
+            let mut crawl = CrawlOptions::default()
+                .with_parallel_read(ParallelReadLayer::new(
                     NonZeroUsize::new(concurrency).unwrap(),
                     NonZeroUsize::MIN,
                 ))
-                .layer(
-                    open_arrow_access::layers::SchemaEvolutionLayer::try_new(vec![
-                        open_arrow_access::layers::ColumnEvolution::remove_column("content_url"),
-                        open_arrow_access::layers::ColumnEvolution::add_column_sql(
-                            "content_url",
-                            field,
-                        ),
+                .with_emission(EmissionPolicy::Ordered);
+            if let Some(field) = self.content_url_source_column {
+                crawl = crawl.with_evolution(
+                    SchemaEvolutionLayer::try_new(vec![
+                        ColumnEvolution::remove_column("content_url"),
+                        ColumnEvolution::add_column_sql("content_url", field),
                     ])?
                     .with_source_schema(self.source.schema()),
-                )
-                .open(scan::ScanRequest(options))
-                .await?
-        } else if self.planned && concurrency > 1 {
-            scan::PreparedScan(self.source.clone(), self.capability)
-                .layer(open_arrow_access::layers::ParallelReadLayer::new(
-                    NonZeroUsize::new(concurrency).unwrap(),
-                    NonZeroUsize::MIN,
-                ))
-                .open(scan::ScanRequest(options))
-                .await?
+                );
+            }
+            CrawlAccessor::new(
+                scan::PreparedScan(self.source.clone(), self.capability),
+                crawl,
+            )
+            .open(scan::ScanRequest(options))
+            .await?
         } else {
             self.source.scan(options).await?
         };

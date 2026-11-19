@@ -14,7 +14,7 @@ crate::ffi::reader::export_reader!(duckport_meca_open;
         let records = MecaArchive::open(input, ZipLimits::default())
             .await?
             .records();
-        AsyncSource::new(
+        AsyncSource::plannable(
             records,
             scan_options.request(MecaReadRequest::default()),
         )

@@ -24,6 +24,9 @@ An explicit token takes precedence over environment/cache credentials;
 `HF_HUB_DISABLE_IMPLICIT_TOKEN=1` disables implicit fallback and `HF_ENDPOINT`
 selects a custom Hub endpoint. See [the secret guide](../secrets.md#hugging-face).
 
-DuckPort does not expose the reference extension's SQL read-ahead/concurrency
-knobs. Arbitrary individual Hub files can instead be ingested through Lance's
+`read_concurrency := N` uses the upstream crawl executor for native Parquet
+partitions while retaining export path order. The concurrency also inherits
+DuckDB's `threads` limit when set to `'auto'`. Additional crawl queue/prefetch
+budgets are not exposed as SQL arguments. Arbitrary individual Hub files can
+instead be ingested through Lance's
 [URL blob support](../writers/lance.md#url-blob-columns).

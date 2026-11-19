@@ -41,15 +41,15 @@ async fn open_commoncrawl(
     let files = FileAccessor::from_format(manifests.clone(), WarcArrowFormat);
     match scope {
         Scope::Dataset => {
-            AsyncSource::new(
-                CommonCrawlWarcAccessor::new(manifests, files),
+            AsyncSource::plannable(
+                CommonCrawlWarcAccessor::new(manifests, files).with_file_planning(),
                 scan.request(CommonCrawlWarcRequest::from_url(&selection)?),
             )
             .await
         }
         Scope::Segment => {
-            AsyncSource::new(
-                CommonCrawlSegmentAccessor::new(manifests, files),
+            AsyncSource::plannable(
+                CommonCrawlSegmentAccessor::new(manifests, files).with_file_planning(),
                 scan.request(CommonCrawlSegmentRequest::from_url(&selection)?),
             )
             .await
