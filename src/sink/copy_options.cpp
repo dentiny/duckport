@@ -241,7 +241,7 @@ void RegisterCopyOptions(ClientContext &, CopyOptionsInput &input) {
 	for (const auto &option :
 	     {"read_concurrency", "write_concurrency", "target_file_size", "blob_inline_size_threshold",
 	      "blob_dedicated_size_threshold", "sample_percent", "sample_rows", "column_compression",
-	      "column_compression_level", "column_structural_encoding", "generated_columns"}) {
+	      "column_compression_level", "column_structural_encoding", "generated_columns", "extra_options"}) {
 		input.options[option] = CopyOption(LogicalType::ANY, CopyOptionMode::WRITE_ONLY);
 	}
 }

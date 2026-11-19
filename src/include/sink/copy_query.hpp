@@ -9,6 +9,7 @@ namespace duckdb {
 struct CopyInfo;
 struct BoundStatement;
 
+void ApplyCopyExtraOptions(QueryNode &query, CopyInfo &info);
 unique_ptr<SampleOptions> TakeSampleOptions(ClientContext &context, CopyInfo &info);
 vector<unique_ptr<ParsedExpression>> TakeGeneratedColumns(ClientContext &context, CopyInfo &info);
 unique_ptr<QueryNode> ApplyCopySample(unique_ptr<QueryNode> query, unique_ptr<SampleOptions> sample);

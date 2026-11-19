@@ -27,6 +27,7 @@
 #include "source/readers/dataverse.hpp"
 #include "source/readers/zenodo.hpp"
 #include "readers/pmc.h"
+#include "source/readers/pmc.hpp"
 #include "readers/gutenberg.h"
 #include "readers/atif.h"
 #include "source/readers/csv.hpp"
@@ -172,7 +173,14 @@ void LoadInternal(ExtensionLoader &loader) {
 		options.Add("record_path", LogicalType::VARCHAR);
 		options.Add("endpoint", LogicalType::VARCHAR);
 	});
-	RegisterReader(loader, "duckport_scan_pmc", duckport_pmc_open);
+	RegisterReader(loader, "duckport_scan_pmc", OpenPmcMetadata, [](TypedKwargs &options) {
+		options.Add("content_format", LogicalType::VARCHAR);
+	});
+	RegisterReader(loader, "duckport_scan_pmc_shard", OpenPmcInventoryShard, [](TypedKwargs &options) {
+		options.Add("manifest", LogicalType::VARCHAR);
+		options.Add("shard", LogicalType::VARCHAR);
+		options.Add("content_format", LogicalType::VARCHAR);
+	});
 	RegisterReader(loader, "duckport_scan_pmc_inventory", duckport_pmc_inventory_open);
 	RegisterReader(loader, "duckport_scan_gutenberg", duckport_gutenberg_open);
 	RegisterFileReader(loader, "duckport_scan_parquet", duckport_parquet_source_open);

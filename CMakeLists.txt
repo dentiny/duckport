@@ -89,10 +89,12 @@ list(
   src/sink/copy.cpp
   src/sink/copy_options.cpp
   src/sink/copy_query.cpp
+  src/sink/extra_options.cpp
   src/sink/writer.cpp
   src/sink/lance/writer.cpp
   src/sink/parquet/writer.cpp
   src/sink/iceberg/writer.cpp)
+list(APPEND EXTENSION_SOURCES src/source/readers/pmc.cpp)
 list(APPEND EXTENSION_SOURCES src/source/readers/csv.cpp)
 list(APPEND EXTENSION_SOURCES src/source/readers/huggingface.cpp)
 list(APPEND EXTENSION_SOURCES src/source/readers/xml.cpp)
