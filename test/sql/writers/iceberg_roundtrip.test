@@ -16,9 +16,14 @@ COPY (SELECT * FROM (VALUES (1, 'Alice'), (2, NULL), (3, 'Charlie'), (NULL, 'mis
 TO 'tests.people' (FORMAT duckport_iceberg,
     CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse', APPEND);
 
+# One sampling smoke test checks backend wiring; boundaries live in sampling.test.
 statement ok
-COPY (SELECT * FROM (VALUES (4, 'Δuck'), (5, '')) AS t(id, name))
+COPY (SELECT 4 AS id, 'Δuck' AS name FROM range(20))
 TO 'tests.people' (FORMAT duckport_iceberg,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse', APPEND, SAMPLE_ROWS 1);
+
+statement ok
+COPY (SELECT 5 AS id, '' AS name) TO 'tests.people' (FORMAT duckport_iceberg,
     CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_warehouse', APPEND);
 
 statement error

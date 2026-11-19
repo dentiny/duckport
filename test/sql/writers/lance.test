@@ -13,6 +13,11 @@ COPY (
     FROM duckport_scan_parquet('testdata/parquet/people.parquet', batch_size := 1)
 ) TO '{TEST_DIR}/output.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('PAYLOAD'), STORAGE_VERSION '2.2');
 
+# One sampling smoke test checks backend wiring; boundaries live in sampling.test.
+statement ok
+COPY (SELECT 42 AS id FROM range(20)) TO '{TEST_DIR}/sampled.lance'
+(FORMAT duckport_lance, SAMPLE_ROWS 1);
+
 restart no_extension_load
 
 statement ok
@@ -28,3 +33,8 @@ FROM '{TEST_DIR}/output.lance' ORDER BY id;
 1	Alice	true	true	00FF0102	https://example.invalid/keep
 2	NULL	true	true	(empty)	https://example.invalid/keep
 3	Charlie	true	true	NULL	https://example.invalid/keep
+
+query I
+SELECT id FROM '{TEST_DIR}/sampled.lance';
+----
+42

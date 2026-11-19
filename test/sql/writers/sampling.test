@@ -1,39 +1,26 @@
 # name: test/sql/writers/sampling.test
-# description: Shared COPY sampling determines rows written by every sink
+# description: Shared COPY sampling boundaries round-trip through Parquet
 # group: [sql]
 
 require duckport
 
-require duckport_test_fixture
+require parquet
 
 statement ok
 CREATE TABLE input AS SELECT i::INTEGER AS id, i::VARCHAR AS name FROM range(20) t(i);
 
 foreach option,value,expected sample_rows,7,7 sample_rows,100,20 sample_percent,0,0 sample_percent,100,20
 
-query I
-COPY input TO '{TEST_DIR}/${option}_${value}/lance'
-(FORMAT duckport_lance, ${option} ${value});
-----
-${expected}
-
+# Exercise the shared planner's full sampling matrix once, including empty output.
 query I
 COPY input TO '{TEST_DIR}/${option}_${value}/parquet'
 (FORMAT duckport_parquet, ${option} ${value});
 ----
 ${expected}
 
-statement ok
-SET VARIABLE iceberg_catalog = duckport_iceberg_fixture('{TEST_DIR}/${option}_${value}/iceberg', 'start');
-
 query I
-COPY input TO 'tests.people' (FORMAT duckport_iceberg, APPEND,
-    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/${option}_${value}/iceberg',
-    ${option} ${value});
+SELECT count(*) FROM read_parquet('{TEST_DIR}/${option}_${value}/parquet/*.parquet');
 ----
 ${expected}
-
-statement ok
-SELECT duckport_iceberg_fixture('{TEST_DIR}/${option}_${value}/iceberg', 'stop');
 
 endloop
