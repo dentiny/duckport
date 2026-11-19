@@ -5,6 +5,16 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_program(CARGO_EXECUTABLE cargo REQUIRED)
+# Resolve the native protobuf compiler explicitly, including vcpkg installs
+# whose tools directory is not on Cargo's PATH.
+set(PROTOC_HINTS)
+foreach(triplet_var VCPKG_HOST_TRIPLET VCPKG_TARGET_TRIPLET)
+  if(DEFINED VCPKG_INSTALLED_DIR AND DEFINED ${triplet_var})
+    list(APPEND PROTOC_HINTS
+         "${VCPKG_INSTALLED_DIR}/${${triplet_var}}/tools/protobuf")
+  endif()
+endforeach()
+find_program(PROTOC_EXECUTABLE protoc HINTS ${PROTOC_HINTS} REQUIRED)
 # Respect the target selected by the DuckDB build, rather than silently building
 # for the host.
 set(DUCKPORT_RUST_TARGET
@@ -32,7 +42,7 @@ if(APPLE AND CMAKE_OSX_ARCHITECTURES MATCHES ";")
       "Build one macOS Rust target at a time; universal archives are not supported"
   )
 endif()
-set(RUST_BUILD_ENV)
+set(RUST_BUILD_ENV "PROTOC=${PROTOC_EXECUTABLE}")
 if(APPLE AND CMAKE_OSX_DEPLOYMENT_TARGET)
   list(APPEND RUST_BUILD_ENV
        "MACOSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}")
