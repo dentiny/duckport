@@ -6,10 +6,11 @@
 #include "readers/json.h"
 #include "readers/warc.h"
 #include "source/reader.hpp"
-#include "source/readers/oapen.hpp"
-#include "source/readers/doab.hpp"
+#include "readers/oapen.h"
+#include "readers/doab.h"
 #include "source/readers/arxiv.hpp"
-#include "source/readers/arxiv_metadata.hpp"
+#include "readers/arxiv_metadata.h"
+#include "source/readers/oai.hpp"
 #include "readers/meca.h"
 #include "source/readers/courtlistener.hpp"
 #include "source/readers/biorxiv.hpp"
@@ -39,33 +40,12 @@ namespace {
 void LoadInternal(ExtensionLoader &loader) {
 	RegisterStorageSettings(loader);
 	RegisterCopyFunctions(loader);
-	RegisterReader(loader, "duckport_scan_oapen", OpenOapen, [](TypedKwargs &options) {
-		options.Add("endpoint", LogicalType::VARCHAR);
-		options.Add("from_date", LogicalType::VARCHAR);
-		options.Add("until_date", LogicalType::VARCHAR);
-		options.Add("set_spec", LogicalType::VARCHAR);
-		options.Add("record_path", LogicalType::VARCHAR);
-		options.Add("max_pages", LogicalType::BIGINT);
-		options.Add("max_records", LogicalType::BIGINT);
-	});
-	RegisterReader(loader, "duckport_scan_doab", OpenDoab, [](TypedKwargs &options) {
-		options.Add("endpoint", LogicalType::VARCHAR);
-		options.Add("from_date", LogicalType::VARCHAR);
-		options.Add("until_date", LogicalType::VARCHAR);
-		options.Add("set_spec", LogicalType::VARCHAR);
-		options.Add("record_path", LogicalType::VARCHAR);
-		options.Add("max_pages", LogicalType::BIGINT);
-		options.Add("max_records", LogicalType::BIGINT);
-	});
-	RegisterReader(loader, "duckport_scan_arxiv_metadata", OpenArxivMetadata, [](TypedKwargs &options) {
-		options.Add("endpoint", LogicalType::VARCHAR);
-		options.Add("from_date", LogicalType::VARCHAR);
-		options.Add("until_date", LogicalType::VARCHAR);
-		options.Add("set_spec", LogicalType::VARCHAR);
-		options.Add("record_path", LogicalType::VARCHAR);
-		options.Add("max_pages", LogicalType::BIGINT);
-		options.Add("max_records", LogicalType::BIGINT);
-	});
+	RegisterReader(loader, "duckport_scan_oapen", BindOaiReader("https://library.oapen.org", duckport_oapen_open),
+	               AddOaiOptions);
+	RegisterReader(loader, "duckport_scan_doab", BindOaiReader("https://directory.doabooks.org", duckport_doab_open),
+	               AddOaiOptions);
+	RegisterReader(loader, "duckport_scan_arxiv_metadata",
+	               BindOaiReader("https://oaipmh.arxiv.org", duckport_arxiv_metadata_open), AddOaiOptions);
 	RegisterReader(loader, "duckport_scan_arxiv", OpenArxiv, [](TypedKwargs &options) {
 		options.Add("kind", LogicalType::VARCHAR);
 		options.Add("month", LogicalType::VARCHAR);
