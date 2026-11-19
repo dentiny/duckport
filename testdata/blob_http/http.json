@@ -62,6 +62,34 @@
       "auth_header": "X-API-Key",
       "auth_value": "fixture-custom",
       "redirect": "API_ORIGIN/public/records.json"
+    },
+    {
+      "path": "/public/data[1].json",
+      "file": "records.json",
+      "auth_header": "",
+      "auth_value": "",
+      "redirect": ""
+    },
+    {
+      "path": "/public/star*.json",
+      "file": "records.json",
+      "auth_header": "",
+      "auth_value": "",
+      "redirect": ""
+    },
+    {
+      "path": "/public/question?.json",
+      "file": "records.json",
+      "auth_header": "",
+      "auth_value": "",
+      "redirect": ""
+    },
+    {
+      "path": "/public/literal[.json",
+      "file": "records.json",
+      "auth_header": "",
+      "auth_value": "",
+      "redirect": ""
     }
   ],
   "downloads": [

@@ -159,3 +159,10 @@ query II
 SELECT count(*), sum(id) FROM duckport_scan_csv(['{TEST_DIR}/literal[1].data', '{TEST_DIR}/literal[.data'], header := true);
 ----
 2	15
+
+# A question mark in an ordinary local path remains glob syntax even though
+# conversion to a file URL percent-encodes it internally.
+query II
+SELECT count(*), sum(id) FROM duckport_scan_csv('testdata/multifile/custom-?.data', delimiter := ';', header := true);
+----
+3	6

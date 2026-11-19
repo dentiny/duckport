@@ -63,6 +63,70 @@
       "auth_value": "AWS4-HMAC-SHA256 Credential=key-a/",
       "auth_match": "prefix",
       "session_token": "session-a"
+    },
+    {
+      "path": "/literal-files/",
+      "file": "literal-list.xml",
+      "auth_header": "Authorization",
+      "auth_value": "AWS4-HMAC-SHA256 Credential=key-a/",
+      "auth_match": "prefix",
+      "session_token": "session-a"
+    },
+    {
+      "path": "/literal-files",
+      "file": "literal-list.xml",
+      "auth_header": "Authorization",
+      "auth_value": "AWS4-HMAC-SHA256 Credential=key-a/",
+      "auth_match": "prefix",
+      "session_token": "session-a"
+    },
+    {
+      "path": "/literal-files/data[1].json",
+      "file": "a.json",
+      "auth_header": "Authorization",
+      "auth_value": "AWS4-HMAC-SHA256 Credential=key-a/",
+      "auth_match": "prefix",
+      "session_token": "session-a"
+    },
+    {
+      "path": "/literal-files/star*.json",
+      "file": "a.json",
+      "auth_header": "Authorization",
+      "auth_value": "AWS4-HMAC-SHA256 Credential=key-a/",
+      "auth_match": "prefix",
+      "session_token": "session-a"
+    },
+    {
+      "path": "/literal-files/question?.json",
+      "file": "a.json",
+      "auth_header": "Authorization",
+      "auth_value": "AWS4-HMAC-SHA256 Credential=key-a/",
+      "auth_match": "prefix",
+      "session_token": "session-a"
+    },
+    {
+      "path": "/literal-files/literal[.json",
+      "file": "a.json",
+      "auth_header": "Authorization",
+      "auth_value": "AWS4-HMAC-SHA256 Credential=key-a/",
+      "auth_match": "prefix",
+      "session_token": "session-a"
+    },
+    {
+      "path": "/literal-files/data1.json",
+      "file": "c.json",
+      "auth_header": "Authorization",
+      "auth_value": "AWS4-HMAC-SHA256 Credential=key-a/",
+      "auth_match": "prefix",
+      "session_token": "session-a"
+    },
+    {
+      "path": "/literal-files/starX.json",
+      "file": "c.json",
+      "auth_header": "Authorization",
+      "auth_value": "AWS4-HMAC-SHA256 Credential=key-a/",
+      "auth_match": "prefix",
+      "session_token": "session-a"
     }
   ]
 }
