@@ -13,6 +13,72 @@ owns data files and publication. COPY returns the number of output rows. Externa
 access must be enabled. Cast unsupported query types explicitly before writing;
 backend schema/type checks are authoritative.
 
+## All COPY options
+
+Use these options inside `COPY ... TO ... (FORMAT duckport_lance, ...)`,
+substituting `duckport_parquet` or `duckport_iceberg` for the destination.
+Option names are case-insensitive. Sizes are integer bytes, not strings such as
+`'512MB'`. An omitted backend-specific setting keeps the backend default.
+
+| Option | Accepted value / default | Supported sinks |
+| --- | --- | --- |
+| `APPEND` | Boolean flag; default create; existing destination required | All |
+| `OVERWRITE` | Boolean flag; default create | Lance |
+| `TARGET_FILE_SIZE` | Positive integer bytes; default `536870912` (512 MiB), soft target | All |
+| `PRESERVE_ORDER` | Boolean; default `false` | All |
+| `READ_CONCURRENCY` | `'auto'` or positive integer; inherits reader setting when omitted | All; affects DuckPort sources |
+| `WRITE_CONCURRENCY` | `'auto'` or positive integer; default `1` | All |
+| `SAMPLE_PERCENT` | Finite number `0`–`100`; unset by default | All |
+| `SAMPLE_ROWS` | Integer `0`–`1000000000`; unset by default | All |
+| `GENERATED_COLUMNS` | STRUCT of new column names to SQL expression strings; unset | Lance, Parquet; Iceberg requires compatible catalog metadata |
+| `EXTRA_OPTIONS` | STRUCT or MAP of reader argument names to values; unset | All; requires explicit DuckPort source calls for nonempty options |
+| `BLOB_COLUMNS` | Nonempty list of URL column paths; unset | Lance |
+| `BLOB_INLINE_SIZE_THRESHOLD` | Non-negative integer bytes; backend default | Lance |
+| `BLOB_DEDICATED_SIZE_THRESHOLD` | Positive integer bytes; backend default | Lance |
+| `STORAGE_VERSION` | `'2.2'` or `'2.3'`; backend default | Lance |
+| `COLUMN_COMPRESSION` | STRUCT of column paths to codec strings; backend defaults | Lance (nested paths too), Parquet (top-level only) |
+| `COLUMN_COMPRESSION_LEVEL` | STRUCT of column paths to integer Zstd levels; requires explicit Zstd for each column | Lance, Parquet |
+| `COLUMN_STRUCTURAL_ENCODING` | STRUCT of top-level roots to `'miniblock'` or `'fullzip'`; backend default | Lance |
+| `SCALAR_INDEX_COLUMNS` | Nonempty list of top-level columns; no indexes requested by default | Lance; BTree |
+| `VECTOR_INDEX_COLUMNS` | Nonempty list of top-level fixed-size floating-point arrays; unset | Lance; IVF_FLAT/L2 |
+| `TEXT_INDEX_COLUMNS` | Nonempty list of top-level columns; unset | Lance; Inverted |
+| `BLOOM_FILTER_INDEX_COLUMNS` | Nonempty list of top-level columns; unset | Lance; Bloom filter |
+| `CATALOG_URI` | Nonempty HTTP(S) URI; required | Iceberg |
+| `STORAGE_ROOT` | Nonempty local/file/S3 root covering table storage; required | Iceberg |
+| `WAREHOUSE` | Nonempty catalog warehouse string; optional | Iceberg |
+
+`FORMAT` selects the sink; it is not an input decoding option. The sections below
+and backend guides explain constraints and examples. Unsupported options fail;
+DuckPort does not automatically accept native DuckDB COPY options such as
+`PARTITION_BY`, `PER_THREAD_OUTPUT`, `ROW_GROUP_SIZE` or `COMPRESSION`.
+Use `COLUMN_COMPRESSION` for supported per-column codecs.
+
+## Forward reader options from COPY
+
+Prefer named arguments on the reader when configuring individual sources:
+
+```sql
+COPY (SELECT * FROM duckport_scan_csv('people.csv', header := true))
+TO 'people_dataset' (FORMAT duckport_parquet);
+```
+
+Alternatively, `EXTRA_OPTIONS` adds named arguments to every explicit
+`duckport_scan_*` call in the COPY query before binding:
+
+```sql
+COPY (SELECT * FROM duckport_scan_csv('people.csv'))
+TO 'people.lance' (FORMAT duckport_lance, EXTRA_OPTIONS {'header': true});
+```
+
+Both STRUCT (`{'header': true}`) and MAP (`MAP {'header': true}`) literals work.
+The reader validates names and types; unknown or duplicate arguments fail,
+including an argument already supplied directly on the reader. Every affected
+reader must accept every forwarded argument. A nonempty option map requires an
+explicit DuckPort reader call; it does not configure native readers or readers
+hidden behind a table/view. Credentials belong in [secrets](../secrets.md).
+The [PMC example](../readers/pmc.md#copy-source-options-and-download-content)
+uses `content_format` to select article URLs independently of the output format.
+
 ## Backend capabilities
 
 | Option/behavior | Lance | Parquet directory | Iceberg REST |
