@@ -24,8 +24,8 @@ pub struct DuckportBlobSecret {
 }
 pub(crate) struct SourceSecrets {
     http: Vec<ScopedHttpCredentials>,
-    s3: Vec<(String, StorageConfig)>,
-    huggingface: Vec<(String, StorageConfig)>,
+    s3: Vec<Scoped<StorageConfig>>,
+    huggingface: Vec<Scoped<StorageConfig>>,
 }
 
 pub(crate) unsafe fn read_secrets(
@@ -45,16 +45,18 @@ pub(crate) unsafe fn read_secrets(
             "s3" => {
                 let config = unsafe { secret.config.read() }?;
                 config.security.s3()?;
-                sources
-                    .s3
-                    .push((unsafe { utils::string(secret.scope) }?, config));
+                sources.s3.push(Scoped {
+                    scope: unsafe { utils::string(secret.scope) }?,
+                    value: config,
+                });
             }
             "huggingface" => {
                 let config = unsafe { secret.config.read() }?;
                 crate::provider_auth::reject_http_headers(config.security.http()?, "Hugging Face")?;
-                sources
-                    .huggingface
-                    .push((unsafe { utils::string(secret.scope) }?, config));
+                sources.huggingface.push(Scoped {
+                    scope: unsafe { utils::string(secret.scope) }?,
+                    value: config,
+                });
             }
             _ => return Err("unsupported Blob source secret type".into()),
         }
@@ -62,51 +64,37 @@ pub(crate) unsafe fn read_secrets(
     Ok(sources)
 }
 
-// Match prefix scopes, preserving the first secret on a tie.
-fn select_source<'a>(
-    sources: &'a [(String, StorageConfig)],
-    source: &str,
-) -> Option<&'a StorageConfig> {
-    let mut best = None;
-    let mut length = 0;
-    for (scope, config) in sources {
-        if source.starts_with(scope) && (best.is_none() || scope.len() > length) {
-            best = Some(config);
-            length = scope.len();
-        }
-    }
-    best
+struct Scoped<T> {
+    scope: String,
+    value: T,
 }
 
-// The transport owns only prepared headers, so redirect hops never parse raw
-// credentials or depend on provider/storage configuration.
-struct HttpSourceCredentials {
-    scope: String,
-    headers: http::HeaderMap,
-}
 // Match DuckDB's prefix-based scopes, preserving the first entry on a tie.
-fn select<'a>(secrets: &'a [HttpSourceCredentials], url: &str) -> Option<&'a http::HeaderMap> {
-    let mut best: Option<&HttpSourceCredentials> = None;
+fn select<'a, T>(secrets: &'a [Scoped<T>], source: &str) -> Option<&'a T> {
+    let mut best: Option<&Scoped<T>> = None;
     for secret in secrets {
-        if url.starts_with(&secret.scope)
+        if source.starts_with(&secret.scope)
             && best.is_none_or(|old| secret.scope.len() > old.scope.len())
         {
             best = Some(secret);
         }
     }
-    best.map(|s| &s.headers)
+    best.map(|secret| &secret.value)
 }
+
+// The transport owns only prepared headers, so redirect hops never parse raw
+// credentials or depend on provider/storage configuration.
 struct CredentialTransport {
-    credentials: Vec<HttpSourceCredentials>,
+    credentials: Vec<Scoped<http::HeaderMap>>,
     inner: HttpTransporter,
 }
 fn transport(credentials: Arc<Vec<ScopedHttpCredentials>>) -> Result<HttpTransporter> {
     let credentials = credentials
         .iter()
         .map(|secret| {
-            Ok(HttpSourceCredentials {
+            Ok(Scoped {
                 scope: secret.scope.clone(),
-                headers: secret.credentials.download_headers()?,
+                value: secret.credentials.download_headers()?,
             })
         })
         .collect::<Result<Vec<_>>>()?;
@@ -217,8 +205,8 @@ impl HttpTransport for CredentialTransport {
 
 struct SourceDownloader {
     fallback: OpenDalDownloader,
-    sources: Vec<(String, StorageConfig)>,
-    huggingface: Vec<(String, StorageConfig)>,
+    sources: Vec<Scoped<StorageConfig>>,
+    huggingface: Vec<Scoped<StorageConfig>>,
     policy: open_arrow_sink_storage::StorageConfig,
     raw_policy: crate::storage_policy::DuckportStoragePolicy,
 }
@@ -239,7 +227,7 @@ impl Downloader for SourceDownloader {
         crate::validation::validate_uri(&url).map_err(Error::Backend)?;
         // Explicit source secrets always win, even when the source shares a
         // namespace with the destination. Never consult context.primary here.
-        let storage = if let Some(config) = select_source(&self.sources, source) {
+        let storage = if let Some(config) = select(&self.sources, source) {
             let (operator, _) = crate::storage::operator(source, config).map_err(Error::Backend)?;
             open_arrow_sink_storage::Storage::for_url(operator, &url)?
         } else {
@@ -288,7 +276,7 @@ impl SourceDownloader {
                 .map_err(Error::backend)
         };
         let mut options = HuggingFaceOptions::default();
-        let policy = if let Some(config) = select_source(&self.huggingface, source) {
+        let policy = if let Some(config) = select(&self.huggingface, source) {
             let token = config
                 .security
                 .http()
