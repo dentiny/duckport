@@ -65,34 +65,6 @@ struct SinkWriteOptions {
 	string storage_version;
 	vector<ColumnEncodingOptions> column_encodings;
 	vector<IndexOptions> indexes;
-
-	DuckportWriteOptions ToFfi(vector<DuckportColumnEncoding> &encodings,
-	                           vector<DuckportIndexOptions> &index_options) const {
-		encodings.reserve(column_encodings.size());
-		for (const auto &entry : column_encodings) {
-			encodings.push_back(DuckportColumnEncoding {
-			    .column = entry.column.c_str(),
-			    .compression = entry.compression.empty() ? nullptr : entry.compression.c_str(),
-			    .has_compression_level = entry.has_compression_level,
-			    .compression_level = entry.compression_level,
-			    .structural_encoding = entry.structural_encoding.empty() ? nullptr : entry.structural_encoding.c_str(),
-			});
-		}
-		index_options.reserve(indexes.size());
-		for (const auto &entry : indexes) {
-			index_options.push_back(DuckportIndexOptions {
-			    .column = entry.column.c_str(),
-			    .option = entry.option.c_str(),
-			});
-		}
-		auto result = write_options;
-		result.indexes = index_options.data();
-		result.index_count = index_options.size();
-		result.column_encodings = encodings.data();
-		result.column_encoding_count = encodings.size();
-		result.storage_version = storage_version.empty() ? nullptr : storage_version.c_str();
-		return result;
-	}
 };
 
 // Backend boundary for a single fixed-schema session. Implementations must not
