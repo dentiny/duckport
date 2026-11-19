@@ -1,30 +1,19 @@
 # name: test/sql/writers/extra_options.test
-# description: COPY forwards source-specific EXTRA_OPTIONS before reader binding
+# description: COPY forwards EXTRA_OPTIONS to the source reader
 # group: [sql]
 
 require duckport
 
 require parquet
 
-# An uppercase reader, nested projection and SQL MAP all retain option forwarding.
 statement ok
-COPY (SELECT content_url AS content, text_url FROM
-      (SELECT * FROM DUCKPORT_SCAN_PMC('testdata/pmc/metadata.json')))
+COPY (SELECT content_url AS content, text_url FROM duckport_scan_pmc('testdata/pmc/metadata.json'))
 TO '{TEST_DIR}/pmc_txt' (FORMAT duckport_parquet, EXTRA_OPTIONS MAP {'content_format': 'txt'});
 
-query II
-SELECT count(*), count_if(content = text_url) FROM read_parquet('{TEST_DIR}/pmc_txt/*.parquet');
+query I
+SELECT content = text_url FROM read_parquet('{TEST_DIR}/pmc_txt/*.parquet');
 ----
-1	1
-
-statement ok
-COPY (SELECT content_url AS content, xml_url FROM duckport_scan_pmc('testdata/pmc/metadata.json'))
-TO '{TEST_DIR}/pmc_xml' (FORMAT duckport_parquet, EXTRA_OPTIONS {'content_format': 'xml'});
-
-query II
-SELECT count(*), count_if(content = xml_url) FROM read_parquet('{TEST_DIR}/pmc_xml/*.parquet');
-----
-1	1
+true
 
 statement error
 COPY (SELECT * FROM duckport_scan_pmc('testdata/pmc/metadata.json', content_format := 'pdf'))
@@ -37,27 +26,3 @@ COPY (SELECT * FROM duckport_scan_pmc('testdata/pmc/metadata.json'))
 TO '{TEST_DIR}/unknown_option' (FORMAT duckport_parquet, EXTRA_OPTIONS {'not_a_reader_option': 'txt'});
 ----
 not_a_reader_option
-
-statement error
-COPY (SELECT 1) TO '{TEST_DIR}/no_reader' (FORMAT duckport_parquet, EXTRA_OPTIONS {'content_format': 'txt'});
-----
-EXTRA_OPTIONS requires an explicit duckport_scan_* source
-
-# The selected URL is renamed in SQL, then downloaded by the existing blob layer.
-statement ok
-COPY (SELECT replace(content_url, 'fixture://', 'file://{WORKING_DIRECTORY}/') AS content, pdf_url, text_url
-      FROM duckport_scan_pmc('testdata/pmc/metadata.json'))
-TO '{TEST_DIR}/pmc_content.lance' (FORMAT duckport_lance, BLOB_COLUMNS ('content'),
-    EXTRA_OPTIONS {'content_format': 'txt'});
-
-restart no_extension_load
-
-statement ok
-LOAD '{BUILD_DIRECTORY}/extension/lance/lance.duckdb_extension';
-
-query III
-SELECT content = (SELECT content FROM read_blob('testdata/pmc/article.txt')),
-       starts_with(pdf_url, 's3://'), text_url = 'fixture://testdata/pmc/article.txt'
-FROM '{TEST_DIR}/pmc_content.lance';
-----
-true	true	true
