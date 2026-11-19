@@ -1,6 +1,6 @@
 # PMC articles and inventory shards
 
-DuckPort uses open-arrow-access 0.9.0. An article is one Arrow row with the
+DuckPort uses open-arrow-access 0.10.0. An article is one Arrow row with the
 16 original typed metadata fields and derived `content_url`. The duplicate
 `metadata` struct is removed, and the TXT URL column is named `text_url`.
 
@@ -71,7 +71,7 @@ fetch article content. The manifest is required to validate membership and read
 the inventory's declared CSV schema; a shard key alone is insufficient.
 
 The same `EXTRA_OPTIONS {'content_format': 'txt'}` and SQL rename work in COPY
-queries over this shard reader. For shards, 0.9.0's native reader selects PDF;
+queries over this shard reader. For shards, 0.10.0's native reader selects PDF;
 DuckPort uses the existing schema-evolution layer after parallel reads to select
 XML/TXT instead, preserving original URL fields and pushed projections.
 

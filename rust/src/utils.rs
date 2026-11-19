@@ -164,56 +164,11 @@ pub(crate) fn internet_archive_credentials(config: &StorageConfig) -> Result<Opt
     }
 }
 
-pub(crate) fn courtlistener_header(
-    header: &csv_async::StringRecord,
-) -> Result<arrow_schema::Schema> {
-    validation::validate_courtlistener_header(header)?;
-    Ok(arrow_schema::Schema::new(
-        header
-            .iter()
-            .map(|name| arrow_schema::Field::new(name, arrow_schema::DataType::Utf8, true))
-            .collect::<Vec<_>>(),
-    ))
-}
 // The service takes a typed request; adapt a fully qualified split URI at the SQL boundary.
 pub(crate) fn huggingface_request(
     locator: &str,
 ) -> Result<open_arrow_access::service::huggingface::HuggingFaceDatasetRequest> {
-    let url = url::Url::parse(locator)?;
-    validation::validate_huggingface_uri(&url)?;
-    let path = validation::required(
-        locator.strip_prefix("hf://datasets/"),
-        "expected a fully qualified hf://datasets/ URL",
-    )?;
-    let path = path.strip_suffix('/').unwrap_or(path);
-    let parts = path.trim_start_matches('/').split('/').collect::<Vec<_>>();
-    let [owner, repository, config, split]: [&str; 4] = validation::required(
-        parts.try_into().ok(),
-        "Hugging Face URL must select a config/split directory",
-    )?;
-    let (repository, revision) = validation::required(
-        repository.split_once('@'),
-        "Hugging Face URL must include @<revision>",
-    )?;
-    let decode = |value: &str| -> Result<String> {
-        Ok(percent_encoding::percent_decode_str(value)
-            .decode_utf8()?
-            .into_owned())
-    };
-    let owner = decode(owner)?;
-    let repository = decode(repository)?;
-    let revision = decode(revision)?;
-    let config = decode(config)?;
-    let split = decode(split)?;
-    crate::validation::validate_huggingface_path(&owner, &repository, &revision, &config, &split)?;
-    Ok(
-        HuggingFaceDatasetRequest::new(format!("{owner}/{repository}"), config, split)
-            .with_revision(if revision == "~parquet" {
-                "refs/convert/parquet".into()
-            } else {
-                revision
-            }),
-    )
+    Ok(HuggingFaceDatasetRequest::try_from_uri(locator)?)
 }
 
 pub(crate) fn attachment_options(

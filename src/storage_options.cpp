@@ -24,8 +24,9 @@ constexpr std::string_view STORAGE_SETTING_PREFIX = "conversion_storage_";
 template <bool ALLOW_ZERO>
 void SetStorageInteger(ClientContext &, SetScope, Value &value) {
 	if (value.IsNull() || value.GetValue<int64_t>() < (ALLOW_ZERO ? 0 : 1)) {
-		throw InvalidInputException(ALLOW_ZERO ? "Storage retry_max_times must be non-negative"
-		                                       : "Storage timeout and retry delay settings must be positive");
+		throw InvalidInputException(ALLOW_ZERO
+		                                ? "Storage retry_max_times must be non-negative"
+		                                : "Storage timeout, retry delay and request size settings must be positive");
 	}
 }
 
@@ -56,6 +57,8 @@ void RegisterStorageSettings(ExtensionLoader &loader) {
 		                          Value::BIGINT(value),
 		                          allow_zero ? SetStorageInteger<true> : SetStorageInteger<false>);
 	};
+	register_integer("io_request_size", "Target bytes per source and Blob storage read request",
+	                 defaults.io_request_size);
 	register_integer("timeout_ms", "Control operation timeout per attempt (ms)", defaults.timeout_ms);
 	register_integer("io_timeout_ms", "IO operation and body method timeout per attempt (ms)", defaults.io_timeout_ms);
 	register_integer("retry_max_times", "Maximum retries after the initial attempt (0 disables retries)",
@@ -76,6 +79,7 @@ DuckportStoragePolicy ReadStoragePolicy(ClientContext &context) {
 	    ReadStorageSetting<uint64_t>(context, "retry_min_delay_ms"),
 	    ReadStorageSetting<uint64_t>(context, "retry_max_delay_ms"),
 	    ReadStorageSetting<double>(context, "retry_factor"),
+	    ReadStorageSetting<uint64_t>(context, "io_request_size"),
 	};
 	if (result.retry_max_delay_ms < result.retry_min_delay_ms) {
 		throw InvalidInputException("conversion_storage_retry_max_delay_ms must be at least retry_min_delay_ms");

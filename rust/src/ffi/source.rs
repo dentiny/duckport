@@ -10,7 +10,7 @@ use crate::{
 use arrow_array::ffi_stream::FFI_ArrowArrayStream;
 use arrow_schema::ffi::FFI_ArrowSchema;
 use open_arrow_access::{
-    BlockingRecordBatchReader, OuterCompression, ReadOptions, file_format::parquet::ParquetFormat,
+    BlockingRecordBatchReader, OuterCompression, file_format::parquet::ParquetFormat,
 };
 use std::{ffi::c_char, ptr, sync::Arc};
 
@@ -149,7 +149,7 @@ pub(crate) unsafe fn open_reader<F, Fut>(
     open: F,
 ) -> *mut c_char
 where
-    F: FnOnce(String, StorageConfig, ReadOptions) -> Fut,
+    F: FnOnce(String, StorageConfig, crate::options::ScanOptions) -> Fut,
     Fut: std::future::Future<Output = Result<AsyncSource>>,
 {
     call(|| unsafe {
@@ -170,7 +170,10 @@ where
             })
         })
         .collect::<Result<Vec<_>>>()?;
-        let scan = scan_options.read()?;
+        let scan = crate::options::ScanOptions {
+            rows: scan_options.read()?,
+            bytes: storage.policy.byte_options()?,
+        };
         let metrics = storage.metrics.clone();
         let source = RUNTIME.block_on(open(locator, storage, scan))?;
         source.set_read_concurrency(scan_options.read_concurrency);

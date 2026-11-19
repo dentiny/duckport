@@ -118,7 +118,7 @@ where
 pub(crate) async fn open<F>(
     locator: &str,
     config: &StorageConfig,
-    options: ReadOptions,
+    options: crate::options::ScanOptions,
     format: F,
     compression: OuterCompression,
 ) -> Result<DuckportSource>
@@ -149,7 +149,7 @@ where
         metrics: config.metrics.clone(),
     })
     .with_file_planning();
-    let request = FileSetRequest::new(objects).with_options(options);
+    let request = options.request(FileSetRequest::new(objects));
     // Check complete schemas before rows are emitted, including columns omitted
     // by projection or COUNT(*).
     if config.files.len() > 1 {

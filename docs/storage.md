@@ -20,12 +20,13 @@ execute in DuckDB. Nested-field/predicate pushdown is not exposed. Parquet can
 skip unselected column data; WARC still consumes record bodies. Binding can
 inspect fields that a subsequent projection omits.
 
-## Timeouts and retries
+## Storage request size, timeouts and retries
 
 Settings are copied from the current connection when an operation opens.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
+| `conversion_storage_io_request_size` | `2097152` (2 MiB) | Target bytes per source-object and Blob read request |
 | `conversion_storage_timeout_ms` | `30000` | Control-operation timeout per attempt; provider HTTP request timeout |
 | `conversion_storage_io_timeout_ms` | `30000` | I/O-operation/body-method timeout |
 | `conversion_storage_retry_max_times` | `5` | Retries after the initial attempt; zero disables retries |
@@ -34,6 +35,7 @@ Settings are copied from the current connection when an operation opens.
 | `conversion_storage_retry_factor` | `2.0` | Finite multiplier between 1 and `f32::MAX` |
 
 ```sql
+SET conversion_storage_io_request_size = 2 * 1024 * 1024;
 SET conversion_storage_timeout_ms = 30000;
 SET conversion_storage_io_timeout_ms = 30000;
 SET conversion_storage_retry_max_times = 5;
@@ -42,6 +44,14 @@ SET conversion_storage_retry_max_delay_ms = 10000;
 SET conversion_storage_retry_factor = 2.0;
 RESET conversion_storage_timeout_ms;
 ```
+
+Request size must be positive and fit the platform byte count. The same captured
+setting reaches file/service record requests, archive inputs, arXiv metadata
+snapshots and COPY Lance Blob downloads, including Hugging Face media. It controls
+network read splitting separately from Arrow batch rows, application output chunks,
+whole-object memory and upload part sizes. Small objects and final ranges may be
+smaller. Provider discovery/listing APIs and Iceberg catalog requests retain their
+protocol-specific response sizes. Bounded Blob range reads may add a stat/HEAD.
 
 Durations must be positive and maximum delay must be at least minimum delay.
 Timeouts apply per attempt, not to the total query. Temporary errors use

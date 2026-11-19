@@ -14,7 +14,9 @@ pub(super) async fn load(
 ) -> Result<Arc<ArxivMetadataIndex>> {
     let (operator, path) = storage::operator(uri, config)?;
     let accessor = ParquetAccessor::new(OpenDalAccessor::new(operator));
-    let mut reader = accessor.open(ReadRequest::new(path)).await?;
+    let mut reader = accessor
+        .open(ReadRequest::new(path).with_byte_options(config.policy.byte_options()?))
+        .await?;
     let schema = reader.metadata().schema.clone();
     let mut batches = Vec::new();
     while let Some(batch) = reader.next().await? {

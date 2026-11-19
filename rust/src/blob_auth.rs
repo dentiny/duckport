@@ -145,7 +145,9 @@ pub(crate) fn blob_downloader(
         policy,
         raw_policy,
     };
-    Ok(BlobDownloader::with_defaults()?.with_downloader(Arc::new(backend)))
+    Ok(BlobDownloader::with_defaults()?
+        .with_io_request_size(raw_policy.io_request_size()?)
+        .with_downloader(Arc::new(backend)))
 }
 impl HttpTransport for CredentialTransport {
     async fn fetch(&self, request: Request<Buffer>) -> opendal::Result<Response<HttpBody>> {
@@ -308,7 +310,12 @@ impl SourceDownloader {
                     .ok_or_else(|| Error::InvalidConfig("zero Blob chunk size".into()))?,
             );
         let reader = files
-            .open(ByteReadRequest::new(decode(file)?))
+            .open(ByteReadRequest::new(decode(file)?).with_options(
+                open_arrow_access::ByteReadOptions {
+                    io_chunk_size: context.io_request_size(),
+                    ..Default::default()
+                },
+            ))
             .await
             .map_err(Error::backend)?;
         Ok(Box::pin(

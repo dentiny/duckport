@@ -34,7 +34,7 @@ crate::ffi::reader::export_reader!(duckport_arxiv_open, reader_options: ArxivOpt
             requester_pays,
         )?);
         let records = ArxivService::new(storage).records();
-        let mut request = ArxivReadRequest::new(kind).with_options(scan_options);
+        let mut request = scan_options.request(ArxivReadRequest::new(kind));
         if let Some(month) = month {
             request = request.with_month(month);
         }

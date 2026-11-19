@@ -10,7 +10,7 @@ crate::ffi::reader::export_reader!(duckport_gutenberg_open;
         let storage = OpenDalAccessor::new(operator).layer(AutoDecompressionLayer::new());
         AsyncSource::new(
             GutenbergAccessor::with_default_decoder(storage),
-            ReadRequest::new(path).with_options(scan_options),
+            scan_options.request(ReadRequest::new(path)),
         )
         .await
     }

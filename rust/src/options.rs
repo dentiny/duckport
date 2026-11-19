@@ -77,3 +77,18 @@ impl DuckportScanOptions {
         })
     }
 }
+
+/// Row and storage options captured together before provider preparation.
+pub(crate) struct ScanOptions {
+    pub(crate) rows: ReadOptions,
+    pub(crate) bytes: open_arrow_access::ByteReadOptions,
+}
+impl ScanOptions {
+    pub(crate) fn request<R: open_arrow_access::ReadOptionsProvider>(self, mut request: R) -> R {
+        *request.read_options_mut() = self.rows;
+        if let Some(options) = request.byte_read_options_mut() {
+            *options = self.bytes;
+        }
+        request
+    }
+}

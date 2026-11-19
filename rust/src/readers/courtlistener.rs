@@ -1,9 +1,9 @@
 use crate::{source::DuckportSource as AsyncSource, utils::optional_string};
 use open_arrow_access::{
-    Accessor, ByteReadRequest, ReadRequest,
+    ReadRequest,
     file_format::{
         FileAccessor,
-        csv::{CsvDialect, CsvFileFormat, CsvHeader},
+        csv::{CsvDialect, CsvFileFormat, CsvHeader, CsvSchemaMode},
     },
     service::courtlistener::{CourtListenerBulkAccessor, CourtListenerSnapshot},
     storage::OpenDalAccessor,
@@ -29,23 +29,15 @@ crate::ffi::reader::export_reader!(duckport_courtlistener_open, reader_options: 
         let snapshot = CourtListenerSnapshot::new(table_name, date)?;
         let operator = crate::storage::directory_operator(&locator, &storage_options)?;
         let storage = CourtListenerBulkAccessor::new(OpenDalAccessor::new(operator));
-        // CourtListener exports contain all-null columns. Match the upstream tests:
-        // retain every column as VARCHAR and let SQL apply table-specific casts.
-        let input = storage
-            .open(ByteReadRequest::new(snapshot.object()))
-            .await?;
-        let mut header_reader = csv_async::AsyncReaderBuilder::new().create_reader(
-            open_arrow_access::into_async_read(input, "read_courtlistener_header"),
-        );
-        let header = header_reader.headers().await?.clone();
-        let schema = crate::utils::courtlistener_header(&header)?;
-        let format = CsvFileFormat::new(std::sync::Arc::new(schema)).with_dialect(CsvDialect {
-            header: CsvHeader::Present,
-            ..Default::default()
-        });
+        let format = CsvFileFormat::infer()
+            .with_schema_mode(CsvSchemaMode::AllStrings)
+            .with_dialect(CsvDialect {
+                header: CsvHeader::Present,
+                ..Default::default()
+            });
         AsyncSource::new(
             FileAccessor::from_format(storage, format),
-            ReadRequest::new(snapshot.object()).with_options(scan_options),
+            scan_options.request(ReadRequest::new(snapshot.object())),
         )
         .await
     }
