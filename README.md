@@ -169,4 +169,4 @@ with Arrow 58. These projects own format/service and storage mechanics; DuckPort
 owns SQL binding, secret lookup and Arrow C ABI adaptation. Read the
 [architecture guide](docs/architecture.md) before extending the bridge.
 
-[MIT license](LICENSE)
+[Changelog](CHANGELOG.md) · [MIT license](LICENSE)
