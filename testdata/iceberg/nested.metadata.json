@@ -1,0 +1,86 @@
+{
+  "format-version": 2,
+  "table-uuid": "f2bec065-88cd-449d-b081-755b71bc3ef8",
+  "location": "FIXTURE_TABLE_LOCATION",
+  "last-sequence-number": 0,
+  "last-updated-ms": 1700000000000,
+  "last-column-id": 7,
+  "schemas": [
+    {
+      "type": "struct",
+      "schema-id": 0,
+      "fields": [
+        {
+          "id": 1,
+          "name": "payload",
+          "required": false,
+          "type": {
+            "type": "struct",
+            "fields": [
+              {
+                "id": 2,
+                "name": "account_id",
+                "required": false,
+                "type": "int"
+              },
+              {
+                "id": 3,
+                "name": "tenant_id",
+                "required": false,
+                "type": "int"
+              }
+            ]
+          }
+        },
+        {
+          "id": 4,
+          "name": "events",
+          "required": false,
+          "type": {
+            "type": "list",
+            "element-id": 5,
+            "element-required": false,
+            "element": {
+              "type": "struct",
+              "fields": [
+                {
+                  "id": 6,
+                  "name": "account_id",
+                  "required": false,
+                  "type": "int"
+                },
+                {
+                  "id": 7,
+                  "name": "tenant_id",
+                  "required": false,
+                  "type": "int"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "current-schema-id": 0,
+  "partition-specs": [
+    {
+      "spec-id": 0,
+      "fields": []
+    }
+  ],
+  "default-spec-id": 0,
+  "last-partition-id": 999,
+  "properties": {},
+  "sort-orders": [
+    {
+      "order-id": 0,
+      "fields": []
+    }
+  ],
+  "default-sort-order-id": 0,
+  "snapshots": [],
+  "snapshot-log": [],
+  "metadata-log": [],
+  "refs": {}
+}

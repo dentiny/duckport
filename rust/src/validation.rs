@@ -242,6 +242,29 @@ pub(crate) fn validate_iceberg_table(
     Ok(())
 }
 
+// Keep Arrow's nested shape/nullability checks, but also compare real struct
+// field names. List item names are representation details (e.g. item vs element),
+// and Iceberg field-ID metadata is attached only after this validation.
+fn iceberg_types_match(input: &arrow_schema::DataType, output: &arrow_schema::DataType) -> bool {
+    use arrow_schema::DataType;
+    input.equals_datatype(output)
+        && match (input, output) {
+            (DataType::Struct(input), DataType::Struct(output)) => {
+                input.iter().zip(output).all(|(input, output)| {
+                    input.name() == output.name()
+                        && iceberg_types_match(input.data_type(), output.data_type())
+                })
+            }
+            (DataType::List(input), DataType::List(output))
+            | (DataType::LargeList(input), DataType::LargeList(output))
+            | (DataType::FixedSizeList(input, _), DataType::FixedSizeList(output, _))
+            | (DataType::Map(input, _), DataType::Map(output, _)) => {
+                iceberg_types_match(input.data_type(), output.data_type())
+            }
+            _ => true,
+        }
+}
+
 pub(crate) fn validate_iceberg_schema(
     schema: &arrow_schema::Schema,
     output_schema: &arrow_schema::Schema,
@@ -253,7 +276,7 @@ pub(crate) fn validate_iceberg_schema(
             .zip(output_schema.fields())
             .any(|(input, output)| {
                 input.name() != output.name()
-                    || !input.data_type().equals_datatype(output.data_type())
+                    || !iceberg_types_match(input.data_type(), output.data_type())
             })
     {
         return Err(
