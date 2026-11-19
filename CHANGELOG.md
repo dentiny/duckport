@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Upgrade open-arrow-access to 0.12.0 and reuse `CrawlAccessor` for shared planned
+  read execution and partition-local PMC shard URL selection.
+- Retain native planners for Common Crawl, Hugging Face, CourtListener, PMC
+  inventory and MECA so existing read-concurrency settings can use their partitions.
+- Replace the shared OAI manual selection/row-limit wrapper with upstream
+  `SelectionAccessor` and `LimitLayer`.
+
 ## 0.2.0 - 2026-11-19
 
 ### Added

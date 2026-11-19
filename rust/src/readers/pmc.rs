@@ -59,7 +59,7 @@ crate::ffi::reader::export_reader!(duckport_pmc_shard_open, reader_options: PmcS
 crate::ffi::reader::export_reader!(duckport_pmc_inventory_open;
     |locator, storage_options, scan_options| async move {
         let (operator, path) = storage::operator(&locator, &storage_options)?;
-        AsyncSource::new(
+        AsyncSource::plannable(
             PmcInventoryAccessor::new(OpenDalAccessor::new(operator)),
             scan_options.request(ReadRequest::new(path)),
         ).await

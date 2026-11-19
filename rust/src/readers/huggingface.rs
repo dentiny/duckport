@@ -57,6 +57,6 @@ crate::ffi::reader::export_reader!(duckport_huggingface_open, reader_options: Hu
         let service = HuggingFaceService::new(settings)
             .await?
             .with_http_config(storage_options.policy.config()?)?;
-        AsyncSource::new(service, scan_options.request(request)).await
+        AsyncSource::plannable(service, scan_options.request(request)).await
     }
 );

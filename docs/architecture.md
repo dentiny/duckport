@@ -26,6 +26,58 @@ OAI-PMH selection/pagination is in `oai.rs`; ATIF URI policy is in its reader
 module. arXiv's metadata module loads one Parquet snapshot and delegates ID
 normalization and PDF matching to `ArxivMetadataIndex`.
 
+### Shared crawl execution
+
+`DuckportSource` retains an upstream `PreparedSource` for schema/projection,
+source statistics and independent readers. Its execution path uses `CrawlAccessor`
+when a source exposes native partitions and the requested concurrency is greater
+than one. PMC shard XML/TXT URL selection uses the same path even at concurrency
+one, with one shared schema-evolution plan running inside partition workers.
+
+```mermaid
+flowchart TD
+    SQL["SQL selection, batch_size and read_concurrency"] --> Service["Provider discovery and bound storage/format"]
+    Service --> Prepared["PreparedSource: schema, selection, optional statistics"]
+    Prepared --> Mode{"Planned parallel scan or PMC URL conversion?"}
+    Mode -->|"yes"| Plan["PreparedScan forwards native partitions"]
+    Plan --> Crawl["CrawlAccessor: configured concurrency, ordered emission"]
+    Crawl --> Evolve["Workers: decode and optional PMC URL evolution"]
+    Evolve --> Merge["Bounded queues and ordered merge"]
+    Mode -->|"no"| Retained["PreparedSource.scan: reuse retained reader when compatible"]
+    Merge --> Arrow["Projected Arrow batches to DuckDB"]
+    Retained --> Arrow
+    Prepared -. "COPY size inspection" .-> Stats["Original source StatisticsProvider"]
+```
+
+DuckPort explicitly sets crawl concurrency from SQL/COPY and native batch prefetch
+to one, preserving its previous execution budget. It requests ordered emission
+for every reader, honoring HF's global-order requirement and preserving MECA
+manifest order. The
+upstream per-streaming-file read-ahead budget stays at 8 MiB. Extra coalescing and
+merged prefetch remain disabled; no extra SQL settings or merged-stream prefetch
+queue are introduced. Existing byte options, secrets, HTTP clients and storage policy remain
+bound to the source. Parallel planning can repeat source discovery after schema
+binding; `PreparedSource` retains a schema, not a source-membership snapshot.
+
+Common Crawl release/segment, HF exports, CourtListener and PMC inventory readers
+retain their upstream planners rather than erasing them during preparation. Their
+provider code supplies selection/configuration; the shared source path owns
+execution. arXiv, PMC articles/shards and standard file readers use that same path.
+
+The 14 selected-attachment providers already share `SelectedAttachment` and the
+upstream `AttachmentAccessor`. The latter exposes only `Accessor` in access
+0.12.0, so those single-selected-file readers keep their existing preparation
+path. Native attachment planning is tracked in
+[open-arrow-access #586](https://github.com/dentiny/open-arrow-access/pull/586).
+After it is released, changing the shared attachment adapter to retain planning
+will connect all 14 providers to this crawl path. OAI providers
+share upstream `SelectionAccessor` and `LimitLayer` for fixed selectors and
+`max_records`, replacing DuckPort's manual continuation-reader wrapper. Their
+token-dependent continuation chain remains sequential.
+
+See the upstream [crawl workflows and tuning guide](https://github.com/dentiny/open-arrow-access/blob/v0.12.0/docs/crawl.md)
+for partition/file budgets, emission policy and HTTP/request amplification.
+
 ## Writing
 
 `src/sink/copy_options.cpp` binds COPY options, `copy_query.cpp` handles sampling

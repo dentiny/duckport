@@ -1,4 +1,4 @@
-//! Adapt a retained upstream plan to the upstream parallel-read executor.
+//! Adapt a retained upstream plan to integrated crawl execution.
 use open_arrow_access::{
     Accessor, PreparedSource, ReadOptions, ReadOptionsProvider, RecordCapability, RecordMetadata,
     RecordReader, Result, ScanPlan, ScanPlanner, async_trait,

@@ -3,7 +3,11 @@
 Every function returns a DuckDB table and accepts `batch_size` (default 8192,
 range 1–1,048,576) and `read_concurrency` (`'auto'` or a positive integer).
 Automatic reads use DuckDB's `threads` limit where the source supports partitioning;
-providers without a partition planner remain serial.
+providers without a partition planner remain serial. Parallel planned reads use
+open-arrow-access's `CrawlAccessor` with ordered emission. This includes standard
+file readers, arXiv bulk shards, PMC articles/inventory, Common Crawl, Hugging Face,
+CourtListener and MECA. Single-concurrency reads keep the retained-reader path,
+except PMC shard URL conversion, which also uses crawl evolution at concurrency 1.
 Reader-specific options below are named SQL arguments. Credentials and storage
 regions/endpoints come from [scoped secrets](../secrets.md); scan policy comes
 from [session settings](../storage.md).

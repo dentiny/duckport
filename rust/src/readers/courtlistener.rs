@@ -35,7 +35,7 @@ crate::ffi::reader::export_reader!(duckport_courtlistener_open, reader_options: 
                 header: CsvHeader::Present,
                 ..Default::default()
             });
-        AsyncSource::new(
+        AsyncSource::plannable(
             FileAccessor::from_format(storage, format),
             scan_options.request(ReadRequest::new(snapshot.object())),
         )
