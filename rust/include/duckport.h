@@ -112,6 +112,8 @@ struct DuckportReadMetrics {
 struct DuckportWriteMetrics {
 	uint64_t bytes_read;
 	uint64_t bytes_written;
+
+	// Conversion stats.
 	uint64_t rows_committed;
 	uint64_t rows_skipped;
 	uint64_t rows_failed_blobs;
