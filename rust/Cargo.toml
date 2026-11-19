@@ -19,7 +19,7 @@ futures = "0.3"
 glob = "0.3"
 http = "1"
 iceberg-catalog-rest = "0.11"
-open-arrow-access = { version = "0.10.1", default-features = false, features = [
+open-arrow-access = { version = "0.10.3", default-features = false, features = [
     "blocking",
     "decompression-bz2",
     "decompression-gzip",
@@ -59,17 +59,17 @@ open-arrow-access = { version = "0.10.1", default-features = false, features = [
     "service-warc",
     "service-zenodo",
 ] }
-open-arrow-sink-core = "0.6.1"
-open-arrow-sink-iceberg = "0.6.1"
-open-arrow-sink-lance = "0.6.1"
-open-arrow-sink-layer = "0.6.1"
-open-arrow-sink-parquet = { version = "0.6.1", features = [
+open-arrow-sink-core = "0.6.2"
+open-arrow-sink-iceberg = "0.6.2"
+open-arrow-sink-lance = "0.6.2"
+open-arrow-sink-layer = "0.6.2"
+open-arrow-sink-parquet = { version = "0.6.2", features = [
     "gzip",
     "lz4",
     "snappy",
     "zstd",
 ] }
-open-arrow-sink-storage = "0.6.1"
+open-arrow-sink-storage = "0.6.2"
 opendal = { version = "0.59", default-features = false, features = [
     "auto-register-services",
     "http-transport-reqwest",

@@ -12,6 +12,10 @@ needed. Empty input commits the selected schema. A successful finalization
 publishes the version. Failed writes/process termination can leave uncommitted
 objects; a DuckDB transaction rollback does not undo an external commit.
 
+Retry with `OVERWRITE` if a failed write left objects without a committed Lance
+manifest. This creates a new dataset while retaining the old uncommitted objects.
+Corrupt manifests, permission errors and other storage errors still fail COPY.
+
 Lance is one backend of [open-arrow-sink](https://github.com/dentiny/open-arrow-sink).
 Its schema/blob materializer controls native binary handling and physical Blob
 layout. Ordinary text URLs remain strings unless explicitly selected or carrying
