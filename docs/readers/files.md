@@ -16,7 +16,10 @@ globs select the files matching the pattern regardless of extension: `*` matches
 one path component and `**` traverses directories. Discovery results are sorted
 lexicographically and deduplicated within each selection. Empty lists, unmatched
 selections and NULL elements fail. Existing local files and directories take
-precedence over glob syntax in their names.
+precedence over glob syntax in their names. In explicit URIs, percent-encoded
+metacharacters are literal: `s3://bucket/data%5B1%5D.json` selects `data[1].json`,
+while `s3://bucket/data%5B1%5D*.json` uses only the unescaped `*` as a wildcard.
+This also applies to encoded `*` (`%2A`) and `?` (`%3F`).
 
 Local directories may omit the trailing slash. S3 directory prefixes must end in
 `/`; S3 dot path segments are rejected to preserve credential scopes.

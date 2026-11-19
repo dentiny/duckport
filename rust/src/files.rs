@@ -50,15 +50,45 @@ fn parse(locator: &str) -> Result<Url> {
     Ok(url)
 }
 
+// Decode literal URI text separately from unescaped glob operators. Escaped
+// metacharacters must stay literal even inside a pattern such as data%5B1%5D*.json.
+fn decode_uri_glob(path: &str) -> Result<String> {
+    let mut pattern = String::new();
+    for part in path.split_inclusive(['*', '?', '[', ']']) {
+        let end = part.len() - usize::from(part.ends_with(['*', '?', '[', ']']));
+        let literal = percent_encoding::percent_decode_str(&part[..end]).decode_utf8()?;
+        pattern.push_str(&glob::Pattern::escape(&literal));
+        pattern.push_str(&part[end..]);
+    }
+    Ok(pattern)
+}
+
 /// Split a glob into its literal directory URL and relative matching pattern.
-fn glob_root(mut url: Url) -> Result<(Url, Option<glob::Pattern>)> {
-    let path = percent_encoding::percent_decode_str(url.path()).decode_utf8()?;
+fn glob_root(mut url: Url, preserve_escapes: bool) -> Result<(Url, Option<glob::Pattern>)> {
+    // URL parsing escapes some local-path glob characters itself. Only explicit
+    // URIs distinguish percent-encoded literals from raw glob syntax.
+    let path = if preserve_escapes {
+        url.path().to_owned()
+    } else {
+        percent_encoding::percent_decode_str(url.path())
+            .decode_utf8()?
+            .into_owned()
+    };
     let Some(first) = path.find(['*', '?', '[']) else {
         return Ok((url, None));
     };
     let split = path[..first].rfind('/').map_or(0, |p| p + 1);
-    let pattern = glob::Pattern::new(&path[split..])?;
-    let root = path[..split].to_owned();
+    let (root, pattern) = if preserve_escapes {
+        (
+            percent_encoding::percent_decode_str(&path[..split])
+                .decode_utf8()?
+                .into_owned(),
+            decode_uri_glob(&path[split..])?,
+        )
+    } else {
+        (path[..split].to_owned(), path[split..].to_owned())
+    };
+    let pattern = glob::Pattern::new(&pattern)?;
     url.path_segments_mut()
         .map_err(|_| "invalid directory URI")?
         .clear()
@@ -90,7 +120,7 @@ pub(crate) async fn resolve(
         }
         None
     } else {
-        let (root, pattern) = glob_root(base)?;
+        let (root, pattern) = glob_root(base, locator.contains("://"))?;
         let Some(pattern) = pattern else {
             return Ok(vec![locator.to_owned()]);
         };
@@ -144,5 +174,5 @@ pub(crate) fn credential_scope(locator: &str) -> Result<String> {
         // Local paths do not need scoped remote credentials or glob parsing.
         return Ok(locator.to_owned());
     }
-    Ok(glob_root(url)?.0.to_string())
+    Ok(glob_root(url, locator.contains("://"))?.0.to_string())
 }

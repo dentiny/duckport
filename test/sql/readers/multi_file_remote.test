@@ -77,6 +77,42 @@ DROP SECRET multi_{key};
 
 endloop
 
+# URI-escaped metacharacters select literal keys, not similarly named objects.
+statement ok
+CREATE SECRET literal_sources (TYPE s3, KEY_ID 'key-a', SECRET 'secret-a', SESSION_TOKEN 'session-a',
+    ENDPOINT substring(getvariable('multi_endpoint'), 8), USE_SSL false, URL_STYLE 'path', SCOPE 's3://literal-files/');
+
+statement ok
+SELECT duckport_fixture('blob_s3', 'reset');
+
+foreach prefix data%5B1%5D star%2a question%3F literal%5b
+
+query I
+SELECT id FROM duckport_scan_json('s3://literal-files/{prefix}.json');
+----
+1
+
+endloop
+
+# Exact encoded keys must never trigger bucket listing.
+query I
+SELECT count(*) FROM duckport_fixture_requests('blob_s3') WHERE contains(target, 'list-type=2');
+----
+0
+
+# Raw wildcards still work alongside escaped literals; decoys have id=3.
+foreach prefix data%5B1%5D star%2a question%3F literal%5b
+
+query I
+SELECT id FROM duckport_scan_json('s3://literal-files/{prefix}*.json');
+----
+1
+
+endloop
+
+statement ok
+DROP SECRET literal_sources;
+
 query T
 SELECT duckport_fixture('blob_s3', 'stop');
 ----
@@ -98,6 +134,17 @@ SELECT count(*), sum(id) FROM duckport_scan_json([
     getvariable('multi_http') || '/public/records.json']);
 ----
 3	3
+
+# Encoded brackets (including an unmatched bracket), stars and question marks
+# are ordinary HTTP file paths. HTTP provides no listing fallback.
+query II
+SELECT count(*), sum(id) FROM duckport_scan_json([
+    getvariable('multi_http') || '/public/data%5B1%5D.json',
+    getvariable('multi_http') || '/public/star%2A.json',
+    getvariable('multi_http') || '/public/question%3f.json',
+    getvariable('multi_http') || '/public/literal%5B.json']);
+----
+4	4
 
 # HTTP does not expose directory listing, but explicit HTTP file lists work.
 statement error
