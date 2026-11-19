@@ -1,0 +1,70 @@
+# name: test/sql/writers/iceberg_nested_schema.test
+# description: Iceberg APPEND rejects renamed or reordered nested fields before casting
+# group: [sql]
+
+require duckport
+require duckport_test_fixture
+require iceberg
+
+statement ok
+SET VARIABLE iceberg_catalog = duckport_iceberg_fixture('{TEST_DIR}/iceberg_nested_schema', 'start_nested');
+
+statement ok
+CREATE TABLE iceberg_nested_input AS
+SELECT {'account_id': 42, 'tenant_id': 7} AS payload,
+       [{'account_id': 43, 'tenant_id': 8}] AS events;
+
+# Matching nested names must accept the catalog's field-ID metadata and list
+# element representation, which DuckDB does not export identically.
+statement ok
+COPY iceberg_nested_input TO 'tests.people' (FORMAT duckport_iceberg, APPEND,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_nested_schema');
+
+statement error
+COPY (SELECT * REPLACE ({'wrong_name': 42, 'tenant_id': 7} AS payload) FROM iceberg_nested_input)
+TO 'tests.people' (FORMAT duckport_iceberg, APPEND,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_nested_schema');
+----
+Iceberg input column names
+
+# Same primitive types in both positions must not hide reordered field names.
+statement error
+COPY (SELECT * REPLACE ({'tenant_id': 7, 'account_id': 42} AS payload) FROM iceberg_nested_input)
+TO 'tests.people' (FORMAT duckport_iceberg, APPEND,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_nested_schema');
+----
+Iceberg input column names
+
+statement error
+COPY (SELECT * REPLACE ([{'wrong_name': 43, 'tenant_id': 8}] AS events) FROM iceberg_nested_input)
+TO 'tests.people' (FORMAT duckport_iceberg, APPEND,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_nested_schema');
+----
+Iceberg input column names
+
+statement error
+COPY (SELECT * REPLACE ([{'tenant_id': 8, 'account_id': 43}] AS events) FROM iceberg_nested_input)
+TO 'tests.people' (FORMAT duckport_iceberg, APPEND,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_nested_schema');
+----
+Iceberg input column names
+
+# Schema validation also runs for empty input, before any batch reaches cast().
+statement error
+COPY (SELECT * REPLACE ({'wrong_name': 42, 'tenant_id': 7} AS payload) FROM iceberg_nested_input WHERE false)
+TO 'tests.people' (FORMAT duckport_iceberg, APPEND,
+    CATALOG_URI getvariable('iceberg_catalog'), STORAGE_ROOT '{TEST_DIR}/iceberg_nested_schema');
+----
+Iceberg input column names
+
+# Rejected appends leave only the valid row in the committed snapshot.
+query IIII
+SELECT payload.account_id, payload.tenant_id, (events[1]).account_id, (events[1]).tenant_id
+FROM iceberg_scan('{TEST_DIR}/iceberg_nested_schema/people/metadata/current.metadata.json');
+----
+42	7	43	8
+
+query T
+SELECT duckport_iceberg_fixture('{TEST_DIR}/iceberg_nested_schema', 'stop');
+----
+stopped

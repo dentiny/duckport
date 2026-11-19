@@ -46,8 +46,9 @@ void Put(yyjson_mut_doc *doc, yyjson_mut_val *object, const char *key, yyjson_mu
 // One fixed-schema table; the catalog fixture serializes access under its mutex.
 class IcebergTableFixture {
 public:
-	explicit IcebergTableFixture(const string &root, bool empty) : metadata(nullptr, yyjson_mut_doc_free) {
-		metadata = Parse(ReadFixtureFile("iceberg", "table.metadata.json"));
+	explicit IcebergTableFixture(const string &root, bool empty, const string &metadata_name)
+	    : metadata(nullptr, yyjson_mut_doc_free) {
+		metadata = Parse(ReadFixtureFile("iceberg", metadata_name));
 		auto table_path = std::filesystem::absolute(std::filesystem::path(root) / "people");
 		std::filesystem::create_directories(table_path / "metadata");
 		metadata_file = (table_path / "metadata/current.metadata.json").generic_string();
@@ -149,8 +150,8 @@ private:
 
 class IcebergCatalogFixture {
 public:
-	explicit IcebergCatalogFixture(const string &root, bool authenticated = false, bool empty = false)
-	    : table(root, empty) {
+	explicit IcebergCatalogFixture(const string &root, bool authenticated, bool empty, const string &metadata_name)
+	    : table(root, empty, metadata_name) {
 		ConfigureAuthentication(authenticated);
 		RegisterRoutes();
 		server.Start();
@@ -236,12 +237,15 @@ string FixtureCommand(const string &root, const string &command) {
 		fixtures.erase(root);
 		return "stopped";
 	}
-	if (command != "start" && command != "start_authenticated" && command != "start_empty") {
+	if (command != "start" && command != "start_authenticated" && command != "start_empty" &&
+	    command != "start_nested") {
 		throw InvalidInputException("Unknown Iceberg fixture command: %s", command);
 	}
 	auto &fixture = fixtures[root];
 	if (!fixture) {
-		fixture = make_uniq<IcebergCatalogFixture>(root, command == "start_authenticated", command == "start_empty");
+		fixture = make_uniq<IcebergCatalogFixture>(root, command == "start_authenticated", command == "start_empty",
+		                                           command == "start_nested" ? "nested.metadata.json"
+		                                                                     : "table.metadata.json");
 	}
 	return fixture->Endpoint();
 }
