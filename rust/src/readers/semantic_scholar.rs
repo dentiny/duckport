@@ -1,6 +1,10 @@
 use crate::service_files::{AttachmentSelection, impl_attachment_selection};
 use crate::utils::optional_string;
-use open_arrow_access::service::semantic_scholar::SemanticScholarService;
+use open_arrow_access::{
+    AccessorExt, AttachmentFormat, ReadRequest,
+    decompression::{DecompressionLayer, gzip::Gzip},
+    service::semantic_scholar::{S2orcV2Accessor, SemanticScholarService},
+};
 use std::ffi::c_char;
 
 #[repr(C)]
@@ -31,6 +35,19 @@ crate::ffi::reader::export_reader!(duckport_semantic_scholar_open, reader_option
         let files = SemanticScholarService::with_connection(connection)
             .dataset(&release, &locator)
             .await?;
+        if locator == "s2orc_v2"
+            && matches!(attachment.options.format, AttachmentFormat::Json | AttachmentFormat::Jsonl)
+        {
+            // Semantic Scholar logical part names have no compression suffix.
+            // Its S2ORC v2 release shards are gzip-compressed JSONL.
+            let bytes = crate::metrics::ObservedBytes::new(files, storage_options.metrics.clone())
+                .layer(DecompressionLayer::new(Gzip));
+            return crate::source::DuckportSource::plannable(
+                S2orcV2Accessor::new(bytes),
+                scan_options.request(ReadRequest::new(attachment.file_name)),
+            )
+            .await;
+        }
         attachment
             .open(files, scan_options, storage_options.metrics.clone())
             .await

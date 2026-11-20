@@ -58,6 +58,29 @@ rendered textbook table. `archive_endpoint` defaults to
 `https://codeload.github.com`; that auxiliary connection does not inherit API
 credentials. Other providers may likewise use separate download origins.
 
+## Typed S2ORC v2
+
+```sql
+SELECT corpusid, text, body.annotations, bibliography.text
+FROM duckport_scan_semantic_scholar('s2orc_v2', release := 'latest',
+    file_name := 'part-00000', format := 'jsonl');
+```
+
+For `s2orc_v2`, `format := 'json'` and `'jsonl'` use the upstream
+`S2orcV2Accessor` with explicit gzip decompression for official release shards.
+The logical `part-00000` names have no compression suffix. This mode expects
+gzip-compressed JSONL; uncompressed local exports can use the generic
+[JSON readers](json.md).
+
+The fixed Arrow schema exposes body text as top-level `text: LargeUtf8`
+(DuckDB `VARCHAR`). `body.text` is removed; `body.annotations` contains typed
+annotation lists, and `bibliography.text` remains nested. Missing body text is
+NULL. The accessor validates all typed fields even when a query projects only
+`text` or counts rows. Prepared scans retain upstream partition planning.
+
+The default `binary` mode still returns the original compressed shard bytes.
+Other datasets and formats continue to use the generic attachment decoder.
+
 ## Authentication
 
 Use [provider-scoped DuckDB secrets](../secrets.md#provider-apis). For example,

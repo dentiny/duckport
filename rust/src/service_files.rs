@@ -5,8 +5,8 @@ use std::ffi::c_char;
 
 /// Owned selection shared by provider adapters without changing their C ABI.
 pub(crate) struct SelectedAttachment {
-    file_name: String,
-    options: AttachmentOptions,
+    pub(crate) file_name: String,
+    pub(crate) options: AttachmentOptions,
 }
 
 /// Read the common attachment fields from a provider's borrowed FFI options.
