@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-- Upgrade open-arrow-access to 0.12.0 and reuse `CrawlAccessor` for shared planned
-  read execution and partition-local PMC shard URL selection.
+- Add arXiv `format` selection for bulk PDF/LaTeX scans and explicit article PDF, HTML and source downloads through `article_id`.
+- Upgrade open-arrow-access to 0.13.0 and open-arrow-sink to 0.6.3; reuse
+  `CrawlAccessor` for shared planned reads and partition-local PMC shard URL selection.
 - Retain native planners for Common Crawl, Hugging Face, CourtListener, PMC
   inventory and MECA so existing read-concurrency settings can use their partitions.
 - Replace the shared OAI manual selection/row-limit wrapper with upstream

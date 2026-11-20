@@ -1,6 +1,6 @@
 # PMC articles and inventory shards
 
-DuckPort uses open-arrow-access 0.12.0. An article is one Arrow row with the
+DuckPort uses open-arrow-access 0.13.0. An article is one Arrow row with the
 16 original typed metadata fields and derived `content_url`. The duplicate
 `metadata` struct is removed, and the TXT URL column is named `text_url`.
 

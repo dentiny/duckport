@@ -3,8 +3,6 @@
 
 struct SemanticScholarOptions {
 	const char *file_name;
-	const char *format;
-	const char *record_path;
 	const char *endpoint;
 	const char *release;
 };

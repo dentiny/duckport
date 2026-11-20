@@ -72,16 +72,14 @@ only resolves selection/authentication and supplies the bound byte namespace.
 Parquet/text formats retain native partitions; a binary attachment stays one
 whole-document partition.
 
-This attachment path depends on
-[open-arrow-access #586](https://github.com/dentiny/open-arrow-access/pull/586).
-The manifest temporarily pins its exact Git revision; switch to a published
-version containing that PR before merging this dependent change.
+This attachment path uses native attachment planning released in open-arrow-access
+0.13.0; all dependencies come from crates.io.
 
-OAI providers share upstream `SelectionAccessor` and `LimitLayer` for fixed selectors and
-`max_records`, replacing DuckPort's manual continuation-reader wrapper. Their
+OAI providers use upstream `OaiHarvester` and `LimitLayer` for continuation and
+`max_records`, with a small adapter binding SQL selectors. Their
 token-dependent continuation chain remains sequential.
 
-See the upstream [crawl workflows and tuning guide](https://github.com/dentiny/open-arrow-access/blob/v0.12.0/docs/crawl.md)
+See the upstream [crawl workflows and tuning guide](https://github.com/dentiny/open-arrow-access/blob/v0.13.0/docs/crawl.md)
 for partition/file budgets, emission policy and HTTP/request amplification.
 
 ## Writing

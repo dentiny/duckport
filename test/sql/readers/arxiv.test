@@ -13,3 +13,67 @@ query I
 SELECT count(*) FROM duckport_scan_arxiv('testdata/arxiv', kind := 'source', month := '2501');
 ----
 0
+
+# format routes bulk selections without changing the existing kind API.
+query II
+SELECT count(*), sum(octet_length(data)) FROM duckport_scan_arxiv('testdata/arxiv', format := 'latex', month := '2410');
+----
+2	25
+
+# Explicit article selection uses website-style routes and preserves original bytes.
+query TTTT
+SELECT article_id, format, source_uri, starts_with(decode(data), '%PDF') FROM duckport_scan_arxiv('testdata/arxiv/articles', article_id := '2410.00001v2', format := 'pdf');
+----
+2410.00001v2	pdf	pdf/2410.00001v2	true
+
+query TTT
+SELECT format, source_uri, contains(decode(data), '<html>') FROM duckport_scan_arxiv('testdata/arxiv/articles', article_id := '2410.00001v2', format := 'html', read_concurrency := 2);
+----
+html	html/2410.00001v2	true
+
+query TTT
+SELECT format, source_uri, contains(decode(data), 'documentclass') FROM duckport_scan_arxiv('testdata/arxiv/articles', article_id := '2410.00001v2', format := 'latex');
+----
+latex	src/2410.00001v2	true
+
+statement error
+SELECT * FROM duckport_scan_arxiv('testdata/arxiv', format := 'html');
+----
+format=html requires article_id
+
+statement error
+SELECT * FROM duckport_scan_arxiv('testdata/arxiv', format := 'text');
+----
+format must be pdf, latex, or html
+
+statement error
+SELECT * FROM duckport_scan_arxiv('testdata/arxiv', format := 'pdf', kind := 'source');
+----
+format and kind cannot be combined
+
+statement error
+SELECT * FROM duckport_scan_arxiv('testdata/arxiv/articles', article_id := '2410.00001v2');
+----
+article_id requires format
+
+statement error
+SELECT * FROM duckport_scan_arxiv('testdata/arxiv/articles', article_id := '2410.00001v2', format := 'pdf', month := '2410');
+----
+article_id cannot be combined
+
+statement error
+SELECT * FROM duckport_scan_arxiv('testdata/arxiv/articles', article_id := '../escape', format := 'pdf');
+----
+expected modern arXiv article ID
+
+# Original payload bytes survive the reader and C ABI unchanged.
+query T
+SELECT data = content FROM duckport_scan_arxiv('testdata/arxiv/articles', article_id := '2410.00001v2', format := 'pdf'), read_blob('testdata/arxiv/articles/pdf/2410.00001v2');
+----
+true
+
+# A missing selected representation does not fall back to an existing PDF.
+statement error
+SELECT * FROM duckport_scan_arxiv('testdata/arxiv/articles', article_id := '2410.00002v1', format := 'html');
+----
+NotFound

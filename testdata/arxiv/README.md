@@ -5,6 +5,9 @@ requester-pays loopback reads. The source TAR contains two entries totaling
 25 payload bytes. `http.json` serves the same committed bytes through local
 HTTP and S3-compatible endpoints.
 
+`articles/` contains synthetic original PDF, HTML and single-file LaTeX payloads
+at website-style routes for explicit format selection; none are real papers.
+
 Adapted from the MIT-licensed
 [open-arrow-access v0.1.0 service tests](https://github.com/dentiny/open-arrow-access/tree/v0.1.0/service/tests)
 and its arXiv fixture data. The TAR is a deterministic synthetic fixture, not

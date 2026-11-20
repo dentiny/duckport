@@ -8,6 +8,10 @@ char *OpenArxiv(ClientContext &context, const string &locator, const DuckportSca
 	ArxivOptions reader_options {};
 	auto kind = ReadStringOption(input, "kind");
 	reader_options.kind = kind ? kind->c_str() : nullptr;
+	auto format = ReadStringOption(input, "format");
+	reader_options.format = format ? format->c_str() : nullptr;
+	auto article_id = ReadStringOption(input, "article_id");
+	reader_options.article_id = article_id ? article_id->c_str() : nullptr;
 	auto month = ReadStringOption(input, "month");
 	reader_options.month = month ? month->c_str() : nullptr;
 	ReadBooleanOption(input, "requester_pays", reader_options.requester_pays);
