@@ -4,10 +4,10 @@ use crate::{
     utils::optional_string,
 };
 use open_arrow_access::{
-    AccessorExt, ReadRequest, SelectionAccessor,
+    Accessor, AccessorExt, ReadRequest, RecordCapability, RecordReader, async_trait,
     file_format::xml::{NamespaceBinding, XmlFormat},
     layers::LimitLayer,
-    service::oai::{OaiHarvestRequest, OaiProvider, OaiProviderService},
+    service::oai::{OaiHarvestRequest, OaiHarvester, OaiProvider, OaiProviderService},
 };
 use std::{ffi::c_char, num::NonZeroUsize};
 
@@ -102,10 +102,38 @@ pub(crate) async fn open<P: OaiProvider>(
     selection.set = set_spec;
     selection.resumption_token = (locator != "records").then(|| locator.clone());
     selection.max_pages = max_pages;
-    let accessor = SelectionAccessor::new(service.harvest().with_format(format), selection);
+    let accessor = SelectedHarvest {
+        accessor: service.harvest().with_format(format),
+        selection,
+    };
     let request = scan_options.request(ReadRequest::new(locator));
     match max_records {
         Some(rows) => AsyncSource::new(accessor.layer(LimitLayer::new(rows as u64)), request).await,
         None => AsyncSource::new(accessor, request).await,
+    }
+}
+
+// OaiHarvestRequest in published access 0.12.1 does not implement
+// ReadOptionsProvider, so it cannot use upstream SelectionAccessor yet.
+// Keep continuation handling in OaiHarvester and bind only its SQL selectors.
+struct SelectedHarvest {
+    accessor: OaiHarvester,
+    selection: OaiHarvestRequest,
+}
+
+#[async_trait]
+impl Accessor for SelectedHarvest {
+    type Request = ReadRequest;
+    type Reader = dyn RecordReader;
+
+    fn capability(&self) -> RecordCapability {
+        self.accessor.capability()
+    }
+
+    async fn open(&self, request: ReadRequest) -> open_arrow_access::Result<Box<dyn RecordReader>> {
+        let mut selection = self.selection.clone();
+        selection.read.options = request.options;
+        selection.read.byte_options = request.byte_options;
+        self.accessor.open(selection).await
     }
 }

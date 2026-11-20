@@ -17,6 +17,11 @@ not necessarily the URL basename. Unknown selections fail.
 
 ## Shared options
 
+Semantic Scholar is the fixed-format exception: it accepts only `s2orc_v2`
+and always decodes gzip JSONL into typed records. Its options are `file_name`,
+`release`, `endpoint`, and the common scan options; `format` and `record_path`
+are not exposed.
+
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `file_name` | Required | One logical attachment name |
@@ -46,7 +51,7 @@ Function names below have the prefix `duckport_scan_`.
 | `govinfo` | Bulk directory, such as `FR/2026` | None | `https://www.govinfo.gov` |
 | `hathifiles` | Literal `catalog` | None | `https://www.hathitrust.org` |
 | `library_of_congress` | Resource identifier | None | `https://www.loc.gov` |
-| `semantic_scholar` | Dataset name, such as `s2orc` | Required `release` | `https://api.semanticscholar.org` |
+| `semantic_scholar` | Literal `s2orc_v2` | Required `release` | `https://api.semanticscholar.org` |
 | `openstax` | OpenStax repository name | Required `revision`; optional `archive_endpoint` | `https://api.github.com` |
 | `bhl` | Numeric item ID | None | `https://www.biodiversitylibrary.org` |
 | `regulations` | Record ID | `resource`: `documents` (default), `comments`, `dockets` | `https://api.regulations.gov` |
@@ -57,6 +62,29 @@ OpenStax resolves a revision to a commit and selects its repository ZIP, not a
 rendered textbook table. `archive_endpoint` defaults to
 `https://codeload.github.com`; that auxiliary connection does not inherit API
 credentials. Other providers may likewise use separate download origins.
+
+## Typed S2ORC v2
+
+```sql
+SELECT corpusid, text, body.annotations, bibliography.text
+FROM duckport_scan_semantic_scholar('s2orc_v2', release := 'latest',
+    file_name := 'part-00000');
+```
+
+Semantic Scholar only accepts `s2orc_v2` and always uses the upstream
+`S2orcV2Accessor` with explicit gzip decompression for official release shards.
+The logical `part-00000` names have no compression suffix. This mode expects
+gzip-compressed JSONL; uncompressed local exports can use the generic
+[JSON readers](json.md).
+
+The fixed Arrow schema exposes body text as top-level `text: LargeUtf8`
+(DuckDB `VARCHAR`). `body.text` is removed; `body.annotations` contains typed
+annotation lists, and `bibliography.text` remains nested. Missing body text is
+NULL. The accessor validates all typed fields even when a query projects only
+`text` or counts rows. Prepared scans retain upstream partition planning.
+
+Other dataset names are rejected before provider access. There is no binary
+or generic-format fallback for this function.
 
 ## Authentication
 

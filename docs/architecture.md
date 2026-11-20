@@ -66,16 +66,19 @@ execution. arXiv, PMC articles/shards and standard file readers use that same pa
 
 The 14 selected-attachment providers already share `SelectedAttachment` and the
 upstream `AttachmentAccessor`. The latter exposes only `Accessor` in access
-0.12.0, so those single-selected-file readers keep their existing preparation
-path. Native attachment planning is tracked in
+0.12.1, so those single-selected-file readers keep their existing preparation
+path. S2ORC v2 JSON/JSONL instead uses the typed `S2orcV2Accessor`, explicit
+gzip decompression and native scan planning. Native attachment planning is
+tracked in
 [open-arrow-access #586](https://github.com/dentiny/open-arrow-access/pull/586).
 After it is released, changing the shared attachment adapter to retain planning
 will connect all 14 providers to this crawl path. OAI providers
-share upstream `SelectionAccessor` and `LimitLayer` for fixed selectors and
-`max_records`, replacing DuckPort's manual continuation-reader wrapper. Their
+use upstream `OaiHarvester` and `LimitLayer` for continuation and `max_records`.
+A small adapter binds SQL selectors because the published `OaiHarvestRequest`
+does not implement the trait required by `SelectionAccessor`. Their
 token-dependent continuation chain remains sequential.
 
-See the upstream [crawl workflows and tuning guide](https://github.com/dentiny/open-arrow-access/blob/v0.12.0/docs/crawl.md)
+See the upstream [crawl workflows and tuning guide](https://github.com/dentiny/open-arrow-access/blob/v0.12.1/docs/crawl.md)
 for partition/file budgets, emission policy and HTTP/request amplification.
 
 ## Writing

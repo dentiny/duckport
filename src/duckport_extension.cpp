@@ -81,7 +81,8 @@ void LoadInternal(ExtensionLoader &loader) {
 		options.Add("archive_endpoint", LogicalType::VARCHAR);
 	});
 	RegisterReader(loader, "duckport_scan_semantic_scholar", OpenSemanticScholar, [](TypedKwargs &options) {
-		AddAttachmentOptions(options);
+		options.Add("file_name", LogicalType::VARCHAR);
+		options.Add("endpoint", LogicalType::VARCHAR);
 		options.Add("release", LogicalType::VARCHAR);
 	});
 	RegisterReader(loader, "duckport_scan_library_of_congress", OpenLibraryOfCongress, AddAttachmentOptions);

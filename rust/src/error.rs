@@ -46,3 +46,11 @@ pub(crate) fn unknown_selected_file() -> open_arrow_access::Error {
         "unknown selected file",
     )
 }
+
+pub(crate) fn unsupported_semantic_scholar_dataset() -> open_arrow_access::Error {
+    open_arrow_access::Error::new(
+        open_arrow_access::ErrorKind::InvalidInput,
+        "semantic_scholar",
+        "Semantic Scholar only supports s2orc_v2",
+    )
+}
