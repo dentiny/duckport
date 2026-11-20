@@ -16,14 +16,14 @@ SELECT count(*) FROM duckport_scan_arxiv('testdata/arxiv', kind := 'source', mon
 
 # Bulk content expands packages, excludes attachments and retains both article IDs.
 query IIIT
-SELECT count(*), count(DISTINCT article_id), count(DISTINCT source_index), bool_and(format = 'latex' AND NOT starts_with(decode(source_name), 'anc/') AND octet_length(data) > 0) FROM duckport_scan_arxiv('testdata/arxiv', format := 'latex', shard := 'latex.tar', batch_size := 1, read_concurrency := 2);
+SELECT count(*), count(DISTINCT article_id), count(DISTINCT source_index), bool_and(format = 'latex' AND data_type = 'latex' AND NOT starts_with(decode(source_name), 'anc/') AND octet_length(data) > 0) FROM duckport_scan_arxiv('testdata/arxiv', format := 'latex', shard := 'latex.tar', batch_size := 1, read_concurrency := 2);
 ----
 4	2	2	true
 
-query TTTTTTTT
-SELECT typeof(article_id), typeof(format), typeof(shard_uri), typeof(entry_index), typeof(entry_name), typeof(source_index), typeof(source_name), typeof(data) FROM duckport_scan_arxiv('testdata/arxiv', format := 'latex', shard := 'latex.tar') LIMIT 1;
+query TTTTTTTTT
+SELECT typeof(article_id), typeof(format), typeof(shard_uri), typeof(entry_index), typeof(entry_name), typeof(source_index), typeof(source_name), typeof(data), typeof(data_type) FROM duckport_scan_arxiv('testdata/arxiv', format := 'latex', shard := 'latex.tar') LIMIT 1;
 ----
-VARCHAR	VARCHAR	VARCHAR	UBIGINT	BLOB	UBIGINT	BLOB	BLOB
+VARCHAR	VARCHAR	VARCHAR	UBIGINT	BLOB	UBIGINT	BLOB	BLOB	VARCHAR
 
 # Explicit article selection uses website-style routes and preserves original bytes.
 query TTTT
