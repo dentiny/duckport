@@ -6,6 +6,8 @@ use std::{
 
 pub(crate) type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
+pub(crate) const BHL_KEYS_NULL: &str = "null BHL Open Data key list";
+
 pub(crate) fn call(operation: impl FnOnce() -> Result<()>) -> *mut c_char {
     match catch_unwind(AssertUnwindSafe(operation)) {
         Ok(Ok(())) => ptr::null_mut(),

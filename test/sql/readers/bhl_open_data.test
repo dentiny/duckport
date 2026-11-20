@@ -1,0 +1,15 @@
+# name: test/sql/readers/bhl_open_data.test
+# description: Explicit BHL object partitions preserve selected and blank page bytes
+# group: [sql]
+
+require duckport
+
+query II
+SELECT count(*), sum(octet_length(data)) FROM duckport_scan_bhl_open_data('testdata/bhl/open-data', keys := ['ocr/item-1/page-1.txt', 'ocr/item-1/page-2.txt'], batch_size := 1, read_concurrency := 2);
+----
+2	13
+
+query T
+SELECT starts_with(decode(data), 'First page') FROM duckport_scan_bhl_open_data('testdata/bhl/open-data', keys := ['ocr/item-1/page-1.txt']);
+----
+true

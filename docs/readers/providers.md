@@ -111,3 +111,31 @@ A binary attachment still produces one unchanged row from one document partition
 Native attachment planning from
 [open-arrow-access #586](https://github.com/dentiny/open-arrow-access/pull/586)
 is included in the crates.io 0.13.0 dependency; no temporary Git pin is required.
+
+## BHL AWS object partitions
+
+`duckport_scan_bhl_open_data(root, keys := [...])` reads an explicit, nonempty
+list of bucket-relative object keys using open-arrow-access 0.14.2. Each selected
+object is an independently planned input partition. The function does not list
+the corpus or invent numbered shards; freeze disjoint key lists in job manifests.
+
+```sql
+SELECT decode(data) AS text
+FROM duckport_scan_bhl_open_data('s3://bhl-open-data/',
+    keys := ['ocr/item-295621/item-295621-61016244-0039.txt'],
+    read_concurrency := 4);
+```
+
+The canonical public bucket uses anonymous access in `us-east-2`, without a BHL
+API key or AWS credentials. A local mirror or another storage root uses ordinary
+DuckPort storage configuration and scoped secrets; the keys remain relative to
+that root. For example, use `'/datasets/bhl/'` for a local mirror.
+
+`keys` is `VARCHAR[]`. Optional `format` and `record_path` have the attachment
+semantics above; common scan options, including `read_concurrency`, still apply.
+Default binary mode returns one `data: BLOB` row per selected object, preserving
+all bytes, including blank OCR pages. It can retain TXT, JP2, XML or metadata
+objects as bytes. Decoding a supported structured format is explicit, for example
+`format := 'tsv'` for metadata tables. There is no OCR/image extraction or joined
+page/item/title/rights schema in this function. `duckport_scan_bhl` continues to
+select an API item attachment.

@@ -78,6 +78,11 @@ void LoadInternal(ExtensionLoader &loader) {
 		options.Add("resource", LogicalType::VARCHAR);
 	});
 	RegisterReader(loader, "duckport_scan_bhl", OpenBhl, AddAttachmentOptions);
+	RegisterReader(loader, "duckport_scan_bhl_open_data", OpenBhlOpenData, [](TypedKwargs &options) {
+		options.Add("keys", LogicalType::LIST(LogicalType::VARCHAR));
+		options.Add("format", LogicalType::VARCHAR);
+		options.Add("record_path", LogicalType::VARCHAR);
+	});
 	RegisterReader(loader, "duckport_scan_openstax", OpenOpenstax, [](TypedKwargs &options) {
 		AddAttachmentOptions(options);
 		options.Add("revision", LogicalType::VARCHAR);
