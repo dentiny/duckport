@@ -25,6 +25,12 @@ SELECT typeof(article_id), typeof(format), typeof(shard_uri), typeof(entry_index
 ----
 VARCHAR	VARCHAR	VARCHAR	UBIGINT	BLOB	UBIGINT	BLOB	BLOB	VARCHAR
 
+# The reserved full OAI metadata struct is present and null in content rows.
+query II
+SELECT count(*), count(metadata) FROM duckport_scan_arxiv('testdata/arxiv', format := 'latex', shard := 'latex.tar');
+----
+4	0
+
 # Explicit article selection uses website-style routes and preserves original bytes.
 query TTTT
 SELECT article_id, format, source_uri, starts_with(decode(data), '%PDF') FROM duckport_scan_arxiv('testdata/arxiv/articles', article_id := '2410.00001v2', format := 'pdf');
