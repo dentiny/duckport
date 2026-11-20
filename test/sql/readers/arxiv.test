@@ -93,10 +93,16 @@ SELECT data = content FROM duckport_scan_arxiv('testdata/arxiv/articles', articl
 true
 
 # A missing selected representation does not fall back to an existing PDF.
+query T
+SELECT starts_with(decode(data), '%PDF') FROM duckport_scan_arxiv('testdata/arxiv/articles', article_id := '2410.00002v1', format := 'pdf');
+----
+true
+
+# Match the selected object; access 0.14 keeps NotFound in the structured error kind.
 statement error
 SELECT * FROM duckport_scan_arxiv('testdata/arxiv/articles', article_id := '2410.00002v1', format := 'html');
 ----
-NotFound
+object "html/2410.00002v1"
 
 # Format keywords are ASCII case-insensitive in both bulk and article mode.
 query I
