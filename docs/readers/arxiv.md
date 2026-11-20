@@ -18,7 +18,7 @@ SELECT * FROM duckport_scan_arxiv('https://arxiv.org/',
     article_id := '2410.00001v2', format := 'latex');
 ```
 
-`format` accepts `pdf`, `latex` or `html`. With `article_id`, it is required
+`format` accepts `pdf`, `latex` or `html` (ASCII case-insensitive). With `article_id`, it is required
 and selects exactly `pdf/<id>`, `src/<id>` or `html/<id>` beneath the root.
 Modern IDs, including explicit version suffixes, are accepted; legacy IDs are
 not supported by the upstream article-route validator.

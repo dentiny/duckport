@@ -77,3 +77,19 @@ statement error
 SELECT * FROM duckport_scan_arxiv('testdata/arxiv/articles', article_id := '2410.00002v1', format := 'html');
 ----
 NotFound
+
+# Format keywords are ASCII case-insensitive in both bulk and article mode.
+query I
+SELECT count(*) FROM duckport_scan_arxiv('testdata/arxiv', format := 'LaTeX', month := '2410');
+----
+2
+
+query T
+SELECT format FROM duckport_scan_arxiv('testdata/arxiv/articles', article_id := '2410.00001v2', format := 'PDF');
+----
+pdf
+
+query T
+SELECT format FROM duckport_scan_arxiv('testdata/arxiv/articles', article_id := '2410.00001v2', format := 'HtMl');
+----
+html

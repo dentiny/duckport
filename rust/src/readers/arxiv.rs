@@ -33,7 +33,7 @@ crate::ffi::reader::export_reader!(duckport_arxiv_open, reader_options: ArxivOpt
         if format.is_some() && kind.is_some() {
             return Err("format and kind cannot be combined".into());
         }
-        let article_format = format.as_deref().map(|format| match format {
+        let article_format = format.as_deref().map(|format| match format.to_ascii_lowercase().as_str() {
             "pdf" => Ok(ArxivArticleFormat::Pdf),
             "latex" => Ok(ArxivArticleFormat::Latex),
             "html" => Ok(ArxivArticleFormat::Html),
