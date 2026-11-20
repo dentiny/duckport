@@ -164,7 +164,7 @@ memory-budget control of the reference extension. See the
   sessions, Lance/Parquet/Iceberg backends and reusable blob, schema and concurrency
   layers. DuckPort uses its `core`, `layer`, `storage` and backend crates.
 
-The current manifest selects open-arrow-access 0.12.1 and open-arrow-sink 0.6.2
+The current manifest selects open-arrow-access 0.13.0 and open-arrow-sink 0.6.3
 with Arrow 58. These projects own format/service and storage mechanics; DuckPort
 owns SQL binding, secret lookup and Arrow C ABI adaptation. Read the
 [architecture guide](docs/architecture.md) before extending the bridge.

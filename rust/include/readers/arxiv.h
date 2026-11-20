@@ -3,6 +3,8 @@
 
 struct ArxivOptions {
 	const char *kind;
+	const char *format;
+	const char *article_id;
 	const char *month;
 	int32_t requester_pays;
 	const char *metadata_uri;

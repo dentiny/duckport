@@ -83,7 +83,7 @@ pub(crate) fn boolean(name: &str, value: i32) -> Result<bool> {
 
 pub(crate) fn sink_mode(value: &str) -> Result<open_arrow_sink_core::WriteMode> {
     validation::required(
-        match value {
+        match value.to_ascii_lowercase().as_str() {
             "create" => Some(WriteMode::Create),
             "append" => Some(WriteMode::Append),
             "overwrite" => Some(WriteMode::Overwrite),
@@ -95,7 +95,7 @@ pub(crate) fn sink_mode(value: &str) -> Result<open_arrow_sink_core::WriteMode> 
 
 pub(crate) fn arxiv_kind(value: &str) -> Result<open_arrow_access::service::arxiv::ArxivKind> {
     validation::required(
-        match value {
+        match value.to_ascii_lowercase().as_str() {
             "auto" => Some(ArxivKind::Auto),
             "source" => Some(ArxivKind::Source),
             "pdf" => Some(ArxivKind::Pdf),
@@ -107,7 +107,7 @@ pub(crate) fn arxiv_kind(value: &str) -> Result<open_arrow_access::service::arxi
 
 pub(crate) fn biorxiv_server(value: &str) -> Result<open_arrow_access::service::biorxiv::Server> {
     validation::required(
-        match value {
+        match value.to_ascii_lowercase().as_str() {
             "biorxiv" => Some(Server::Biorxiv),
             "medrxiv" => Some(Server::Medrxiv),
             _ => None,
@@ -120,7 +120,7 @@ pub(crate) fn regulations_resource(
     value: &str,
 ) -> Result<open_arrow_access::service::regulations::RegulationsResource> {
     validation::required(
-        match value {
+        match value.to_ascii_lowercase().as_str() {
             "documents" => Some(RegulationsResource::Documents),
             "comments" => Some(RegulationsResource::Comments),
             "dockets" => Some(RegulationsResource::Dockets),
@@ -175,6 +175,8 @@ pub(crate) fn attachment_options(
     format: &str,
     record_path: Option<&str>,
 ) -> Result<open_arrow_access::AttachmentOptions> {
+    let format = format.to_ascii_lowercase();
+    let format = format.as_str();
     let selection = match format {
         "binary" => Some(AttachmentFormat::Binary),
         "csv" => Some(AttachmentFormat::Csv),

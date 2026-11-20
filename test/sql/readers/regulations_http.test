@@ -23,7 +23,7 @@ CREATE SECRET provider_http_test (TYPE http, BEARER_TOKEN 'fixture-key', SCOPE g
 # Binary preserves original bytes independently of filename extensions.
 
 query I
-SELECT octet_length(data) FROM duckport_scan_regulations('DOC-1', file_name := 'attachment-000/file-000', endpoint := getvariable('fixture_endpoint'));
+SELECT octet_length(data) FROM duckport_scan_regulations('DOC-1', file_name := 'attachment-000/file-000', endpoint := getvariable('fixture_endpoint'), resource := 'DoCuMeNtS');
 ----
 23
 

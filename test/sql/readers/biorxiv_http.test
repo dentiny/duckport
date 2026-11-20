@@ -17,7 +17,7 @@ SET VARIABLE fixture_endpoint = duckport_fixture('biorxiv', 'start_anonymous');
 # Binary preserves original bytes independently of filename extensions.
 
 query I
-SELECT octet_length(data) FROM duckport_scan_biorxiv('2026-11-01', file_name := 'paper-00000.xml', endpoint := getvariable('fixture_endpoint'), until := '2026-11-02');
+SELECT octet_length(data) FROM duckport_scan_biorxiv('2026-11-01', file_name := 'paper-00000.xml', endpoint := getvariable('fixture_endpoint'), until := '2026-11-02', server := 'BiOrXiV');
 ----
 23
 
@@ -37,7 +37,7 @@ EXECUTE provider_scan;
 23
 
 query IT rowsort
-SELECT id, name FROM duckport_scan_biorxiv('2026-11-01', file_name := 'paper-00000.xml', endpoint := getvariable('fixture_endpoint'), until := '2026-11-02', format := 'csv', batch_size := 1);
+SELECT id, name FROM duckport_scan_biorxiv('2026-11-01', file_name := 'paper-00000.xml', endpoint := getvariable('fixture_endpoint'), until := '2026-11-02', format := 'CsV', batch_size := 1);
 ----
 1	alpha
 2	beta

@@ -1,8 +1,47 @@
 # arXiv archives and metadata
 
-Use `duckport_scan_arxiv` for original PDF/source TAR members. Use
+Use `duckport_scan_arxiv` for original PDF/source TAR members or explicit article
+PDF, LaTeX source and HTML representations. Use
 `duckport_scan_arxiv_metadata` for a separate OAI-PMH harvest. A persisted
 Parquet snapshot can join those metadata fields to PDFs during the bulk scan.
+
+## Choose an article format
+
+```sql
+-- Original article bytes from the website (or a mirror with pdf/src/html routes).
+SELECT article_id, format, source_uri, data
+FROM duckport_scan_arxiv('https://arxiv.org/',
+    article_id := '2410.00001v2', format := 'pdf');
+SELECT * FROM duckport_scan_arxiv('https://arxiv.org/',
+    article_id := '2410.00001v2', format := 'html');
+SELECT * FROM duckport_scan_arxiv('https://arxiv.org/',
+    article_id := '2410.00001v2', format := 'latex');
+```
+
+`format` accepts `pdf`, `latex` or `html` (ASCII case-insensitive). With `article_id`, it is required
+and selects exactly `pdf/<id>`, `src/<id>` or `html/<id>` beneath the root.
+Modern IDs, including explicit version suffixes, are accepted; legacy IDs are
+not supported by the upstream article-route validator.
+Unavailable representations fail; no implicit fallback or HTML bulk discovery
+is performed. Pin a versioned ID for reproducible selection.
+
+Article output columns are `article_id`, `format`, `source_uri`, `entry_index`,
+`entry_name` and `data`. `source_uri` is the relative route under the supplied
+root. `data` contains original bytes: PDF is not rendered or text-extracted,
+HTML is not parsed and its external assets are not fetched. LaTeX returns the
+original source payload, which can be a compressed package or a single file;
+it is not expanded or compiled. This reader does not expose the upstream
+opt-in source-package expansion API.
+
+Article mode cannot combine `article_id` with `kind`, `month`, `metadata_uri`,
+`metadata_id_column` or `requester_pays`. Those options describe bulk archives
+and snapshot joins. Storage credentials, scan byte options and read metrics
+still use the shared source path.
+
+Without `article_id`, `format := 'pdf'` selects bulk PDF TARs and
+`format := 'latex'` selects bulk source TARs. `format := 'html'` requires
+`article_id`, because there is no HTML bulk manifest. Do not combine `format`
+with the legacy `kind` option.
 
 ## Bulk archive scans
 
@@ -12,7 +51,8 @@ FROM duckport_scan_arxiv('/data/arxiv-mirror', kind := 'source', month := '2410'
 SELECT * FROM duckport_scan_arxiv('/data/arxiv-mirror', kind := 'auto', month := '2410');
 ```
 
-The locator roots storage above `pdf/` and `src/`. `kind` is `source` (the
+The locator roots storage above `pdf/` and `src/`. Prefer `format := 'pdf'`
+or `format := 'latex'` to select one representation. `kind` is `source` (the
 DuckPort default), `pdf`, or `auto`. `month` is optional YYMM text; omitting it
 selects all manifest months. The accessor reads known manifest keys, then only
 the selected TAR shards. It does not enumerate the bucket.

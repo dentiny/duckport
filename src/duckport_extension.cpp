@@ -49,6 +49,8 @@ void LoadInternal(ExtensionLoader &loader) {
 	               BindOaiReader("https://oaipmh.arxiv.org", duckport_arxiv_metadata_open), AddOaiOptions);
 	RegisterReader(loader, "duckport_scan_arxiv", OpenArxiv, [](TypedKwargs &options) {
 		options.Add("kind", LogicalType::VARCHAR);
+		options.Add("format", LogicalType::VARCHAR);
+		options.Add("article_id", LogicalType::VARCHAR);
 		options.Add("month", LogicalType::VARCHAR);
 		options.Add("requester_pays", LogicalType::BOOLEAN);
 		options.Add("metadata_uri", LogicalType::VARCHAR);
@@ -99,9 +101,8 @@ void LoadInternal(ExtensionLoader &loader) {
 		options.Add("version", LogicalType::VARCHAR);
 	});
 	RegisterReader(loader, "duckport_scan_zenodo", OpenZenodo, AddAttachmentOptions);
-	RegisterReader(loader, "duckport_scan_pmc", OpenPmcMetadata, [](TypedKwargs &options) {
-		options.Add("content_format", LogicalType::VARCHAR);
-	});
+	RegisterReader(loader, "duckport_scan_pmc", OpenPmcMetadata,
+	               [](TypedKwargs &options) { options.Add("content_format", LogicalType::VARCHAR); });
 	RegisterReader(loader, "duckport_scan_pmc_shard", OpenPmcInventoryShard, [](TypedKwargs &options) {
 		options.Add("manifest", LogicalType::VARCHAR);
 		options.Add("shard", LogicalType::VARCHAR);

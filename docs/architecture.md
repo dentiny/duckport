@@ -64,21 +64,22 @@ retain their upstream planners rather than erasing them during preparation. Thei
 provider code supplies selection/configuration; the shared source path owns
 execution. arXiv, PMC articles/shards and standard file readers use that same path.
 
-The 14 selected-attachment providers already share `SelectedAttachment` and the
-upstream `AttachmentAccessor`. The latter exposes only `Accessor` in access
-0.12.1, so those single-selected-file readers keep their existing preparation
-path. S2ORC v2 JSON/JSONL instead uses the typed `S2orcV2Accessor`, explicit
-gzip decompression and native scan planning. Native attachment planning is
-tracked in
-[open-arrow-access #586](https://github.com/dentiny/open-arrow-access/pull/586).
-After it is released, changing the shared attachment adapter to retain planning
-will connect all 14 providers to this crawl path. OAI providers
-use upstream `OaiHarvester` and `LimitLayer` for continuation and `max_records`.
-A small adapter binds SQL selectors because the published `OaiHarvestRequest`
-does not implement the trait required by `SelectionAccessor`. Their
+All 14 selected-attachment providers use one `SelectedAttachment` adapter. It
+retains `AttachmentAccessor` planning through `DuckportSource::plannable`; the
+common execution-time `PreparedScan` then enters `CrawlAccessor::new` with SQL
+projection, batch size, concurrency and ordered emission. Provider-specific code
+only resolves selection/authentication and supplies the bound byte namespace.
+Parquet/text formats retain native partitions; a binary attachment stays one
+whole-document partition.
+
+This attachment path uses native attachment planning released in open-arrow-access
+0.13.0; all dependencies come from crates.io.
+
+OAI providers use upstream `OaiHarvester` and `LimitLayer` for continuation and
+`max_records`, with a small adapter binding SQL selectors. Their
 token-dependent continuation chain remains sequential.
 
-See the upstream [crawl workflows and tuning guide](https://github.com/dentiny/open-arrow-access/blob/v0.12.1/docs/crawl.md)
+See the upstream [crawl workflows and tuning guide](https://github.com/dentiny/open-arrow-access/blob/v0.13.0/docs/crawl.md)
 for partition/file budgets, emission policy and HTTP/request amplification.
 
 ## Writing

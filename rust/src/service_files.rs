@@ -64,7 +64,7 @@ impl SelectedAttachment {
         options: crate::options::ScanOptions,
         metrics: ReadMetrics,
     ) -> Result<DuckportSource> {
-        DuckportSource::new(
+        DuckportSource::plannable(
             AttachmentAccessor::new(
                 crate::metrics::ObservedBytes::new(accessor, metrics),
                 self.options,
