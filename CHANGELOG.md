@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Upgrade open-arrow-access to 0.16.0; arXiv content scans now include a tenth,
+  nullable `metadata` struct field. Current readers emit null metadata.
+
 - Upgrade open-arrow-access to 0.14.1 to fix the TAR indexer’s Send future
   requirement for arXiv single-shard discovery.
 

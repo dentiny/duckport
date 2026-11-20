@@ -54,7 +54,7 @@ FROM duckport_scan_arxiv('s3://arxiv/', format := 'latex',
     read_concurrency := 8);
 ```
 
-All three bulk formats emit the same nine non-null Arrow fields:
+All three bulk formats emit the same ten Arrow fields (non-null unless noted):
 
 | Column | Arrow type | Content |
 | --- | --- | --- |
@@ -67,13 +67,15 @@ All three bulk formats emit the same nine non-null Arrow fields:
 | `source_name` | `LargeBinary` | Inner member name; empty for PDF/XML |
 | `data` | `LargeBinary` | PDF/XML bytes or decoded UTF-8 LaTeX bytes |
 | `data_type` | `LargeUtf8` | Payload type: `latex`, `pdf` or `xml` |
+| `metadata` | nullable `Struct` | Full typed arXivRaw OAI record; currently null |
 
 Binary fields appear as SQL `BLOB`. LaTeX packages produce one row per body
 `.tex` member, preserving duplicate member positions; images and `anc/`
 attachments are excluded. Inputs with no usable LaTeX or invalid encoding fail.
 No compilation, PDF text extraction, or asset downloading is performed.
-The content schema has no optional metadata column; harvest metadata separately
-or use the legacy raw PDF join below.
+The content schema has ten fields, including nullable `metadata` with the full
+arXivRaw OAI record schema. Current content readers leave it null and do not fetch
+or join metadata. Harvest metadata separately or use the legacy raw PDF join below.
 
 `shard` is a relative `.tar` key beneath the root. It bypasses manifest discovery
 and bucket listing and cannot combine with `month` or `article_id`. Explicit
