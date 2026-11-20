@@ -25,6 +25,7 @@ char *OpenBhlOpenData(ClientContext &context, const string &locator, const Duckp
 		}
 	}
 	vector<const char *> pointers;
+	pointers.reserve(keys.size());
 	for (const auto &key : keys) {
 		pointers.push_back(key.c_str());
 	}
