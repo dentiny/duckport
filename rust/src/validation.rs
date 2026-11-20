@@ -122,6 +122,13 @@ pub(crate) fn validate_oai_selectors(
     Ok(())
 }
 
+pub(crate) fn validate_semantic_scholar_locator(locator: &str) -> Result<()> {
+    if locator != "s2orc_v2" {
+        return Err(crate::error::unsupported_semantic_scholar_dataset().into());
+    }
+    Ok(())
+}
+
 pub(crate) fn validate_hathifiles_locator(locator: &str) -> Result<()> {
     if locator != "catalog" {
         return Err("Hathifiles locator must be catalog".into());

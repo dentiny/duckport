@@ -19,60 +19,30 @@ SET VARIABLE fixture_scope = duckport_fixture('semantic_scholar', 'scope');
 statement ok
 CREATE SECRET provider_http_test (TYPE http, BEARER_TOKEN 'fixture-key', SCOPE getvariable('fixture_scope'));
 
-# Adapted from open-arrow-access-service 0.1.0 provider fixture tests.
-# Binary preserves original bytes independently of filename extensions.
-
-query I
-SELECT octet_length(data) FROM duckport_scan_semantic_scholar('s2orc', file_name := 'part-00000', endpoint := getvariable('fixture_endpoint'), release := 'latest');
-----
-23
-
-# Each prepared execution obtains an independent reader of the selected attachment.
-
-statement ok
-PREPARE provider_scan AS SELECT octet_length(data) FROM duckport_scan_semantic_scholar('s2orc', file_name := 'part-00000', endpoint := getvariable('fixture_endpoint'), release := 'latest');
-
-query I
-EXECUTE provider_scan;
-----
-23
-
-query I
-EXECUTE provider_scan;
-----
-23
-
-query IT rowsort
-SELECT id, name FROM duckport_scan_semantic_scholar('s2orc', file_name := 'part-00000', endpoint := getvariable('fixture_endpoint'), release := 'latest', format := 'csv', batch_size := 1);
-----
-1	alpha
-2	beta
+# Only the v2 dataset is accepted, before making provider requests.
 
 statement error
-SELECT * FROM duckport_scan_semantic_scholar('s2orc', file_name := 'missing-file', endpoint := getvariable('fixture_endpoint'), release := 'latest');
+SELECT * FROM duckport_scan_semantic_scholar('s2orc', file_name := 'part-00000', endpoint := getvariable('fixture_endpoint'), release := 'latest');
 ----
-filename is absent from manifest
-
-statement ok
-DEALLOCATE provider_scan;
+only supports s2orc_v2
 
 # Official S2ORC v2 shards are gzip JSONL behind suffixless logical names.
 # Projection, count-only scans and prepared executions retain the fixed schema.
 
 query ITTII rowsort
 SELECT corpusid, text, bibliography.text, len(body.annotations.sentence), body.annotations.sentence[1]."end"
-FROM duckport_scan_semantic_scholar('s2orc_v2', file_name := 'part-00000', endpoint := getvariable('fixture_endpoint'), release := 'latest', format := 'jsonl', batch_size := 1);
+FROM duckport_scan_semantic_scholar('s2orc_v2', file_name := 'part-00000', endpoint := getvariable('fixture_endpoint'), release := 'latest', batch_size := 1);
 ----
 1	Hello world	Reference	1	11
 2	NULL	NULL	NULL	NULL
 
 query I
-SELECT count(*) FROM duckport_scan_semantic_scholar('s2orc_v2', file_name := 'part-00000', endpoint := getvariable('fixture_endpoint'), release := 'latest', format := 'json');
+SELECT count(*) FROM duckport_scan_semantic_scholar('s2orc_v2', file_name := 'part-00000', endpoint := getvariable('fixture_endpoint'), release := 'latest');
 ----
 2
 
 statement ok
-PREPARE s2orc_scan AS SELECT text FROM duckport_scan_semantic_scholar('s2orc_v2', file_name := 'part-00000', endpoint := getvariable('fixture_endpoint'), release := 'latest', format := 'jsonl', batch_size := 1) ORDER BY corpusid;
+PREPARE s2orc_scan AS SELECT text FROM duckport_scan_semantic_scholar('s2orc_v2', file_name := 'part-00000', endpoint := getvariable('fixture_endpoint'), release := 'latest', batch_size := 1) ORDER BY corpusid;
 
 query T
 EXECUTE s2orc_scan;
@@ -90,26 +60,26 @@ statement ok
 DEALLOCATE s2orc_scan;
 
 statement error
-SELECT body.text FROM duckport_scan_semantic_scholar('s2orc_v2', file_name := 'part-00000', endpoint := getvariable('fixture_endpoint'), release := 'latest', format := 'jsonl');
+SELECT body.text FROM duckport_scan_semantic_scholar('s2orc_v2', file_name := 'part-00000', endpoint := getvariable('fixture_endpoint'), release := 'latest');
 ----
 text
 
-# Binary remains untouched: the response still begins with the gzip magic bytes.
+# Format is fixed rather than a user-selectable decoding mode.
 
-query T
-SELECT starts_with(hex(data), '1F8B') FROM duckport_scan_semantic_scholar('s2orc_v2', file_name := 'part-00000', endpoint := getvariable('fixture_endpoint'), release := 'latest');
+statement error
+SELECT * FROM duckport_scan_semantic_scholar('s2orc_v2', file_name := 'part-00000', endpoint := getvariable('fixture_endpoint'), release := 'latest', format := 'binary');
 ----
-true
+format
 
 # Empty projection must still reject malformed annotations.
 
 statement error
-SELECT count(*) FROM duckport_scan_semantic_scholar('s2orc_v2', file_name := 'part-00001', endpoint := getvariable('fixture_endpoint'), release := 'latest', format := 'jsonl');
+SELECT count(*) FROM duckport_scan_semantic_scholar('s2orc_v2', file_name := 'part-00001', endpoint := getvariable('fixture_endpoint'), release := 'latest');
 ----
 annotation
 
 statement error
-SELECT text FROM duckport_scan_semantic_scholar('s2orc_v2', file_name := 'missing-file', endpoint := getvariable('fixture_endpoint'), release := 'latest', format := 'jsonl');
+SELECT text FROM duckport_scan_semantic_scholar('s2orc_v2', file_name := 'missing-file', endpoint := getvariable('fixture_endpoint'), release := 'latest');
 ----
 filename is absent from manifest
 
@@ -129,7 +99,7 @@ ok
 # Invalid provider metadata must fail before downloading content.
 
 statement error
-SELECT octet_length(data) FROM duckport_scan_semantic_scholar('s2orc', file_name := 'part-00000', endpoint := getvariable('fixture_endpoint'), release := 'latest');
+SELECT count(*) FROM duckport_scan_semantic_scholar('s2orc_v2', file_name := 'part-00000', endpoint := getvariable('fixture_endpoint'), release := 'latest');
 ----
 DuckPort
 

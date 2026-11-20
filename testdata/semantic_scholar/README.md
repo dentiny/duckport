@@ -1,7 +1,6 @@
 # Semantic Scholar fixtures
 
-Release discovery, dataset metadata, a generic attachment and synthetic S2ORC v2
-shards. `s2orc_v2.jsonl.gz` contains a row with body text, string-encoded
+Release discovery, dataset metadata and synthetic S2ORC v2 gzip JSONL shards. `s2orc_v2.jsonl.gz` contains a row with body text, string-encoded
 annotation spans and bibliography text, followed by a row with only `corpusid`.
 `s2orc_v2_invalid.jsonl.gz` contains a reversed annotation span to exercise
 validation even when fields are projected out. Both gzip files use `mtime=0` and

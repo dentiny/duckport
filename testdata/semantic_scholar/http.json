@@ -5,19 +5,11 @@
       "file": "release.json"
     },
     {
-      "path": "/datasets/v1/release/2026-10-27/dataset/s2orc",
-      "file": "metadata.json"
-    },
-    {
       "path": "/datasets/v1/release/2026-10-27/dataset/s2orc_v2",
       "file": "s2orc_v2_metadata.json"
     }
   ],
   "downloads": [
-    {
-      "path": "/part?signature=a%2Bb",
-      "file": "attachment.bin"
-    },
     {
       "path": "/s2orc-v2?signature=a%2Bb",
       "file": "s2orc_v2.jsonl.gz"
@@ -28,5 +20,5 @@
     }
   ],
   "auth": "x-api-key",
-  "reject_route": "/datasets/v1/release/2026-10-27/dataset/s2orc"
+  "reject_route": "/datasets/v1/release/2026-10-27/dataset/s2orc_v2"
 }
