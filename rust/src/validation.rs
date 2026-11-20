@@ -500,3 +500,7 @@ pub(crate) fn validate_arxiv_metadata(
     }
     Ok(())
 }
+
+pub(crate) fn is_public_bhl_root(locator: &str) -> bool {
+    locator.trim_end_matches('/') == "s3://bhl-open-data"
+}
