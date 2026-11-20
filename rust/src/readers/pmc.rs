@@ -23,7 +23,7 @@ pub struct PmcShardOptions {
 crate::ffi::reader::export_reader!(duckport_pmc_open, reader_options: PmcOptions;
     |locator, storage_options, scan_options| async move {
         let format = unsafe { optional_string(reader_options.content_format) }?
-            .map(|value| value.parse::<PmcFormat>()).transpose()?.unwrap_or_default();
+            .map(|value| value.to_ascii_lowercase().parse::<PmcFormat>()).transpose()?.unwrap_or_default();
         let (operator, path) = if locator.ends_with('/') {
             (storage::directory_operator(&locator, &storage_options)?, "/".to_owned())
         } else {
@@ -43,7 +43,7 @@ crate::ffi::reader::export_reader!(duckport_pmc_shard_open, reader_options: PmcS
         let manifest = validation::required(manifest.as_deref(), "manifest is required")?;
         let shard = validation::required(shard.as_deref(), "shard is required")?;
         let format = unsafe { optional_string(reader_options.content_format) }?
-            .map(|value| value.parse::<PmcFormat>()).transpose()?.unwrap_or_default();
+            .map(|value| value.to_ascii_lowercase().parse::<PmcFormat>()).transpose()?.unwrap_or_default();
         let operator = storage::directory_operator(&locator, &storage_options)?;
         AsyncSource::plannable(
             PmcInventoryShardAccessor::new(OpenDalAccessor::new(operator)),

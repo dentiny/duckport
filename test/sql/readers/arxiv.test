@@ -93,3 +93,8 @@ query T
 SELECT format FROM duckport_scan_arxiv('testdata/arxiv/articles', article_id := '2410.00001v2', format := 'HtMl');
 ----
 html
+
+query II
+SELECT count(*), sum(octet_length(data)) FROM duckport_scan_arxiv('testdata/arxiv', kind := 'SoUrCe', month := '2410');
+----
+2	25

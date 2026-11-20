@@ -72,3 +72,8 @@ SELECT item_id, href, data FROM duckport_scan_meca('submission.meca');
 provider attachment. The [provider guide](providers.md) lists locators, required
 selectors, endpoint defaults and decoding formats once, without repeating them
 for every provider.
+
+Enum option values are ASCII case-insensitive: arXiv `kind`/`format`, PMC
+`content_format`, bioRxiv `server`, Regulations.gov `resource`, and attachment
+`format`. Paths, file names, article IDs, column names and XML `record_path`
+selectors retain their original spelling.

@@ -53,7 +53,7 @@ SELECT * FROM duckport_scan_federal_register('2026-22789', file_name := 'pdf_url
 format must be
 
 statement error
-SELECT * FROM duckport_scan_federal_register('2026-22789', file_name := 'pdf_url', endpoint := getvariable('fixture_endpoint'), format := 'xml');
+SELECT * FROM duckport_scan_federal_register('2026-22789', file_name := 'pdf_url', endpoint := getvariable('fixture_endpoint'), format := 'XmL');
 ----
 record_path is required
 

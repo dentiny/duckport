@@ -5,7 +5,7 @@
 require duckport
 
 query TIT
-SELECT pmcid, version, title FROM duckport_scan_pmc('testdata/pmc/PMC123.json', batch_size := 1);
+SELECT pmcid, version, title FROM duckport_scan_pmc('testdata/pmc/PMC123.json', content_format := 'PdF', batch_size := 1);
 ----
 PMC123	1	Test article
 

@@ -16,7 +16,7 @@ statement ok
 CREATE SECRET figshare_test (TYPE http, BEARER_TOKEN 'fixture-key', EXTRA_HTTP_HEADERS MAP {'X-Client-Key': 'fixture-extra'}, SCOPE getvariable('figshare_scope'));
 
 query IT rowsort
-SELECT id, name FROM duckport_scan_figshare('21422193', file_name := 'records.csv', format := 'csv', endpoint := getvariable('figshare_endpoint'), batch_size := 1);
+SELECT id, name FROM duckport_scan_figshare('21422193', file_name := 'records.csv', format := 'CSV', endpoint := getvariable('figshare_endpoint'), batch_size := 1);
 ----
 1	alpha
 2	beta
