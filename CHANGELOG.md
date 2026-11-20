@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Upgrade open-arrow-access to 0.14.1 to fix the TAR indexer’s Send future
+  requirement for arXiv single-shard discovery.
+
 - Add arXiv `format` selection for bulk PDF/LaTeX scans and explicit article PDF, HTML and source downloads through `article_id`.
 - Upgrade open-arrow-access to 0.13.0 and open-arrow-sink to 0.6.3; reuse
   `CrawlAccessor` for shared planned reads and partition-local PMC shard URL selection.
