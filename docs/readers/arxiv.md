@@ -54,7 +54,7 @@ FROM duckport_scan_arxiv('s3://arxiv/', format := 'latex',
     read_concurrency := 8);
 ```
 
-All three bulk formats emit the same eight non-null Arrow fields:
+All three bulk formats emit the same nine non-null Arrow fields:
 
 | Column | Arrow type | Content |
 | --- | --- | --- |
@@ -66,6 +66,7 @@ All three bulk formats emit the same eight non-null Arrow fields:
 | `source_index` | `UInt64` | Inner member index; zero for PDF/XML |
 | `source_name` | `LargeBinary` | Inner member name; empty for PDF/XML |
 | `data` | `LargeBinary` | PDF/XML bytes or decoded UTF-8 LaTeX bytes |
+| `data_type` | `LargeUtf8` | Payload type: `latex`, `pdf` or `xml` |
 
 Binary fields appear as SQL `BLOB`. LaTeX packages produce one row per body
 `.tex` member, preserving duplicate member positions; images and `anc/`
@@ -180,3 +181,5 @@ metadata prefix. Public harvesting needs no key; a custom endpoint may use a
 scoped HTTP secret. Pagination, limits, deleted records and custom XML mappings
 are described in the [OAI-PMH guide](oai.md). Coordinate harvesting and reuse
 persisted snapshots rather than harvesting independently for every bulk shard.
+
+The content schema appends `data_type` in open-arrow-access 0.15.0. Explicit-format scans still use the requested format; the generic cell fallback API does not enable automatic arXiv PDF fallback.
