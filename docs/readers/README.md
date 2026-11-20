@@ -28,7 +28,7 @@ from [session settings](../storage.md).
 | `duckport_scan_commoncrawl_segment` | One segment root | [Common Crawl](warc.md) |
 | `duckport_scan_atif` | One JSON/JSONL trajectory object | [ATIF](atif.md) |
 | `duckport_scan_huggingface` | One dataset config/split's Parquet export | [Hugging Face](huggingface.md) |
-| `duckport_scan_arxiv` | Manifest-selected bulk TAR shards; optional PDF metadata snapshot | [arXiv](arxiv.md) |
+| `duckport_scan_arxiv` | Bulk PDF/LaTeX/XML content or raw TAR members; explicit shard and legacy PDF metadata snapshot | [arXiv](arxiv.md) |
 
 Standard file readers accept local/file/HTTP(S)/S3 objects and same-schema
 [file lists, directories and globs](files.md). ATIF and provider readers retain

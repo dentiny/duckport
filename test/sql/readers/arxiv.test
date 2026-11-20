@@ -14,11 +14,16 @@ SELECT count(*) FROM duckport_scan_arxiv('testdata/arxiv', kind := 'source', mon
 ----
 0
 
-# format routes bulk selections without changing the existing kind API.
-query II
-SELECT count(*), sum(octet_length(data)) FROM duckport_scan_arxiv('testdata/arxiv', format := 'latex', month := '2410');
+# Bulk content expands packages, excludes attachments and retains both article IDs.
+query IIIT
+SELECT count(*), count(DISTINCT article_id), count(DISTINCT source_index), bool_and(format = 'latex' AND NOT starts_with(decode(source_name), 'anc/') AND octet_length(data) > 0) FROM duckport_scan_arxiv('testdata/arxiv', format := 'latex', shard := 'latex.tar', batch_size := 1, read_concurrency := 2);
 ----
-2	25
+4	2	2	true
+
+query TTTTTTTT
+SELECT typeof(article_id), typeof(format), typeof(shard_uri), typeof(entry_index), typeof(entry_name), typeof(source_index), typeof(source_name), typeof(data) FROM duckport_scan_arxiv('testdata/arxiv', format := 'latex', shard := 'latex.tar') LIMIT 1;
+----
+VARCHAR	VARCHAR	VARCHAR	UBIGINT	BLOB	UBIGINT	BLOB	BLOB
 
 # Explicit article selection uses website-style routes and preserves original bytes.
 query TTTT
@@ -44,7 +49,22 @@ format=html requires article_id
 statement error
 SELECT * FROM duckport_scan_arxiv('testdata/arxiv', format := 'text');
 ----
-format must be pdf, latex, or html
+format must be pdf, latex, xml, or html
+
+statement error
+SELECT * FROM duckport_scan_arxiv('testdata/arxiv', format := 'latex', shard := 'latex.tar', month := '2410');
+----
+shard cannot be combined with month or article_id
+
+statement error
+SELECT * FROM duckport_scan_arxiv('testdata/arxiv', format := 'xml');
+----
+format=xml requires a caller-supplied shard
+
+statement error
+SELECT * FROM duckport_scan_arxiv('testdata/arxiv', format := 'latex', shard := 'latex.tar', metadata_uri := 'missing.parquet');
+----
+bulk format output has a fixed schema
 
 statement error
 SELECT * FROM duckport_scan_arxiv('testdata/arxiv', format := 'pdf', kind := 'source');
@@ -80,9 +100,9 @@ NotFound
 
 # Format keywords are ASCII case-insensitive in both bulk and article mode.
 query I
-SELECT count(*) FROM duckport_scan_arxiv('testdata/arxiv', format := 'LaTeX', month := '2410');
+SELECT count(*) FROM duckport_scan_arxiv('testdata/arxiv', format := 'LaTeX', shard := 'latex.tar');
 ----
-2
+4
 
 query T
 SELECT format FROM duckport_scan_arxiv('testdata/arxiv/articles', article_id := '2410.00001v2', format := 'PDF');

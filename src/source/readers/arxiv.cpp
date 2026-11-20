@@ -14,6 +14,8 @@ char *OpenArxiv(ClientContext &context, const string &locator, const DuckportSca
 	reader_options.article_id = article_id ? article_id->c_str() : nullptr;
 	auto month = ReadStringOption(input, "month");
 	reader_options.month = month ? month->c_str() : nullptr;
+	auto shard = ReadStringOption(input, "shard");
+	reader_options.shard = shard ? shard->c_str() : nullptr;
 	ReadBooleanOption(input, "requester_pays", reader_options.requester_pays);
 	auto metadata_uri = ReadStringOption(input, "metadata_uri");
 	auto metadata_id_column = ReadStringOption(input, "metadata_id_column");

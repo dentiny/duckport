@@ -1,7 +1,7 @@
 # arXiv archives and metadata
 
-Use `duckport_scan_arxiv` for original PDF/source TAR members or explicit article
-PDF, LaTeX source and HTML representations. Use
+Use `duckport_scan_arxiv` for bulk PDF, attachment-free LaTeX, caller-supplied
+XML shards, original TAR members or explicit article representations. Use
 `duckport_scan_arxiv_metadata` for a separate OAI-PMH harvest. A persisted
 Parquet snapshot can join those metadata fields to PDFs during the bulk scan.
 
@@ -33,15 +33,55 @@ original source payload, which can be a compressed package or a single file;
 it is not expanded or compiled. This reader does not expose the upstream
 opt-in source-package expansion API.
 
-Article mode cannot combine `article_id` with `kind`, `month`, `metadata_uri`,
+Article mode cannot combine `article_id` with `kind`, `month`, `shard`, `metadata_uri`,
 `metadata_id_column` or `requester_pays`. Those options describe bulk archives
 and snapshot joins. Storage credentials, scan byte options and read metrics
 still use the shared source path.
 
-Without `article_id`, `format := 'pdf'` selects bulk PDF TARs and
-`format := 'latex'` selects bulk source TARs. `format := 'html'` requires
-`article_id`, because there is no HTML bulk manifest. Do not combine `format`
-with the legacy `kind` option.
+Without `article_id`, `format := 'pdf'` and `format := 'latex'` emit the common
+bulk content schema below. This changes bulk `format := 'latex'` from raw source
+packages to extracted LaTeX bytes. `format := 'xml'` requires `shard` naming a
+caller-owned XML TAR; arXiv has no official XML full-text inventory. XML is passed
+through as bytes, not generated from LaTeX or OAI metadata. `format := 'html'`
+requires `article_id`. Do not combine `format` with the legacy `kind` option.
+
+## Common bulk content output
+
+```sql
+SELECT article_id, source_name, data
+FROM duckport_scan_arxiv('s3://arxiv/', format := 'latex',
+    shard := 'src/arXiv_src_2410_001.tar', requester_pays := true,
+    read_concurrency := 8);
+```
+
+All three bulk formats emit the same eight non-null Arrow fields:
+
+| Column | Arrow type | Content |
+| --- | --- | --- |
+| `article_id` | `LargeUtf8` | Normalized, unversioned article ID |
+| `format` | `LargeUtf8` | `pdf`, `latex` or `xml` |
+| `shard_uri` | `LargeUtf8` | Shard locator |
+| `entry_index` | `UInt64` | Outer TAR entry index |
+| `entry_name` | `LargeBinary` | Original outer member name |
+| `source_index` | `UInt64` | Inner member index; zero for PDF/XML |
+| `source_name` | `LargeBinary` | Inner member name; empty for PDF/XML |
+| `data` | `LargeBinary` | PDF/XML bytes or decoded UTF-8 LaTeX bytes |
+
+Binary fields appear as SQL `BLOB`. LaTeX packages produce one row per body
+`.tex` member, preserving duplicate member positions; images and `anc/`
+attachments are excluded. Inputs with no usable LaTeX or invalid encoding fail.
+No compilation, PDF text extraction, or asset downloading is performed.
+The content schema has no optional metadata column; harvest metadata separately
+or use the legacy raw PDF join below.
+
+`shard` is a relative `.tar` key beneath the root. It bypasses manifest discovery
+and bucket listing and cannot combine with `month` or `article_id`. Explicit
+content shards retain one native partition per regular member, so existing
+`read_concurrency` overlaps their reads and parsing. TAR header indexing is
+sequential before the first row; source packages are buffered while expanding,
+so higher concurrency increases memory use. Month scans and raw `kind` scans
+retain their existing shard-level parallelism. Caller-owned shards must remain
+unchanged during a scan.
 
 ## Bulk archive scans
 
@@ -51,9 +91,8 @@ FROM duckport_scan_arxiv('/data/arxiv-mirror', kind := 'source', month := '2410'
 SELECT * FROM duckport_scan_arxiv('/data/arxiv-mirror', kind := 'auto', month := '2410');
 ```
 
-The locator roots storage above `pdf/` and `src/`. Prefer `format := 'pdf'`
-or `format := 'latex'` to select one representation. `kind` is `source` (the
-DuckPort default), `pdf`, or `auto`. `month` is optional YYMM text; omitting it
+The locator roots storage above `pdf/` and `src/`. `kind` selects original,
+unexpanded members and is `source` (the DuckPort default), `pdf`, or `auto`. `month` is optional YYMM text; omitting it
 selects all manifest months. The accessor reads known manifest keys, then only
 the selected TAR shards. It does not enumerate the bucket.
 
@@ -71,7 +110,8 @@ representations of an article, so choose `pdf` explicitly for a PDF-only dataset
 | `data` | Original member payload bytes |
 
 TAR entry/size limits apply upstream. Manifest checksums/counts are metadata,
-not a content-verification guarantee. Entries remain sequential within each TAR.
+not a content-verification guarantee. Raw `kind` entries remain sequential within
+each TAR. `shard` also works with `kind` to bypass manifests.
 `batch_size` is a row target; the upstream request also has a soft payload target.
 
 For the official requester-pays bucket, configure a scoped S3 secret and opt in:
@@ -96,9 +136,8 @@ COPY (
 ) TO 'arxiv_2410.lance' (FORMAT duckport_lance);
 ```
 
-This follows the conversion service's persisted-snapshot contract: one selected
-Parquet file is read completely, indexed with upstream `ArxivMetadataIndex`, and
-joined to PDFs before output. The four bulk columns are retained; `metadata` is
+This legacy raw PDF mode reads one selected Parquet file completely, indexes it with upstream `ArxivMetadataIndex`, and
+joins it to PDFs before output. The four bulk columns are retained; `metadata` is
 a non-null struct containing **every snapshot column with its original Arrow
 type**. Use `metadata.title`, for example, if the snapshot includes `title`.
 The `data` column already contains bytes; do not put it in `BLOB_COLUMNS`, which
@@ -109,8 +148,8 @@ selects URL strings.
 | `metadata_uri` | Unset | One local/file/HTTP(S)/S3 `.parquet` object, no globs or directory inputs |
 | `metadata_id_column` | `identifier` | A nonempty string column name; explicit use requires `metadata_uri` |
 
-A snapshot requires `kind := 'pdf'`. IDs must be non-null, unique, unversioned
-article IDs or `oai:arXiv.org:<id>` identifiers. PDF version suffixes stay in
+A snapshot requires `kind := 'pdf'` and cannot combine with `format`. IDs must be
+non-null, unique, unversioned article IDs or `oai:arXiv.org:<id>` identifiers. PDF version suffixes stay in
 `entry_name` while matching uses the unversioned article ID; legacy IDs are
 normalized by the upstream crate. Duplicate/invalid IDs and PDFs missing a
 metadata match fail rather than silently dropping fields or rows. Metadata-only

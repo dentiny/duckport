@@ -418,7 +418,59 @@ pub(crate) fn iceberg_catalog_token(
     Ok(token)
 }
 
-/// Match the conversion service's persisted Parquet snapshot contract.
+pub(crate) fn validate_arxiv_shard(
+    shard: Option<&str>,
+    month: Option<&str>,
+    article_id: Option<&str>,
+) -> Result<()> {
+    if shard.is_some() && (month.is_some() || article_id.is_some()) {
+        return Err("shard cannot be combined with month or article_id".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn arxiv_article_format(
+    format: Option<&str>,
+) -> Result<open_arrow_access::service::arxiv::ArxivArticleFormat> {
+    use open_arrow_access::service::arxiv::ArxivArticleFormat;
+    match format.map(str::to_ascii_lowercase).as_deref() {
+        Some("pdf") => Ok(ArxivArticleFormat::Pdf),
+        Some("latex") => Ok(ArxivArticleFormat::Latex),
+        Some("html") => Ok(ArxivArticleFormat::Html),
+        None => Err("article_id requires format (pdf, latex, or html)".into()),
+        _ => Err("article format must be pdf, latex, or html".into()),
+    }
+}
+
+pub(crate) fn arxiv_content_format(
+    format: Option<&str>,
+    shard: Option<&str>,
+    metadata_uri: Option<&str>,
+    id_column: Option<&str>,
+) -> Result<Option<open_arrow_access::service::arxiv::ArxivContentFormat>> {
+    use open_arrow_access::service::arxiv::ArxivContentFormat;
+    let Some(format) = format else {
+        return Ok(None);
+    };
+    let format = match format.to_ascii_lowercase().as_str() {
+        "pdf" => ArxivContentFormat::Pdf,
+        "latex" => ArxivContentFormat::Latex,
+        "xml" if shard.is_some() => ArxivContentFormat::Xml,
+        "xml" => return Err("format=xml requires a caller-supplied shard".into()),
+        "html" => {
+            return Err("format=html requires article_id; arXiv has no HTML bulk manifest".into());
+        }
+        _ => return Err("format must be pdf, latex, xml, or html".into()),
+    };
+    if metadata_uri.is_some() || id_column.is_some() {
+        return Err(
+            "bulk format output has a fixed schema; use kind=pdf for legacy metadata joins".into(),
+        );
+    }
+    Ok(Some(format))
+}
+
+/// Validate the legacy raw PDF reader's persisted Parquet snapshot contract.
 pub(crate) fn validate_arxiv_metadata(
     kind: open_arrow_access::service::arxiv::ArxivKind,
     uri: Option<&str>,

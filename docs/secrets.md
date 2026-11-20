@@ -133,8 +133,8 @@ FROM duckport_scan_arxiv('s3://arxiv/', kind := 'pdf', month := '2410',
 
 The PDF root and `metadata_uri` resolve separate secrets, regions and endpoints.
 Requester-pays is explicit and applies only to the arXiv archive storage, not the
-metadata snapshot. Unlike the service URI's `metadata_region` parameter,
-DuckPort configures the snapshot's region through its own scoped S3 secret.
+metadata snapshot. DuckPort configures the snapshot's region through its own
+scoped S3 secret.
 A local snapshot needs no secret; an HTTPS snapshot uses its own HTTP scope.
 [Snapshot requirements](readers/arxiv.md#pdf-and-metadata-in-one-table) include
 complete matching IDs and an in-memory index.
