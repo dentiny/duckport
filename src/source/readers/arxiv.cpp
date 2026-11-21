@@ -17,6 +17,8 @@ char *OpenArxiv(ClientContext &context, const string &locator, const DuckportSca
 	auto shard = ReadStringOption(input, "shard");
 	reader_options.shard = shard ? shard->c_str() : nullptr;
 	ReadBooleanOption(input, "requester_pays", reader_options.requester_pays);
+	auto metadata_endpoint = ReadStringOption(input, "metadata_endpoint");
+	reader_options.metadata_endpoint = metadata_endpoint ? metadata_endpoint->c_str() : nullptr;
 	auto metadata_uri = ReadStringOption(input, "metadata_uri");
 	auto metadata_id_column = ReadStringOption(input, "metadata_id_column");
 	reader_options.metadata_uri = metadata_uri ? metadata_uri->c_str() : nullptr;

@@ -18,11 +18,13 @@ pub struct ArxivOptions {
     pub requester_pays: i32,
     pub metadata_uri: *const c_char,
     pub metadata_id_column: *const c_char,
+    pub metadata_endpoint: *const c_char,
     pub metadata_storage: *const crate::options::DuckportStorageOptions,
 }
 
 crate::ffi::reader::export_reader!(duckport_arxiv_open, reader_options: ArxivOptions;
     |locator, storage_options, scan_options| async move {
+        let metadata_endpoint = unsafe { optional_string(reader_options.metadata_endpoint) }?;
         let kind = unsafe { optional_string(reader_options.kind) }?;
         let format = unsafe { optional_string(reader_options.format) }?;
         let article_id = unsafe { optional_string(reader_options.article_id) }?;
@@ -37,6 +39,9 @@ crate::ffi::reader::export_reader!(duckport_arxiv_open, reader_options: ArxivOpt
         }
         crate::validation::validate_arxiv_shard(shard.as_deref(), month.as_deref(), article_id.as_deref())?;
         if let Some(id) = article_id {
+            if metadata_endpoint.is_some() {
+                return Err("metadata_endpoint requires bulk content format".into());
+            }
             if kind.is_some() || month.is_some() || metadata_uri.is_some() || id_column.is_some() || requester_pays {
                 return Err("article_id cannot be combined with kind, month, metadata_uri, metadata_id_column, or requester_pays".into());
             }
@@ -67,7 +72,17 @@ crate::ffi::reader::export_reader!(duckport_arxiv_open, reader_options: ArxivOpt
             &storage_options,
             requester_pays,
         )?);
-        let records = ArxivService::new(storage).records();
+        if metadata_endpoint.is_some() && format.is_none() {
+            return Err("metadata_endpoint requires bulk content format".into());
+        }
+        let mut service = ArxivService::new(storage);
+        if format.is_some() {
+            let connection = open_arrow_access::service::common::Connection::new(
+                metadata_endpoint.as_deref().unwrap_or("https://oaipmh.arxiv.org"),
+            )?.with_http_config(storage_options.policy.config()?)?;
+            service = service.with_metadata_connection(connection);
+        }
+        let records = service.records();
         let mut request = scan_options.request(ArxivReadRequest::new(kind));
         if let Some(month) = month {
             request = request.with_month(month);

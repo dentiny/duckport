@@ -10,6 +10,7 @@ struct ArxivOptions {
 	int32_t requester_pays;
 	const char *metadata_uri;
 	const char *metadata_id_column;
+	const char *metadata_endpoint;
 	const DuckportStorageOptions *metadata_storage;
 };
 
