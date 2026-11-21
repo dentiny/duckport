@@ -1,0 +1,12 @@
+{
+  "routes": [
+    {
+      "path": "/oai?verb=GetRecord&metadataPrefix=arXivRaw&identifier=oai%3AarXiv.org%3A2410.00001",
+      "file": "metadata-record.xml"
+    },
+    {
+      "path": "/oai?verb=GetRecord&metadataPrefix=arXivRaw&identifier=oai%3AarXiv.org%3A2410.00002",
+      "file": "metadata-second.xml"
+    }
+  ]
+}

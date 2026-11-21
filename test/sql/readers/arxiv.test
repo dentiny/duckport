@@ -4,6 +4,11 @@
 
 require duckport
 
+require duckport_test_fixture
+
+statement ok
+SET VARIABLE content_metadata_endpoint = duckport_fixture('arxiv_content', 'start_anonymous');
+
 query II
 SELECT count(*), sum(octet_length(data)) FROM duckport_scan_arxiv('testdata/arxiv', kind := 'source', month := '2410', batch_size := 1, read_concurrency := 2);
 ----
@@ -16,20 +21,20 @@ SELECT count(*) FROM duckport_scan_arxiv('testdata/arxiv', kind := 'source', mon
 
 # Bulk content expands packages, excludes attachments and retains both article IDs.
 query IIIT
-SELECT count(*), count(DISTINCT article_id), count(DISTINCT source_index), bool_and(format = 'latex' AND data_type = 'latex' AND NOT starts_with(decode(source_name), 'anc/') AND octet_length(data) > 0) FROM duckport_scan_arxiv('testdata/arxiv', format := 'latex', shard := 'latex.tar', batch_size := 1, read_concurrency := 2);
+SELECT count(*), count(DISTINCT article_id), count(DISTINCT source_index), bool_and(format = 'latex' AND data_type = 'latex' AND NOT starts_with(decode(source_name), 'anc/') AND octet_length(data) > 0) FROM duckport_scan_arxiv('testdata/arxiv', format := 'latex', shard := 'latex.tar', metadata_endpoint := getvariable('content_metadata_endpoint'), batch_size := 1, read_concurrency := 2);
 ----
 4	2	2	true
 
 query TTTTTTTTT
-SELECT typeof(article_id), typeof(format), typeof(shard_uri), typeof(entry_index), typeof(entry_name), typeof(source_index), typeof(source_name), typeof(data), typeof(data_type) FROM duckport_scan_arxiv('testdata/arxiv', format := 'latex', shard := 'latex.tar') LIMIT 1;
+SELECT typeof(article_id), typeof(format), typeof(shard_uri), typeof(entry_index), typeof(entry_name), typeof(source_index), typeof(source_name), typeof(data), typeof(data_type) FROM duckport_scan_arxiv('testdata/arxiv', format := 'latex', shard := 'latex.tar', metadata_endpoint := getvariable('content_metadata_endpoint')) LIMIT 1;
 ----
 VARCHAR	VARCHAR	VARCHAR	UBIGINT	BLOB	UBIGINT	BLOB	BLOB	VARCHAR
 
-# The reserved full OAI metadata struct is present and null in content rows.
+# Bulk content fetches complete typed OAI metadata for every article.
 query II
-SELECT count(*), count(metadata) FROM duckport_scan_arxiv('testdata/arxiv', format := 'latex', shard := 'latex.tar');
+SELECT count(*), count(metadata) FROM duckport_scan_arxiv('testdata/arxiv', format := 'latex', shard := 'latex.tar', metadata_endpoint := getvariable('content_metadata_endpoint'));
 ----
-4	0
+4	4
 
 # Explicit article selection uses website-style routes and preserves original bytes.
 query TTTT
@@ -112,7 +117,7 @@ object "html/2410.00002v1"
 
 # Format keywords are ASCII case-insensitive in both bulk and article mode.
 query I
-SELECT count(*) FROM duckport_scan_arxiv('testdata/arxiv', format := 'LaTeX', shard := 'latex.tar');
+SELECT count(*) FROM duckport_scan_arxiv('testdata/arxiv', format := 'LaTeX', shard := 'latex.tar', metadata_endpoint := getvariable('content_metadata_endpoint'));
 ----
 4
 
@@ -130,3 +135,12 @@ query II
 SELECT count(*), sum(octet_length(data)) FROM duckport_scan_arxiv('testdata/arxiv', kind := 'SoUrCe', month := '2410');
 ----
 2	25
+
+query T
+SELECT bool_and(metadata."oai:metadata"."arxiv:arXivRaw"."arxiv:id" = article_id)
+FROM duckport_scan_arxiv('testdata/arxiv', format := 'latex', shard := 'latex.tar', metadata_endpoint := getvariable('content_metadata_endpoint'));
+----
+true
+
+statement ok
+SELECT duckport_fixture('arxiv_content', 'stop');

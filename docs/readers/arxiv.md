@@ -67,17 +67,16 @@ All three bulk formats emit the same ten Arrow fields (non-null unless noted):
 | `source_name` | `LargeBinary` | Inner member name; empty for PDF/XML |
 | `data` | `LargeBinary` | PDF/XML bytes or decoded UTF-8 LaTeX bytes |
 | `data_type` | `LargeUtf8` | Payload type: `latex`, `pdf` or `xml` |
-| `metadata` | nullable `Struct` | Full typed arXivRaw OAI record; currently null |
+| `metadata` | nullable `Struct` | Full typed arXivRaw OAI record, fetched automatically |
 
 Binary fields appear as SQL `BLOB`. LaTeX packages produce one row per body
 `.tex` member, preserving duplicate member positions; images and `anc/`
 attachments are excluded. Inputs with no usable LaTeX or invalid encoding fail.
 No compilation, PDF text extraction, or asset downloading is performed.
 The content schema has ten fields, including nullable `metadata` with the full
-arXivRaw OAI record schema. Current content readers leave it null and do not fetch
-or join metadata. Harvest metadata separately or use the legacy raw PDF join below.
+arXivRaw OAI record schema. Content scans fetch it automatically; the legacy raw PDF snapshot join below remains separate.
 
-### Exact fields of the content `metadata` struct (0.16.0)
+### Exact fields of the content `metadata` struct (0.17.0)
 
 `metadata` contains the **whole OAI record**, including its header; it is not a
 flat article struct. The literal Arrow field names retain namespace prefixes,
@@ -153,22 +152,24 @@ with no matching entries yields an empty list. The namespace URI selects XML
 fields, while the Arrow names shown above use the fixed `oai`, `arxiv` and `xsi`
 prefixes regardless of the input XML's prefix spelling.
 
-In **0.16.0 content output**, the entire top-level `metadata` value is currently
-null for every row. The schema reserves this shape; content scans do not fetch
-or join OAI records. A null parent does not imply that its non-null child fields
-are materialized. Separately harvested typed OAI records have `oai:header` and
-`oai:metadata` as their top-level columns, without the outer content `metadata`
-wrapper. Deleted OAI records retain their header and have null `oai:metadata`.
-The legacy raw-PDF snapshot join uses the caller's snapshot schema instead of
-this reserved content schema.
+In **0.17.0 content output**, each article is enriched automatically via OAI
+`GetRecord`. Lookups are cached by normalized article ID within one accessor;
+all TeX rows of an article share its typed metadata. A failed or mismatched OAI
+response fails the scan. Deleted records retain their header and have null
+`oai:metadata`. The top-level field remains nullable in the Arrow schema.
+The complete field tree above is unchanged. Storage credentials are not forwarded
+to OAI. `metadata_endpoint` selects a separate OAI origin for a mirror or local
+fixture; the default is `https://oaipmh.arxiv.org`. Local content scans also need
+reachable OAI metadata. Raw binary and individual-article modes do not fetch OAI.
 
 `shard` is a relative `.tar` key beneath the root. It bypasses manifest discovery
 and bucket listing and cannot combine with `month` or `article_id`. Explicit
-content shards retain one native partition per regular member, so existing
-`read_concurrency` overlaps their reads and parsing. TAR header indexing is
-sequential before the first row; source packages are buffered while expanding,
-so higher concurrency increases memory use. Month scans and raw `kind` scans
-retain their existing shard-level parallelism. Caller-owned shards must remain
+content shards stream the TAR once and yield owned article partitions for bounded
+parallel processing under `read_concurrency`; they do not index all headers or
+reopen storage per article. LaTeX body members stream incrementally from each
+package while attachments are filtered before materialization. Month scans also
+parallelize article processing when the manifest selects a single TAR.
+Caller-owned shards must remain
 unchanged during a scan.
 
 ## Bulk archive scans

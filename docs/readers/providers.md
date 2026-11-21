@@ -53,7 +53,7 @@ Function names below have the prefix `duckport_scan_`.
 | `library_of_congress` | Resource identifier | None | `https://www.loc.gov` |
 | `semantic_scholar` | Literal `s2orc_v2` | Required `release` | `https://api.semanticscholar.org` |
 | `openstax` | OpenStax repository name | Required `revision`; optional `archive_endpoint` | `https://api.github.com` |
-| `bhl` | Numeric item ID | None | `https://www.biodiversitylibrary.org` |
+| `bhl` | Removed API route; use `bhl_open_data` | None | None |
 | `regulations` | Record ID | `resource`: `documents` (default), `comments`, `dockets` | `https://api.regulations.gov` |
 | `uspto` | Product identifier | `offset` default `0`, `page_size` default `100` | `https://api.uspto.gov` |
 | `biorxiv` | Start date | Required `until`; `server` default `biorxiv` or `medrxiv`; `cursor` default `0` | `https://api.biorxiv.org` |
@@ -137,5 +137,7 @@ Default binary mode returns one `data: BLOB` row per selected object, preserving
 all bytes, including blank OCR pages. It can retain TXT, JP2, XML or metadata
 objects as bytes. Decoding a supported structured format is explicit, for example
 `format := 'tsv'` for metadata tables. There is no OCR/image extraction or joined
-page/item/title/rights schema in this function. `duckport_scan_bhl` continues to
-select an API item attachment.
+page/item/title/rights schema in this function. `duckport_scan_bhl` now fails with a migration message because the upstream
+BHL API was removed in 0.17.0. Use `duckport_scan_bhl_open_data` with explicit keys.
+The new upstream typed page accessor requires caller-supplied metadata; this
+existing binary object reader does not synthesize those joins.

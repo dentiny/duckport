@@ -1,7 +1,5 @@
-use crate::service_files::{AttachmentSelection, impl_attachment_selection};
 use crate::utils::optional_string;
-use open_arrow_access::service::bhl::{BhlOpenData, BhlService, open_data_bucket_operator};
-use open_arrow_access::service::common::Connection;
+use open_arrow_access::service::bhl::{BhlOpenData, open_data_bucket_operator};
 use std::ffi::c_char;
 
 #[repr(C)]
@@ -11,8 +9,6 @@ pub struct BhlOptions {
     pub record_path: *const c_char,
     pub endpoint: *const c_char,
 }
-
-impl_attachment_selection!(BhlOptions);
 
 #[repr(C)]
 pub struct BhlOpenDataOptions {
@@ -45,25 +41,7 @@ crate::ffi::reader::export_reader!(duckport_bhl_open_data_open, reader_options: 
 
 crate::ffi::reader::export_reader!(duckport_bhl_open, reader_options: BhlOptions;
     |locator, storage_options, scan_options| async move {
-        let attachment = unsafe { reader_options.read_attachment() }?;
-        let endpoint = unsafe { optional_string(reader_options.endpoint) }?
-            .unwrap_or_else(|| "https://www.biodiversitylibrary.org".into());
-        let connection = crate::provider_auth::connection(
-            &endpoint,
-            &storage_options,
-            crate::provider_auth::HttpAuth::ApiKeyQuery("apikey"),
-        )?;
-        let files = BhlService::with_services(
-            connection,
-            open_arrow_access::service::figshare::FigshareService::with_connection(
-                Connection::new("https://api.figshare.com")?
-                    .with_http_config(storage_options.policy.config()?)?,
-            ),
-        )
-        .item(locator.parse()?)
-        .await?;
-        attachment
-            .open(files, scan_options, storage_options.metrics.clone())
-            .await
+        let _ = (locator, storage_options, scan_options, reader_options);
+        Err("BHL API access was removed in open-arrow-access 0.17.0; use duckport_scan_bhl_open_data with explicit AWS object keys".into())
     }
 );

@@ -54,6 +54,7 @@ void LoadInternal(ExtensionLoader &loader) {
 		options.Add("month", LogicalType::VARCHAR);
 		options.Add("shard", LogicalType::VARCHAR);
 		options.Add("requester_pays", LogicalType::BOOLEAN);
+		options.Add("metadata_endpoint", LogicalType::VARCHAR);
 		options.Add("metadata_uri", LogicalType::VARCHAR);
 		options.Add("metadata_id_column", LogicalType::VARCHAR);
 	});

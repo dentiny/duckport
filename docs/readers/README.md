@@ -67,7 +67,7 @@ SELECT item_id, href, data FROM duckport_scan_meca('submission.meca');
 `duckport_scan_internet_archive`, `duckport_scan_federal_register`,
 `duckport_scan_govinfo`, `duckport_scan_hathifiles`,
 `duckport_scan_library_of_congress`, `duckport_scan_semantic_scholar`,
-`duckport_scan_openstax`, `duckport_scan_bhl`, `duckport_scan_regulations`,
+`duckport_scan_openstax`, `duckport_scan_regulations`,
 `duckport_scan_uspto` and `duckport_scan_biorxiv` each select one explicitly named
 provider attachment. The [provider guide](providers.md) lists locators, required
 selectors, endpoint defaults and decoding formats once, without repeating them
