@@ -75,7 +75,7 @@ captured by their handlers.
 
 ## Dependencies and verification
 
-The manifest currently selects open-arrow-access 0.14.2, open-arrow-sink 0.6.4
+The manifest currently selects open-arrow-access 0.18.1, open-arrow-sink 0.6.4
 and Arrow 58. Check both upstream release notes and the pinned Rust APIs when
 upgrading. Update Cargo.toml/Cargo.lock together and keep the C ABI in sync.
 A DuckDB upgrade also requires reviewing internal C++ headers and updating the
