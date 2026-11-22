@@ -69,8 +69,11 @@ retains `AttachmentAccessor` planning through `DuckportSource::plannable`; the
 common execution-time `PreparedScan` then enters `CrawlAccessor::new` with SQL
 projection, batch size, concurrency and ordered emission. Provider-specific code
 only resolves selection/authentication and supplies the bound byte namespace.
-Parquet/text formats retain native partitions; a binary attachment stays one
-whole-document partition.
+Text formats retain native partitions; a binary attachment stays one
+whole-document partition. Provider `Connection` downloads are sequential in
+open-arrow-access 0.20.0. Attachment formats requiring random access, such as
+ZIP/Parquet, need an OpenDAL-backed or custom ranged source; direct file readers
+already use OpenDAL.
 
 This attachment path uses native attachment planning released in open-arrow-access
 0.13.0; all dependencies come from crates.io.
