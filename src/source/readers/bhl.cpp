@@ -40,9 +40,7 @@ char *OpenBhlPages(ClientContext &context, const string &locator, const Duckport
                    const TableFunctionBindInput &input, DuckportSource **output) {
 	auto prefix = ReadStringOption(input, "prefix");
 	auto database = ReadStringOption(input, "metadata_db");
-	auto snapshot = ReadStringOption(input, "snapshot_id");
-	BhlPagesOptions options {prefix ? prefix->c_str() : nullptr, database ? database->c_str() : nullptr,
-	                         snapshot ? snapshot->c_str() : nullptr};
+	BhlPagesOptions options {prefix ? prefix->c_str() : nullptr, database ? database->c_str() : nullptr};
 	StorageParameters storage(context, locator, /*secret_type=*/ {});
 	return duckport_bhl_pages_open(locator.c_str(), storage.config, scan, options, output);
 }

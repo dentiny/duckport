@@ -46,7 +46,6 @@ crate::ffi::reader::export_reader!(duckport_bhl_open, reader_options: BhlOptions
 pub struct BhlPagesOptions {
     pub prefix: *const c_char,
     pub metadata_db: *const c_char,
-    pub snapshot_id: *const c_char,
 }
 
 crate::ffi::reader::export_reader!(duckport_bhl_pages_open, reader_options: BhlPagesOptions;
@@ -55,14 +54,11 @@ crate::ffi::reader::export_reader!(duckport_bhl_pages_open, reader_options: BhlP
         let prefix = crate::validation::nonempty(unsafe { optional_string(reader_options.prefix) }?, "prefix is required")?;
         let request = BhlShardReadRequest::new(prefix)?;
         let database = crate::validation::nonempty(unsafe { optional_string(reader_options.metadata_db) }?, "metadata_db is required")?;
-        crate::validation::validate_bhl_metadata_db(&database)?;
-        let snapshot = unsafe { optional_string(reader_options.snapshot_id) }?;
         let bytes = crate::metrics::ObservedBytes::new(
             open_arrow_access::storage::OpenDalAccessor::new(operator(&locator, &storage_options)?),
             storage_options.metrics.clone(),
         );
-        let mut source = BhlShardAccessor::from_database(bytes, database).await?;
-        if let Some(snapshot) = snapshot { source = source.with_snapshot_id(snapshot)?; }
+        let source = BhlShardAccessor::from_database(bytes, database).await?;
         crate::source::DuckportSource::plannable(source, scan_options.request(request)).await
     }
 );

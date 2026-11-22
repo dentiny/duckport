@@ -82,7 +82,6 @@ void LoadInternal(ExtensionLoader &loader) {
 	RegisterReader(loader, "duckport_scan_bhl_pages", OpenBhlPages, [](TypedKwargs &options) {
 		options.Add("prefix", LogicalType::VARCHAR);
 		options.Add("metadata_db", LogicalType::VARCHAR);
-		options.Add("snapshot_id", LogicalType::VARCHAR);
 	});
 	RegisterReader(loader, "duckport_scan_bhl_open_data", OpenBhlOpenData, [](TypedKwargs &options) {
 		options.Add("keys", LogicalType::LIST(LogicalType::VARCHAR));

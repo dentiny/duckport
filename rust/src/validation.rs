@@ -504,10 +504,3 @@ pub(crate) fn validate_arxiv_metadata(
 pub(crate) fn is_public_bhl_root(locator: &str) -> bool {
     locator.trim_end_matches('/') == "s3://bhl-open-data"
 }
-
-pub(crate) fn validate_bhl_metadata_db(path: &str) -> Result<()> {
-    if path.trim().is_empty() || path.contains("://") {
-        return Err("metadata_db must be a nonblank local DuckDB file path".into());
-    }
-    Ok(())
-}

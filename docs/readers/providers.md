@@ -160,9 +160,5 @@ FROM duckport_scan_bhl_pages(
 `prefix` selects one complete item/part OCR directory and `metadata_db` names a
 completed local database created with `BhlMetadata::create` (for example, via the
 open-arrow-web-crawl BHL CLI). It is opened read-only; the scanner never creates
-or imports metadata. `snapshot_id` optionally overrides the metadata-fingerprint
-row label. Listing, aggregate exclusion, identity validation and strict metadata
-reconciliation use upstream `BhlShardAccessor`/`BhlShardReadRequest`. Relations
-remain lists, original page bytes remain BLOBs, and projections omitting `data`
-skip OCR downloads. Local/S3 mirrors use the existing storage/secret policies.
-`duckport_scan_bhl_open_data` continues to read explicit raw objects.
+or imports metadata. The upstream shard accessor handles discovery and metadata
+joins, preserving original OCR bytes and list-valued metadata.

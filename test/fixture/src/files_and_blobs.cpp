@@ -8,7 +8,6 @@
 #include "duckdb/common/fstream.hpp"
 
 extern "C" {
-char *duckport_fixture_bhl_metadata(const char *, const char *, char **);
 char *duckport_fixture_blob_layout(const char *, const char *, char **);
 char *duckport_fixture_field_metadata(const char *, const char *, const char *, char **);
 void duckport_source_error_free(char *);
@@ -96,17 +95,6 @@ void RegisterFileAndBlobFixtures(ExtensionLoader &loader) {
 	                      LogicalType::VARCHAR, BlobLayout);
 	layout.SetVolatile();
 	loader.RegisterFunction(layout);
-	ScalarFunction bhl("duckport_fixture_bhl_metadata", {LogicalType::VARCHAR, LogicalType::VARCHAR},
-	                   LogicalType::VARCHAR, [](DataChunk &args, ExpressionState &, Vector &result) {
-		                   BinaryExecutor::Execute<string_t, string_t, string_t>(
-		                       args.data[0], args.data[1], result, args.size(),
-		                       [&result](string_t root, string_t database) {
-			                       return ReadDiagnostic(result, "BHL metadata", duckport_fixture_bhl_metadata,
-			                                             root.GetString().c_str(), database.GetString().c_str());
-		                       });
-	                   });
-	bhl.SetVolatile();
-	loader.RegisterFunction(bhl);
 	RegisterMetadataFixture(loader);
 	RegisterWriteFixture(loader);
 	RegisterRemoveFixture(loader);

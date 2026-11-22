@@ -1,1 +1,0 @@
-Original canonical gzip TSV fixtures copied unchanged from dentiny/open-arrow-access testdata/bhl-metadata at v0.20.1 (MIT). The SQL fixture uses BhlMetadata::create to produce a temporary database; no database binary is committed. OCR fixture payloads in ../pages are synthetic and preserve non-UTF-8/empty values.

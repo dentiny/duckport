@@ -18,7 +18,6 @@ struct BhlOpenDataOptions {
 struct BhlPagesOptions {
 	const char *prefix;
 	const char *metadata_db;
-	const char *snapshot_id;
 };
 
 extern "C" {
