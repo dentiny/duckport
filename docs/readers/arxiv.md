@@ -271,3 +271,16 @@ are described in the [OAI-PMH guide](oai.md). Coordinate harvesting and reuse
 persisted snapshots rather than harvesting independently for every bulk shard.
 
 The content schema appends `data_type` in open-arrow-access 0.15.0. Explicit-format scans still use the requested format; the generic cell fallback API does not enable automatic arXiv PDF fallback.
+
+## HTTP reads in open-arrow-access 0.20.0
+
+Article PDF, source and HTML downloads use one sequential GET per representation,
+without HEAD probes or conditional Range replays. Official arxiv.org article
+requests share a three-second request interval across SQL scans and hold admission
+until the response is consumed or dropped. Custom mirrors retain their configured
+transport policy. Automatic bulk-content OAI metadata lookups retain the upstream
+shared request limiter.
+
+Raw explicit shards and manifests are streamed sequentially. Legacy standalone
+TeX is accepted; PDF/PostScript/DVI-only source packages report unavailable LaTeX,
+and corrupt archives remain errors. No automatic PDF fallback is introduced.

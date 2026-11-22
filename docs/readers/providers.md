@@ -8,7 +8,7 @@ whole catalog or follow arbitrary discovery pages.
 SELECT * FROM duckport_scan_figshare('21422193',
     file_name := 'records.csv', format := 'csv');
 SELECT * FROM duckport_scan_dataverse('doi:10.7910/DVN/example',
-    version := '1.0', file_name := 'records.parquet', format := 'parquet');
+    version := '1.0', file_name := 'records.csv', format := 'csv');
 ```
 
 Identifiers and file names above illustrate the API; replace them with names
@@ -36,6 +36,12 @@ bytes without decompression. It buffers the complete attachment. CSV/TSV expect
 headers, JSON/JSONL decode object records, Parquet uses its schema, and XML needs
 a record path. Decoded formats use the upstream attachment decoder's applicable
 outer-compression support. Prefer decoded records for large tabular attachments.
+
+In open-arrow-access 0.20.0, provider `Connection` downloads are sequential.
+Parquet attachment decoding requires a ranged byte source and is unavailable
+through those connections. Use an OpenDAL-backed direct reader such as
+`duckport_scan_parquet` for a selected Parquet object. CSV/JSON/XML and binary
+attachment downloads continue to use the original GET response.
 
 ## Providers
 
@@ -115,7 +121,7 @@ is included in the crates.io 0.13.0 dependency; no temporary Git pin is required
 ## BHL AWS object partitions
 
 `duckport_scan_bhl_open_data(root, keys := [...])` reads an explicit, nonempty
-list of bucket-relative object keys using open-arrow-access 0.14.2. Each selected
+list of bucket-relative object keys using open-arrow-access 0.20.0. Each selected
 object is an independently planned input partition. The function does not list
 the corpus or invent numbered shards; freeze disjoint key lists in job manifests.
 

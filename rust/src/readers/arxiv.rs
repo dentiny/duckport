@@ -7,7 +7,14 @@ use open_arrow_access::{
     },
     storage::OpenDalAccessor,
 };
-use std::ffi::c_char;
+use std::{ffi::c_char, sync::LazyLock, time::Duration};
+
+// Cloned operators and separate SQL scans share the official article budget.
+static ARTICLE_REQUESTS: LazyLock<open_arrow_access::storage::HttpRequestRateLimitLayer> =
+    LazyLock::new(|| {
+        open_arrow_access::storage::HttpRequestRateLimitLayer::new(Duration::from_secs(3))
+            .expect("valid arXiv request interval")
+    });
 #[repr(C)]
 pub struct ArxivOptions {
     pub kind: *const c_char,
@@ -48,9 +55,21 @@ crate::ffi::reader::export_reader!(duckport_arxiv_open, reader_options: ArxivOpt
             let format = crate::validation::arxiv_article_format(format.as_deref())?;
             let article = ArxivArticle::new(id, format);
             article.locator()?;
-            let storage = OpenDalAccessor::new(crate::storage::directory_operator_with_requester_pays(
+            let operator = crate::storage::directory_operator_with_requester_pays(
                 &locator, &storage_options, false,
-            )?);
+            )?;
+            let official_http = url::Url::parse(&locator).is_ok_and(|url| {
+                matches!(url.scheme(), "http" | "https")
+                    && url.host_str().is_some_and(|host| {
+                        host == "arxiv.org" || host.ends_with(".arxiv.org")
+                    })
+            });
+            let operator = if official_http {
+                operator.layer(ARTICLE_REQUESTS.clone())
+            } else {
+                operator
+            };
+            let storage = OpenDalAccessor::new(operator);
             return AsyncSource::plannable(
                 ArxivService::new(storage).article_records(),
                 scan_options.request(ArxivArticleReadRequest::new(vec![article])),
