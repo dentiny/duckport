@@ -46,7 +46,16 @@ string WriteFixtureFile(const string &path, string_t bytes) {
 	return path;
 }
 
-void RegisterMetadataFixture(ExtensionLoader &loader) {
+} // namespace
+
+void RegisterFileAndBlobFixtures(ExtensionLoader &loader) {
+	// Inspect blob storage layout.
+	ScalarFunction layout("duckport_fixture_blob_layout", {LogicalType::VARCHAR, LogicalType::VARCHAR},
+	                      LogicalType::VARCHAR, BlobLayout);
+	layout.SetVolatile();
+	loader.RegisterFunction(layout);
+
+	// Read Arrow field metadata.
 	ScalarFunction metadata(
 	    "duckport_fixture_field_metadata", {LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR},
 	    LogicalType::VARCHAR, [](DataChunk &args, ExpressionState &, Vector &result) {
@@ -59,9 +68,8 @@ void RegisterMetadataFixture(ExtensionLoader &loader) {
 	    });
 	metadata.SetVolatile();
 	loader.RegisterFunction(metadata);
-}
 
-void RegisterWriteFixture(ExtensionLoader &loader) {
+	// Write binary fixture files.
 	ScalarFunction write("duckport_fixture_write", {LogicalType::VARCHAR, LogicalType::BLOB}, LogicalType::VARCHAR,
 	                     [](DataChunk &args, ExpressionState &, Vector &result) {
 		                     BinaryExecutor::Execute<string_t, string_t, string_t>(
@@ -72,9 +80,8 @@ void RegisterWriteFixture(ExtensionLoader &loader) {
 	                     });
 	write.SetVolatile();
 	loader.RegisterFunction(write);
-}
 
-void RegisterRemoveFixture(ExtensionLoader &loader) {
+	// Remove temporary fixture files.
 	ScalarFunction remove("duckport_fixture_remove", {LogicalType::VARCHAR}, LogicalType::BOOLEAN,
 	                      [](DataChunk &args, ExpressionState &, Vector &result) {
 		                      UnaryExecutor::Execute<string_t, bool>(
@@ -87,16 +94,5 @@ void RegisterRemoveFixture(ExtensionLoader &loader) {
 	                      });
 	remove.SetVolatile();
 	loader.RegisterFunction(remove);
-}
-} // namespace
-
-void RegisterFileAndBlobFixtures(ExtensionLoader &loader) {
-	ScalarFunction layout("duckport_fixture_blob_layout", {LogicalType::VARCHAR, LogicalType::VARCHAR},
-	                      LogicalType::VARCHAR, BlobLayout);
-	layout.SetVolatile();
-	loader.RegisterFunction(layout);
-	RegisterMetadataFixture(loader);
-	RegisterWriteFixture(loader);
-	RegisterRemoveFixture(loader);
 }
 } // namespace duckdb
