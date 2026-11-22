@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Upgrade open-arrow-access to 0.20.2, including native multi-directory BHL scans
+  and HTTP 406 transport retries.
+
 - Upgrade open-arrow-access to 0.16.0; arXiv content scans now include a tenth,
   nullable `metadata` struct field. Current readers emit null metadata.
 
