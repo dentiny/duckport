@@ -25,11 +25,7 @@ crate::ffi::reader::export_reader!(duckport_bhl_open_data_open, reader_options: 
         let format = unsafe { optional_string(reader_options.format) }?;
         let record_path = unsafe { optional_string(reader_options.record_path) }?;
         let options = crate::utils::attachment_options(format.as_deref().unwrap_or("binary"), record_path.as_deref())?;
-        let operator = if crate::validation::is_public_bhl_root(&locator) {
-            crate::storage::observe(storage_options.policy.config()?.apply(open_data_bucket_operator()?)?, &storage_options)
-        } else {
-            crate::storage::directory_operator(&locator, &storage_options)?
-        };
+        let operator = operator(&locator, &storage_options)?;
         let bytes = crate::metrics::ObservedBytes::new(open_arrow_access::storage::OpenDalAccessor::new(operator), storage_options.metrics.clone());
         let files = BhlOpenData::new(bytes).partition(keys.clone())?;
         crate::source::DuckportSource::plannable(
@@ -45,3 +41,45 @@ crate::ffi::reader::export_reader!(duckport_bhl_open, reader_options: BhlOptions
         Err("BHL API access was removed in open-arrow-access 0.17.0; use duckport_scan_bhl_open_data with explicit AWS object keys".into())
     }
 );
+
+#[repr(C)]
+pub struct BhlPagesOptions {
+    pub prefix: *const c_char,
+    pub metadata_db: *const c_char,
+    pub snapshot_id: *const c_char,
+}
+
+crate::ffi::reader::export_reader!(duckport_bhl_pages_open, reader_options: BhlPagesOptions;
+    |locator, storage_options, scan_options| async move {
+        use open_arrow_access::service::bhl::{BhlShardAccessor, BhlShardReadRequest};
+        let prefix = crate::validation::nonempty(unsafe { optional_string(reader_options.prefix) }?, "prefix is required")?;
+        let request = BhlShardReadRequest::new(prefix)?;
+        let database = crate::validation::nonempty(unsafe { optional_string(reader_options.metadata_db) }?, "metadata_db is required")?;
+        crate::validation::validate_bhl_metadata_db(&database)?;
+        let snapshot = unsafe { optional_string(reader_options.snapshot_id) }?;
+        let bytes = crate::metrics::ObservedBytes::new(
+            open_arrow_access::storage::OpenDalAccessor::new(operator(&locator, &storage_options)?),
+            storage_options.metrics.clone(),
+        );
+        let mut source = BhlShardAccessor::from_database(bytes, database).await?;
+        if let Some(snapshot) = snapshot { source = source.with_snapshot_id(snapshot)?; }
+        crate::source::DuckportSource::plannable(source, scan_options.request(request)).await
+    }
+);
+
+fn operator(
+    locator: &str,
+    config: &crate::options::StorageConfig,
+) -> crate::error::Result<open_arrow_access::storage::opendal::Operator> {
+    if crate::validation::is_public_bhl_root(locator) {
+        Ok(crate::storage::observe(
+            config
+                .policy
+                .config()?
+                .apply(open_data_bucket_operator()?)?,
+            config,
+        ))
+    } else {
+        crate::storage::directory_operator(locator, config)
+    }
+}

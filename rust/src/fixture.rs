@@ -1,4 +1,4 @@
-//! Read-only diagnostics for SQLLogicTest fixtures; excluded from production builds.
+//! SQLLogicTest fixtures and diagnostics; excluded from production builds.
 use crate::{
     error::{Result, call},
     ffi::common::RUNTIME,
@@ -144,6 +144,30 @@ pub unsafe extern "C" fn duckport_fixture_field_metadata(
             let field = utils::string(field)?;
             let key = utils::string(key)?;
             RUNTIME.block_on(field_metadata(&locator, &field, &key))
+        })
+    }
+}
+
+/// # Safety
+/// Inputs and output follow duckport_fixture_blob_layout's ownership contract.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn duckport_fixture_bhl_metadata(
+    root: *const c_char,
+    database: *const c_char,
+    output: *mut *mut c_char,
+) -> *mut c_char {
+    unsafe {
+        string_output(output, || {
+            let root = utils::local_path(&utils::string(root)?)?;
+            let database = utils::string(database)?;
+            open_arrow_access::storage::opendal::install_default();
+            let storage = open_arrow_access::storage::OpenDalAccessor::new(
+                crate::storage::create_local_directory_operator(&root)?,
+            );
+            RUNTIME.block_on(
+                open_arrow_access::service::bhl::metadata::BhlMetadata::create(storage, &database),
+            )?;
+            Ok(database)
         })
     }
 }

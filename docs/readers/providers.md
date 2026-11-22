@@ -37,7 +37,7 @@ headers, JSON/JSONL decode object records, Parquet uses its schema, and XML need
 a record path. Decoded formats use the upstream attachment decoder's applicable
 outer-compression support. Prefer decoded records for large tabular attachments.
 
-In open-arrow-access 0.20.0, provider `Connection` downloads are sequential.
+In open-arrow-access 0.20.1, provider `Connection` downloads are sequential.
 Parquet attachment decoding requires a ranged byte source and is unavailable
 through those connections. Use an OpenDAL-backed direct reader such as
 `duckport_scan_parquet` for a selected Parquet object. CSV/JSON/XML and binary
@@ -121,7 +121,7 @@ is included in the crates.io 0.13.0 dependency; no temporary Git pin is required
 ## BHL AWS object partitions
 
 `duckport_scan_bhl_open_data(root, keys := [...])` reads an explicit, nonempty
-list of bucket-relative object keys using open-arrow-access 0.20.0. Each selected
+list of bucket-relative object keys using open-arrow-access 0.20.1. Each selected
 object is an independently planned input partition. The function does not list
 the corpus or invent numbered shards; freeze disjoint key lists in job manifests.
 
@@ -147,3 +147,22 @@ page/item/title/rights schema in this function. `duckport_scan_bhl` now fails wi
 BHL API was removed in 0.17.0. Use `duckport_scan_bhl_open_data` with explicit keys.
 The new upstream typed page accessor requires caller-supplied metadata; this
 existing binary object reader does not synthesize those joins.
+
+## Joined BHL page shards
+
+```sql
+SELECT page_id, octet_length(data), metadata
+FROM duckport_scan_bhl_pages(
+    's3://bhl-open-data/', prefix := 'ocr/item-295621/',
+    metadata_db := '/mnt/bhl/metadata.duckdb');
+```
+
+`prefix` selects one complete item/part OCR directory and `metadata_db` names a
+completed local database created with `BhlMetadata::create` (for example, via the
+open-arrow-web-crawl BHL CLI). It is opened read-only; the scanner never creates
+or imports metadata. `snapshot_id` optionally overrides the metadata-fingerprint
+row label. Listing, aggregate exclusion, identity validation and strict metadata
+reconciliation use upstream `BhlShardAccessor`/`BhlShardReadRequest`. Relations
+remain lists, original page bytes remain BLOBs, and projections omitting `data`
+skip OCR downloads. Local/S3 mirrors use the existing storage/secret policies.
+`duckport_scan_bhl_open_data` continues to read explicit raw objects.

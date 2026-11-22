@@ -36,4 +36,14 @@ char *OpenBhlOpenData(ClientContext &context, const string &locator, const Duckp
 	StorageParameters storage(context, locator, /*secret_type=*/ {});
 	return duckport_bhl_open_data_open(locator.c_str(), storage.config, scan, options, output);
 }
+char *OpenBhlPages(ClientContext &context, const string &locator, const DuckportScanOptions &scan,
+                   const TableFunctionBindInput &input, DuckportSource **output) {
+	auto prefix = ReadStringOption(input, "prefix");
+	auto database = ReadStringOption(input, "metadata_db");
+	auto snapshot = ReadStringOption(input, "snapshot_id");
+	BhlPagesOptions options {prefix ? prefix->c_str() : nullptr, database ? database->c_str() : nullptr,
+	                         snapshot ? snapshot->c_str() : nullptr};
+	StorageParameters storage(context, locator, /*secret_type=*/ {});
+	return duckport_bhl_pages_open(locator.c_str(), storage.config, scan, options, output);
+}
 } // namespace duckdb

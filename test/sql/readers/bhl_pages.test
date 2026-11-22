@@ -1,0 +1,30 @@
+# name: test/sql/readers/bhl_pages.test
+# description: Native BHL shards reuse a completed metadata database and preserve binary pages and metadata lists
+# group: [sql]
+
+require duckport
+
+require duckport_test_fixture
+
+statement ok
+SET VARIABLE bhl_metadata_db = (SELECT duckport_fixture_bhl_metadata('testdata/bhl/metadata', '{TEST_DIR}/bhl-pages.duckdb'));
+
+query IIT
+SELECT page_id, octet_length(data), metadata.title[1].TitleID
+FROM duckport_scan_bhl_pages('testdata/bhl/pages', prefix := 'ocr/item-2/', metadata_db := getvariable('bhl_metadata_db'));
+----
+3	11	001
+
+query IT
+SELECT octet_length(data), snapshot_id
+FROM duckport_scan_bhl_pages('testdata/bhl/pages', prefix := 'ocr/part-8/', metadata_db := getvariable('bhl_metadata_db'), snapshot_id := 'fixture');
+----
+0	fixture
+
+query I
+SELECT count(*) FROM duckport_scan_bhl_pages('testdata/bhl/pages', prefix := 'ocr/item-2/', metadata_db := getvariable('bhl_metadata_db'));
+----
+1
+
+statement ok
+SELECT duckport_fixture_remove(getvariable('bhl_metadata_db'));
