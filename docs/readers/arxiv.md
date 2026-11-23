@@ -65,32 +65,28 @@ All three bulk formats emit the same ten Arrow fields (non-null unless noted):
 | `entry_name` | `LargeBinary` | Original outer member name |
 | `source_index` | `UInt64` | Inner member index; zero for PDF/XML |
 | `source_name` | `LargeBinary` | Inner member name; empty for PDF/XML |
-| `data` | `LargeBinary` | PDF/XML bytes or decoded UTF-8 LaTeX bytes |
+| `data` | `LargeBinary` | PDF/XML bytes or original LaTeX bytes |
 | `data_type` | `LargeUtf8` | Payload type: `latex`, `pdf` or `xml` |
-| `metadata` | nullable `Struct` | Full typed arXivRaw OAI record, fetched automatically |
+| `metadata` | nullable `Struct` | Typed article metadata, fetched automatically |
 
 Binary fields appear as SQL `BLOB`. LaTeX packages produce one row per body
 `.tex` member, preserving duplicate member positions; images and `anc/`
-attachments are excluded. Inputs with no usable LaTeX or invalid encoding fail.
+attachments are excluded. Inputs with no usable LaTeX fail; source bytes are preserved without UTF-8 validation.
 No compilation, PDF text extraction, or asset downloading is performed.
-The content schema has ten fields, including nullable `metadata` with the full
-arXivRaw OAI record schema. Content scans fetch it automatically; the legacy raw PDF snapshot join below remains separate.
+The content schema has ten fields, including nullable `metadata` projected to
+the supported conversion schema. Content scans fetch it automatically; the legacy raw PDF snapshot join below remains separate.
 
-### Exact fields of the content `metadata` struct (0.17.0)
+### Exact fields of the content `metadata` struct
 
-`metadata` contains the **whole OAI record**, including its header; it is not a
-flat article struct. The literal Arrow field names retain namespace prefixes,
-colons, hyphens and attribute markers. The following tree lists every field in
-schema order. `?` means nullable; a field without `?` is non-null when its parent
-struct or list element exists.
+The conversion schema retains OAI namespace prefixes and nested structures,
+but only includes fields supported by the Cornell/Kaggle metadata snapshot.
+The following tree lists every emitted field in schema order. `?` means nullable;
+a field without `?` is non-null when its parent exists.
 
 ```text
 metadata: Struct?
 ├── oai:header: Struct
-│   ├── oai:identifier: Utf8?
-│   ├── oai:datestamp: Utf8?
-│   ├── @status: Utf8?
-│   └── oai:setSpec: List<Utf8?>?
+│   └── oai:identifier: Utf8?
 └── oai:metadata: Struct?
     └── arxiv:arXivRaw: Struct?
         ├── arxiv:id: Utf8?
@@ -99,68 +95,46 @@ metadata: Struct?
         ├── arxiv:authors: Utf8?
         ├── arxiv:categories: Utf8?
         ├── arxiv:comments: Utf8?
-        ├── arxiv:proxy: Utf8?
         ├── arxiv:report-no: Utf8?
-        ├── arxiv:acm-class: Utf8?
-        ├── arxiv:msc-class: Utf8?
         ├── arxiv:journal-ref: Utf8?
         ├── arxiv:doi: Utf8?
         ├── arxiv:license: Utf8?
         ├── arxiv:abstract: Utf8?
-        ├── @xsi:schemaLocation: Utf8?
         └── arxiv:version: List<item: Struct>?
             ├── @version: Utf8?
-            ├── arxiv:date: Utf8?
-            ├── arxiv:size: Utf8?
-            └── arxiv:source_type: Utf8?
+            └── arxiv:date: Utf8?
 ```
 
-The `oai:setSpec` list's Arrow item field is named `oai:setSpec` and is
-nullable. The `arxiv:version` list's item field is named `item` and is a
-non-null struct; all four fields inside each version are nullable.
+The `arxiv:version` list item is named `item` and is a non-null struct.
+Both version fields are nullable. Scalar values remain `Utf8`; dates and IDs
+are not converted to numeric or date types. Authors and categories retain their
+original text rather than becoming lists. Supported optional fields, such as
+DOI or comments, can still be null for an individual article.
 
-| Field / parent | Meaning |
+The following nine fields are **removed from the conversion Arrow schema and
+will not be emitted**, rather than being populated with NULL:
+
+| Parent under `metadata` | Omitted fields |
 | --- | --- |
-| `oai:header.oai:identifier` | OAI record identifier, distinct from the article's `arxiv:id` |
-| `oai:header.oai:datestamp` | OAI record datestamp used for harvesting updates |
-| `oai:header.@status` | OAI header status, such as `deleted`, when supplied |
-| `oai:header.oai:setSpec` | Repeated OAI set memberships |
-| `arxiv:id` under `oai:metadata.arxiv:arXivRaw` | Article identifier retained as text, including leading zeros or legacy spelling |
-| `arxiv:submitter` | Submitter text |
-| `arxiv:title` | Article title |
-| `arxiv:authors` | Original author text; not a list of normalized author objects |
-| `arxiv:categories` | Original category text; not a list of category objects |
-| `arxiv:comments` | Author comments |
-| `arxiv:proxy` | Proxy submission text |
-| `arxiv:report-no` | Report number text |
-| `arxiv:acm-class` | ACM classification text |
-| `arxiv:msc-class` | Mathematics Subject Classification text |
-| `arxiv:journal-ref` | Journal reference text |
-| `arxiv:doi` | DOI text; not a normalized DOI list |
-| `arxiv:license` | License value supplied by arXiv |
-| `arxiv:abstract` | Abstract text |
-| `@xsi:schemaLocation` | XML schema-location attribute on `arxiv:arXivRaw` |
-| `arxiv:version[].@version` | Version label supplied in the XML attribute |
-| `arxiv:version[].arxiv:date` | Original version date text |
-| `arxiv:version[].arxiv:size` | Original version size text; not parsed as a numeric byte count |
-| `arxiv:version[].arxiv:source_type` | Original version source-type text |
+| `oai:header` | `oai:datestamp`, `@status`, `oai:setSpec` |
+| `oai:metadata.arxiv:arXivRaw` | `arxiv:proxy`, `arxiv:acm-class`, `arxiv:msc-class`, `@xsi:schemaLocation` |
+| `oai:metadata.arxiv:arXivRaw.arxiv:version[]` | `arxiv:size`, `arxiv:source_type` |
 
-All scalar values above are Arrow **`Utf8`**, not `LargeUtf8`, numeric, date or
-list values. Missing optional scalar values are null. Set memberships and
-version history retain list types even with one entry; an existing container
-with no matching entries yields an empty list. The namespace URI selects XML
-fields, while the Arrow names shown above use the fixed `oai`, `arxiv` and `xsi`
-prefixes regardless of the input XML's prefix spelling.
+This is a nested schema change: existing consumers must accept the smaller
+metadata struct. PDF, LaTeX and XML share this schema, whether metadata comes
+from DuckDB, an in-memory snapshot or OAI. The ten top-level content fields
+remain unchanged. Snapshot `update_date` is not substituted for OAI datestamp;
+the Cornell/Kaggle snapshot does not provide OAI deletion status or set membership.
 
-In **0.17.0 content output**, each article is enriched automatically via OAI
-`GetRecord`. Lookups are cached by normalized article ID within one accessor;
-all TeX rows of an article share its typed metadata. A failed or mismatched OAI
-response fails the scan. Deleted records retain their header and have null
-`oai:metadata`. The top-level field remains nullable in the Arrow schema.
-The complete field tree above is unchanged. Storage credentials are not forwarded
-to OAI. `metadata_endpoint` selects a separate OAI origin for a mirror or local
-fixture; the default is `https://oaipmh.arxiv.org`. Local content scans also need
-reachable OAI metadata. Raw binary and individual-article modes do not fetch OAI.
+Raw OAI harvesting retains its
+full schema, including these nine fields. An OAI deleted record can still yield
+an outer metadata struct with null inner `oai:metadata` after conversion projection.
+The legacy raw-PDF snapshot join continues to use the caller's snapshot schema.
+
+Content scans enrich each article through OAI `GetRecord` and project the
+response to the conversion schema above. Lookups are cached by article ID.
+`metadata_endpoint` selects an OAI mirror; the default is
+`https://oaipmh.arxiv.org`. Storage credentials are not forwarded to OAI.
 
 `shard` is a relative `.tar` key beneath the root. It bypasses manifest discovery
 and bucket listing and cannot combine with `month` or `article_id`. Explicit
@@ -198,7 +172,7 @@ representations of an article, so choose `pdf` explicitly for a PDF-only dataset
 | `entry_name` | Original member-name bytes |
 | `data` | Original member payload bytes |
 
-TAR entry/size limits apply upstream. Manifest checksums/counts are metadata,
+TAR entry counts and sizes have no custom limits. Manifest checksums/counts are metadata,
 not a content-verification guarantee. Raw `kind` entries remain sequential within
 each TAR. `shard` also works with `kind` to bypass manifests.
 `batch_size` is a row target; the upstream request also has a soft payload target.
