@@ -397,6 +397,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b0f477b951e452a0b6b4a10b53ccd569042d1d01729b519e02074a9c0958a063"
 
 [[package]]
+name = "astral-tokio-tar"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "821ed36daf7c40d00a7b62759f9833fb279fb7c87dd989ec0a4d626dcd8d1dca"
+dependencies = [
+ "futures-core",
+ "libc",
+ "portable-atomic",
+ "rustc-hash",
+ "rustix 1.1.6",
+ "tokio",
+ "tokio-stream",
+ "zerocopy",
+]
+
+[[package]]
 name = "async-channel"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4553,9 +4569,9 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 
 [[package]]
 name = "open-arrow-access"
-version = "0.20.2"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43c55a6a5c3ede8854e63516d4fffda9a4501942f6f4a8117b03f5e4dcb087a1"
+checksum = "8c95d82bbea509b4e672bd9da7782eb7f0c9bc2791aea0e2c9c754c5eef999bf"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -4572,9 +4588,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-core"
-version = "0.20.2"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72ad63e0307430ac5355e74a8a5fd8734178f5fc481c308abe894572bf64f202"
+checksum = "537522a618361c15653d48a31c818219b3970220e1cfd2e578e7a01548f85f62"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -4587,9 +4603,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-dataset"
-version = "0.20.2"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "469e316ff060f66be71bb0e36beb2268c7f43973f4fc0302bbea319e978a0a98"
+checksum = "d08f083895c12477dd4b570d2599ce19783db6f6b23b9ebb4d9bf63c145f38b7"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -4604,22 +4620,25 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-decompression"
-version = "0.20.2"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "071e8a09fd0c7fae4f5f052ad70e2a3870efeddd23cf32f0f209bc345c0cd990"
+checksum = "03508d8725f62315baba9fd7d5526604bafc0fbc5a5d715d92dd714a92b5d904"
 dependencies = [
+ "astral-tokio-tar",
  "async-compression",
  "async_zip",
  "futures",
  "open-arrow-access-core",
  "tar",
+ "tokio",
+ "tokio-util",
 ]
 
 [[package]]
 name = "open-arrow-access-file-format"
-version = "0.20.2"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87e48cc57a3f9091f55983a8ba88b18173359babfe785bf523097b7d9d6e3899"
+checksum = "7894da2597948381cef032511912e09ad0f30980bf621c7edb53fcc3a0f55a00"
 dependencies = [
  "arrow-array",
  "arrow-csv",
@@ -4643,9 +4662,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-layers"
-version = "0.20.2"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "926867f7bcce4a18a6786fe61fd549029c1e77f802db951d6faeb070eace30cd"
+checksum = "5364d7c37f9d8f9fb3f8c831a9e94bf462293c38278bb0dd4e50e9e9ce951ee4"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -4661,9 +4680,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-service"
-version = "0.20.2"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08e53a9cddb70449622b55a6ff702c9cc3126e3fab41005c352192f74232ec6a"
+checksum = "db8de39601732772263ed8b7ab16d5275e365482739e747ce23f6d71acd6972c"
 dependencies = [
  "arrow-array",
  "arrow-cast",
@@ -4699,9 +4718,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-storage"
-version = "0.20.2"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3bc6b8f8c5564d3d0d28f5ab49b4e2326871c8289a28ba7ca858f78f3f87c9eb"
+checksum = "6170018555ecbf7a03ece317fa02868baa499d2a9538ebde135649eaf1d78423"
 dependencies = [
  "futures",
  "http",
@@ -6738,6 +6757,7 @@ dependencies = [
  "futures-core",
  "futures-io",
  "futures-sink",
+ "futures-util",
  "libc",
  "pin-project-lite",
  "tokio",
