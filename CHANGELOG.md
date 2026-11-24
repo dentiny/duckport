@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Use a Lance 14.0.3 test reader built against DuckDB v2.0.1 for managed-blob
+  and nested media round trips.
+
 - Adapt secret scopes and byte profiling to DuckDB v2.0.1's `FileOpenerInfo`
   and I/O timing APIs; use its official Lance reader revision for round-trip tests.
 

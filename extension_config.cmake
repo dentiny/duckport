@@ -22,7 +22,8 @@ if(BUILD_UNITTESTS)
   include(
     "${CMAKE_CURRENT_LIST_DIR}/duckdb/.github/config/extensions/iceberg.cmake")
   duckdb_extension_load(parquet)
+  # Match DuckDB v2.0.1 and the writer's Lance 14 managed-blob features.
   duckdb_extension_load(
     lance GIT_URL https://github.com/lance-format/lance-duckdb.git GIT_TAG
-    86118537da79138e6ec5c7358f2384c7ae650ab0)
+    daa5b46291543c42428866989e2704285e9cb8a6)
 endif()
