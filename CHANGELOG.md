@@ -19,6 +19,12 @@
 - Replace the shared OAI manual selection/row-limit wrapper with upstream
   `SelectionAccessor` and `LimitLayer`.
 
+## 0.2.1 - 2026-11-23
+
+### Changed
+
+- Upgrade DuckDB to `v2.0.1`.
+
 ## 0.2.0 - 2026-11-19
 
 ### Added
