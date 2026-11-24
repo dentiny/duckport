@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Adapt secret scopes and byte profiling to DuckDB v2.0.1's `FileOpenerInfo`
+  and I/O timing APIs; use its official Lance reader revision for round-trip tests.
+
 - Upgrade open-arrow-access to 0.20.2, including native multi-directory BHL scans
   and HTTP 406 transport retries.
 

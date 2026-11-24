@@ -161,8 +161,9 @@ void FinalizeCopy(ClientContext &context, FunctionData &, GlobalFunctionData &gl
 	state.writer->Commit();
 	const auto metrics = state.writer->Metrics();
 	auto &profiler = QueryProfiler::Get(context);
-	profiler.TrackBytesRead(metrics.bytes_read);
-	profiler.TrackBytesWritten(metrics.bytes_written);
+	// The writer bridge reports byte counts without I/O duration.
+	profiler.TrackBytesRead(metrics.bytes_read, /*elapsed_us=*/0);
+	profiler.TrackBytesWritten(metrics.bytes_written, /*elapsed_us=*/0);
 	DUCKDB_LOG_INFO(context, "DuckPort COPY: rows_committed=%llu rows_skipped=%llu rows_failed_blobs=%llu",
 	                metrics.rows_committed, metrics.rows_skipped, metrics.rows_failed_blobs);
 }

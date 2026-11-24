@@ -95,7 +95,7 @@ StorageParameters::StorageParameters(ClientContext &context, const string &locat
 	if (secret_type == "huggingface") {
 		const auto scope =
 		    StringUtil::StartsWith(locator, "hf://") ? locator : StringUtil::Format("hf://datasets/%s", locator);
-		info.file_path = scope;
+		info.file.path = scope;
 		KeyValueSecretReader reader(opener, &info, "huggingface");
 		security.has_token = reader.TryGetSecretKey("token", security.token);
 	} else if (secret_type == "internet_archive") {
