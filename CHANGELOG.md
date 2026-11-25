@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Upgrade open-arrow-access to 0.21.7 and all open-arrow-sink crates to 0.6.5,
+  including source blob annotations and Lance Binary/BinaryView input support.
+
 - Use a Lance 14.0.3 test reader built against DuckDB v2.0.1 for managed-blob
   and nested media round trips.
 
