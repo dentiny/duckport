@@ -4569,9 +4569,9 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 
 [[package]]
 name = "open-arrow-access"
-version = "0.21.0"
+version = "0.21.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c95d82bbea509b4e672bd9da7782eb7f0c9bc2791aea0e2c9c754c5eef999bf"
+checksum = "56434fa6ae82d99bfbd078b24ecb9d6fdb9e9f3ba5f43a53c504a13b2e4b89ed"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -4588,9 +4588,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-core"
-version = "0.21.0"
+version = "0.21.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "537522a618361c15653d48a31c818219b3970220e1cfd2e578e7a01548f85f62"
+checksum = "e0e62b4344018548b9c8fb0a8c41f186025fbae00a40f8ec32371513e503deb6"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -4603,9 +4603,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-dataset"
-version = "0.21.0"
+version = "0.21.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d08f083895c12477dd4b570d2599ce19783db6f6b23b9ebb4d9bf63c145f38b7"
+checksum = "0c40b5216e04c2458b2b459950178704093bd6a3acc5198ec368b1f3031d58ec"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -4620,9 +4620,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-decompression"
-version = "0.21.0"
+version = "0.21.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03508d8725f62315baba9fd7d5526604bafc0fbc5a5d715d92dd714a92b5d904"
+checksum = "d6f7a368ab9de32f1f46723fb174820f2366410cb8d82c139f8426a6aa3c8a0b"
 dependencies = [
  "astral-tokio-tar",
  "async-compression",
@@ -4636,9 +4636,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-file-format"
-version = "0.21.0"
+version = "0.21.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7894da2597948381cef032511912e09ad0f30980bf621c7edb53fcc3a0f55a00"
+checksum = "e78812379a4a1df3d6dc95fc22f7ed7ea28435c80482ec586ac98fb6c45a068a"
 dependencies = [
  "arrow-array",
  "arrow-csv",
@@ -4662,9 +4662,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-layers"
-version = "0.21.0"
+version = "0.21.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5364d7c37f9d8f9fb3f8c831a9e94bf462293c38278bb0dd4e50e9e9ce951ee4"
+checksum = "dae7e9f12d69eda5fb212f3065e8759667c64b6f89e242bd6e026d9bf6a1fd2f"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -4680,9 +4680,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-service"
-version = "0.21.0"
+version = "0.21.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db8de39601732772263ed8b7ab16d5275e365482739e747ce23f6d71acd6972c"
+checksum = "a533af74aa95574d6241e2eee0cc89be5bb6a89733eee318f7f03384eff6b4f1"
 dependencies = [
  "arrow-array",
  "arrow-cast",
@@ -4718,9 +4718,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-access-storage"
-version = "0.21.0"
+version = "0.21.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6170018555ecbf7a03ece317fa02868baa499d2a9538ebde135649eaf1d78423"
+checksum = "be677c31e624e74683ed9a512cb2e6f8b757065ff3ca2c09cc0e7bcc944c3c87"
 dependencies = [
  "futures",
  "http",
@@ -4734,9 +4734,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-sink-core"
-version = "0.6.4"
+version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83b93cd6475352d95efd704d7d8be7517ecc873ffb2c8f919f61c07b72600cca"
+checksum = "08fc7763f421829793b3dc74cb1dc63436f7c88a11cc6ae57b1f19194d91ba3e"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -4748,9 +4748,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-sink-iceberg"
-version = "0.6.4"
+version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e0c3c757f5af7444b0fd96c391923714258382a5c778b53c4c72f59942cfd7f"
+checksum = "d719e4a6c09b9869f2e1edc6ba9d8c5ae57cee848fa72302071eac0fb5710d1a"
 dependencies = [
  "bytes",
  "futures",
@@ -4764,9 +4764,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-sink-lance"
-version = "0.6.4"
+version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79557af4ebd69690000b651ef9f91d41499c93fb9289b4beb9fab402c0dfe3a5"
+checksum = "5016edce5516d9f7c3873639549460e141575e8dbd19a556f8617137681d1eb8"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -4792,9 +4792,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-sink-layer"
-version = "0.6.4"
+version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28f8e94454631b0d4668fb4c66052bf77e1b7d8e6e98be1f039a89b63fd3d44f"
+checksum = "dd37a61569c93a3c09edec8c9a701b4d85228a2bf2e1c047fa70f8233378b9f4"
 dependencies = [
  "arrow-array",
  "arrow-cast",
@@ -4807,9 +4807,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-sink-parquet"
-version = "0.6.4"
+version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee2bbcbfeeac9ded443c4e34a2d98e863098d627f2a8a9a2c27f426ba1d27962"
+checksum = "bdf9d4ea2292ad4447e3a2945aaccad140e6752f6992de8342e476d795468ed2"
 dependencies = [
  "bytes",
  "futures",
@@ -4821,9 +4821,9 @@ dependencies = [
 
 [[package]]
 name = "open-arrow-sink-storage"
-version = "0.6.4"
+version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2404d9e865e9fc9799de11fcf58e60ead05ca98a3a11a4236907731e513154b7"
+checksum = "0acf063aaad338bda441fe3c4db60307a093e028c9a7122b1fa92aa8c4808157"
 dependencies = [
  "async-stream",
  "bytes",
