@@ -19,7 +19,7 @@ futures = "0.3"
 glob = "0.3"
 http = "1"
 iceberg-catalog-rest = "0.11"
-open-arrow-access = { version = "0.21.9", default-features = false, features = [
+open-arrow-access = { git = "https://github.com/dentiny/open-arrow-access.git", rev = "5eb47479eeb1b20e35db88db5730c4113c82e799", default-features = false, features = [
     "blocking",
     "crawl",
     "layer-limit",

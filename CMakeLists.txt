@@ -65,14 +65,24 @@ endif()
 set(RUST_LIBRARY "${RUST_LIBRARY_DIR}/${RUST_PROFILE_DIR}/${RUST_LIBRARY_NAME}")
 file(GLOB_RECURSE RUST_SOURCES CONFIGURE_DEPENDS
      "${CMAKE_CURRENT_SOURCE_DIR}/rust/src/*.rs")
+# Reject a second engine before the macOS linker mixes incompatible C++ ABIs.
+set(RUST_ARCHIVE_CHECK)
+if(APPLE)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  set(RUST_ARCHIVE_CHECK
+      COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/scripts/check_rust_archive.py" --nm
+      "${CMAKE_NM}" "${RUST_LIBRARY}")
+endif()
 add_custom_command(
   OUTPUT "${RUST_LIBRARY}"
   COMMAND
     "${CMAKE_COMMAND}" -E env ${RUST_BUILD_ENV} "${CARGO_EXECUTABLE}" build
     --locked --profile "${DUCKPORT_CARGO_PROFILE}" --manifest-path
     "${CMAKE_CURRENT_SOURCE_DIR}/rust/Cargo.toml" --target-dir
-    "${RUST_TARGET_DIR}" ${RUST_TARGET_ARGS}
-  DEPENDS ${RUST_SOURCES} rust/Cargo.toml rust/Cargo.lock
+    "${RUST_TARGET_DIR}" ${RUST_TARGET_ARGS} ${RUST_ARCHIVE_CHECK}
+  DEPENDS scripts/check_rust_archive.py ${RUST_SOURCES} rust/Cargo.toml
+          rust/Cargo.lock
   WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
   COMMENT "Building open-arrow-access source bridge"
   VERBATIM)
