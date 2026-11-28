@@ -3,8 +3,7 @@
 ## Unreleased
 
 - Upgrade open-arrow-access from 0.21.9 to the published 0.22.2 release,
-  replacing the temporary Git pin. Keep bundled DuckDB disabled and reject
-  embedded engine symbols in macOS Rust archives before linking.
+  replacing the temporary Git pin while keeping bundled DuckDB disabled.
 - Include sequential/decompression and Parquet request optimizations, Gutenberg
   mirror fixes, and BHL OCR reconciliation improvements from the access update.
 
