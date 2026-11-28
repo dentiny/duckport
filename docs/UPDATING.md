@@ -75,10 +75,16 @@ captured by their handlers.
 
 ## Dependencies and verification
 
-The manifest currently selects open-arrow-access 0.21.9, open-arrow-sink 0.6.5
+The manifest currently selects open-arrow-access 0.22.2, open-arrow-sink 0.6.5
 and Arrow 58. Check both upstream release notes and the pinned Rust APIs when
 upgrading. Enable the access crate's `crawl`, `layer-limit` and
 `layer-schema-evolution` features explicitly for the scan and OAI adapters.
+Keep `default-features = false` on open-arrow-access: its default `duckdb-bundled`
+feature embeds a separate DuckDB engine that conflicts with the host C++ ABI.
+The 0.22 API adds `ByteReadRequest::prefetch_suffix` and the default
+`ReaderFactory::byte_request` hook. Use request constructors/builders rather than
+struct literals, and preserve sequential-open and metadata forwarding in byte
+wrappers so the storage optimizations survive instrumentation.
 Update Cargo.toml/Cargo.lock together and keep the C ABI in sync.
 A DuckDB upgrade also requires reviewing internal C++ headers and updating the
 DuckDB/extension-ci-tools submodule pins.

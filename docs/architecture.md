@@ -71,7 +71,7 @@ projection, batch size, concurrency and ordered emission. Provider-specific code
 only resolves selection/authentication and supplies the bound byte namespace.
 Text formats retain native partitions; a binary attachment stays one
 whole-document partition. Provider `Connection` downloads are sequential in
-open-arrow-access 0.20.1. Attachment formats requiring random access, such as
+open-arrow-access 0.22.2. Attachment formats requiring random access, such as
 ZIP/Parquet, need an OpenDAL-backed or custom ranged source; direct file readers
 already use OpenDAL.
 

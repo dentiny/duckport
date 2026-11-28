@@ -37,7 +37,7 @@ headers, JSON/JSONL decode object records, Parquet uses its schema, and XML need
 a record path. Decoded formats use the upstream attachment decoder's applicable
 outer-compression support. Prefer decoded records for large tabular attachments.
 
-In open-arrow-access 0.20.1, provider `Connection` downloads are sequential.
+In open-arrow-access 0.22.2, provider `Connection` downloads are sequential.
 Parquet attachment decoding requires a ranged byte source and is unavailable
 through those connections. Use an OpenDAL-backed direct reader such as
 `duckport_scan_parquet` for a selected Parquet object. CSV/JSON/XML and binary
@@ -121,7 +121,7 @@ is included in the crates.io 0.13.0 dependency; no temporary Git pin is required
 ## BHL AWS object partitions
 
 `duckport_scan_bhl_open_data(root, keys := [...])` reads an explicit, nonempty
-list of bucket-relative object keys using open-arrow-access 0.20.1. Each selected
+list of bucket-relative object keys using open-arrow-access 0.22.2. Each selected
 object is an independently planned input partition. The function does not list
 the corpus or invent numbered shards; freeze disjoint key lists in job manifests.
 
@@ -162,3 +162,10 @@ completed local database created with `BhlMetadata::create` (for example, via th
 open-arrow-web-crawl BHL CLI). It is opened read-only; the scanner never creates
 or imports metadata. The upstream shard accessor handles discovery and metadata
 joins, preserving original OCR bytes and list-valued metadata.
+
+In open-arrow-access 0.22.2, OCR aliases that differ only by LF/CRLF are
+deduplicated while retaining the canonical object's original bytes. Contradictory
+parent metadata and conflicting OCR bodies are audited and quarantined. Empty
+member directories are skipped when other selected directories contain healthy
+pages; a selection with no surviving pages fails. Missing required metadata
+joins remain errors.

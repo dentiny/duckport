@@ -246,7 +246,7 @@ persisted snapshots rather than harvesting independently for every bulk shard.
 
 The content schema appends `data_type` in open-arrow-access 0.15.0. Explicit-format scans still use the requested format; the generic cell fallback API does not enable automatic arXiv PDF fallback.
 
-## HTTP reads in open-arrow-access 0.20.1
+## HTTP reads in open-arrow-access 0.22.2
 
 Article PDF, source and HTML downloads use one sequential GET per representation,
 without HEAD probes or conditional Range replays. Official arxiv.org article

@@ -1,0 +1,16 @@
+{
+  "routes": [
+    {
+      "path": "/private/people.parquet",
+      "file": "../parquet/people.parquet",
+      "auth_header": "Authorization",
+      "auth_value": "Bearer fixture-key"
+    },
+    {
+      "path": "/private/records.csv.gz",
+      "file": "../zenodo/records.csv.gz",
+      "auth_header": "Authorization",
+      "auth_value": "Bearer fixture-key"
+    }
+  ]
+}
