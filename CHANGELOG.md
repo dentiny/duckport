@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Upgrade open-arrow-access from 0.21.9 to the published 0.22.2 release,
+  replacing the temporary Git pin while keeping bundled DuckDB disabled.
+- Include sequential/decompression and Parquet request optimizations, Gutenberg
+  mirror fixes, and BHL OCR reconciliation improvements from the access update.
+
 - Upgrade open-arrow-access to 0.21.7 and all open-arrow-sink crates to 0.6.5,
   including source blob annotations and Lance Binary/BinaryView input support.
 

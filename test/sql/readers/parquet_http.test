@@ -1,0 +1,75 @@
+# name: test/sql/readers/parquet_http.test
+# description: Read authenticated remote Parquet and compressed CSV files
+# group: [sql]
+
+require duckport
+
+require duckport_test_fixture
+
+require httpfs
+
+statement ok
+SET VARIABLE parquet_endpoint = duckport_fixture('parquet_http', 'start_anonymous');
+
+statement ok
+CREATE SECRET parquet_http (TYPE http, BEARER_TOKEN 'fixture-key', SCOPE getvariable('parquet_endpoint') || '/private/');
+
+query IT rowsort
+SELECT id, name FROM duckport_scan_parquet(getvariable('parquet_endpoint') || '/private/people.parquet', batch_size := 1, read_concurrency := 2);
+----
+1	Alice
+2	NULL
+3	Charlie
+
+query T
+SELECT name FROM duckport_scan_parquet(getvariable('parquet_endpoint') || '/private/people.parquet') WHERE id = 3;
+----
+Charlie
+
+statement ok
+PREPARE remote_parquet AS SELECT count(*) FROM duckport_scan_parquet(getvariable('parquet_endpoint') || '/private/people.parquet');
+
+query I
+EXECUTE remote_parquet;
+----
+3
+
+query I
+EXECUTE remote_parquet;
+----
+3
+
+# Sequential decompression must preserve the caller's explicit chunk size.
+statement ok
+SET conversion_storage_io_request_size = 5;
+
+query IT rowsort
+SELECT id, name FROM duckport_scan_csv(getvariable('parquet_endpoint') || '/private/records.csv.gz', header := true, batch_size := 1);
+----
+1	alpha
+2	beta
+
+query T
+SELECT count(*) > 0 FROM duckport_fixture_requests('parquet_http') WHERE target = '/private/records.csv.gz' AND contains(lower(headers), 'range: bytes=0-4');
+----
+true
+
+statement ok
+RESET conversion_storage_io_request_size;
+
+# Every metadata/data request must retain the scoped bearer credential.
+query T
+SELECT count(*) > 0 AND bool_and("authorization" = 'Bearer fixture-key') FROM duckport_fixture_requests('parquet_http');
+----
+true
+
+statement ok
+DEALLOCATE remote_parquet;
+
+statement ok
+DROP SECRET parquet_http;
+
+query T
+SELECT duckport_fixture('parquet_http', 'stop');
+----
+stopped
