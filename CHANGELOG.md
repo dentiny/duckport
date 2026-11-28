@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.2 - 2026-11-27
+
 - Upgrade open-arrow-access from 0.21.9 to the published 0.22.2 release,
   replacing the temporary Git pin while keeping bundled DuckDB disabled.
 - Include sequential/decompression and Parquet request optimizations, Gutenberg
